@@ -226,23 +226,9 @@
   (or (argparse/argparse ;spec :args args)
       (os/exit (if (help-requested? args) 0 1))))
 
-(defn- selected-config
-  ``Parse the arguments shared by every command that reads configuration, and
-  return the repositories it selects. Files named on the command line replace
-  the ones in the configuration directory rather than adding to them, and
-  --under narrows the result to one subtree, defaulting to the current
-  directory so that a command acts on the checkout you are standing in.``
-  [args description]
-  (def parsed
-    (parse-args args description
-                "under" {:kind :option
-                         :short "u"
-                         :value-name "PATH"
-                         :default (os/cwd)
-                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
-                :default {:kind :accumulate
-                          :help "Configuration files to read instead of the ones in the configuration directory."}))
-  (def given (or (parsed :default) @[]))
+(defn- configured-repositories
+  "Load the configured repositories and select the ones under a path."
+  [given under]
   (def directory (config-directory))
   (when (and (empty? given) (nil? directory))
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
@@ -260,7 +246,6 @@
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
-  (def under (parsed "under"))
   (def selected (select-repositories under config))
   # Say why the result is empty. Since --under defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
@@ -269,6 +254,25 @@
     (eprint "None of the " (length config) " configured repositories are beneath " under
             " or hold it"))
   selected)
+
+(defn- selected-config
+  ``Parse the arguments shared by every command that reads configuration, and
+  return the repositories it selects. Files named on the command line replace
+  the ones in the configuration directory rather than adding to them, and
+  --under narrows the result to one subtree, defaulting to the current
+  directory so that a command acts on the checkout you are standing in.``
+  [args description]
+  (def parsed
+    (parse-args args description
+                "under" {:kind :option
+                         :short "u"
+                         :value-name "PATH"
+                         :default (os/cwd)
+                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
+                :default {:kind :accumulate
+                          :help "Configuration files to read instead of the ones in the configuration directory."}))
+  (configured-repositories (or (parsed :default) @[])
+                           (parsed "under")))
 
 (defn clone-command
   ``Run `herd clone`: check out the repositories the arguments select.``
@@ -289,13 +293,108 @@
   (each entry (selected-config args "Print the configured repositories beneath a path.")
     (print (entry :path) "\t" (entry :ssh_url))))
 
+(defn- indent-command-output
+  "Prefix each captured output line so command text is distinct from herd."
+  [output]
+  (string/join
+    (map |(string "|   " $) (string/split "\n" (string/trimr output)))
+    "\n"))
+
+(defn run-in-repository
+  "Run and capture a command in a repository without changing herd's cwd."
+  [command env repository report]
+  (try
+    (with [process
+           (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                      "herd" (repository :path) ;command]
+                     :p env)]
+      (def stdout @"")
+      (def stderr @"")
+      (ev/gather
+        (:read (process :out) :all stdout)
+        (:read (process :err) :all stderr)
+        (:wait process))
+      (def status (process :return-code))
+      (if (zero? status)
+        :succeeded
+        (do
+          (def sections @[(string "✗ " (repository :path)
+                                  " (exit " status ")")])
+          (when (pos? (length stdout))
+            (array/push sections (string "| stdout\n" (indent-command-output stdout))))
+          (when (pos? (length stderr))
+            (array/push sections (string "| stderr\n" (indent-command-output stderr))))
+          (report (string/join sections "\n"))
+          :failed)))
+    ([err]
+      (report "✗ " (repository :path) "\n"
+              (indent-command-output (string err)))
+      :failed)))
+
+(defn report-command-failure
+  "Separate failure blocks while preserving their completion order."
+  [state report & xs]
+  (when (state :reported)
+    (report ""))
+  (put state :reported true)
+  (report ;xs))
+
+(defn run-on-repositories
+  "Run a command in parallel and return success and failure counts."
+  [command repositories]
+  # Parallel commands must not share a terminal for input or output. Capture
+  # output per process so one failure is printed as one coherent block.
+  (with [devnull (file/open "/dev/null" :r)]
+    (def env {:in devnull :out :pipe :err :pipe})
+    (def failure-state @{:reported false})
+    (parallel/run-repositories
+      repositories
+      [[:succeeded "succeeded"]
+       [:failed "failed"]]
+      (fn [repository report]
+        (run-in-repository command env repository
+                           |(report-command-failure failure-state report ;$&))))))
+
+(defn run-command
+  "Run herd run with the command and repository selection in args."
+  [args]
+  (def parsed
+    (parse-args args
+                (string "Run a command in each configured repository beneath a path.\n\n"
+                        " Usage: herd run [option] ... CMD [CMD-ARGS]...")
+                "under" {:kind :option
+                         :short "u"
+                         :value-name "PATH"
+                         :default (os/cwd)
+                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
+                "config" {:kind :accumulate
+                          :short "c"
+                          :value-name "FILE"
+                          :help "Read FILE instead of files in the configuration directory."}
+                :default {:kind :accumulate
+                          :short-circuit true
+                          :help "Command and arguments to run."}))
+  (def command (or (parsed :rest) @[]))
+  (when (empty? command)
+    (eprint "herd run needs a command")
+    (os/exit 1))
+  (def repositories
+    (configured-repositories (or (parsed "config") @[])
+                             (parsed "under")))
+  (def counts (run-on-repositories command repositories))
+  (print (counts :succeeded) " succeeded, " (counts :failed) " failed")
+  (when (pos? (counts :failed))
+    (os/exit 1)))
+
 (def commands
   ``Subcommands by name. Each carries the function to run, given the arguments
   from the command name onwards, and a one-line summary.``
   {"clone" {:run clone-command
             :help "Check out the configured repositories beneath a path."}
    "list" {:run list-command
-           :help "Print the configured repositories beneath a path."}})
+           :help "Print the configured repositories beneath a path."}
+   "run" {:run run-command
+          :help "Run a command in each configured repository beneath a path."}})
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
