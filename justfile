@@ -16,6 +16,10 @@ run *args: deps
 build *args: deps
     jpm --local build {{args}}
 
+# Run the test suite in test/.
+test: deps
+    jpm --local test
+
 # Remove build artifacts and the local JPM tree.
 clean:
     rm -rf build jpm_tree
