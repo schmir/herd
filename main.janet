@@ -1,4 +1,6 @@
+(import spork/argparse)
 (import spork/json)
+(import spork/path)
 (import spork/rawterm)
 
 (def worker-count
@@ -205,23 +207,191 @@
   [source]
   (json/decode source true))
 
-(defn read-config
-  "Read, parse and validate a JSON configuration file."
-  [path]
-  (validate-config (parse-config (slurp path))))
+(defn config-directory
+  ``Directory holding the JSON configuration files, or nil when neither
+  XDG_CONFIG_HOME nor HOME is set.``
+  []
+  (if-let [xdg (os/getenv "XDG_CONFIG_HOME")]
+    (path/join xdg "herd")
+    (when-let [home (os/getenv "HOME")]
+      (path/join home ".config" "herd"))))
 
-(defn main
-  [& args]
-  (def path (get args 1 "config.json"))
+(defn config-files
+  ``Configuration files in `directory`, sorted so the merge order is stable.
+  A missing directory yields none: having no configuration yet is normal.``
+  [directory]
+  (def names (if directory (try (os/dir directory) ([_] @[])) @[]))
+  (sort (seq [name :in names
+              :when (string/has-suffix? ".json" name)
+              :let [file (path/join directory name)]
+              :when (= :file (os/stat file :mode))]
+          file)))
+
+(defn config-anchor
+  ``Directory the relative paths in `config-path` are joined to. Symlinks are
+  resolved first, so a file linked into the configuration directory anchors at
+  its real location; a file that truly lives in the configuration directory
+  anchors at the home directory instead, that directory being no place for
+  checkouts.``
+  [config-path directory]
+  (def parent (path/parent (os/realpath config-path)))
+  (def configuration
+    (when directory (try (os/realpath directory) ([_] nil))))
+  (if (and configuration (= parent configuration))
+    (or (os/getenv "HOME") parent)
+    parent))
+
+(defn absolute-paths
+  ``Return the entries with every relative :path joined to `anchor`. Paths
+  coming from different files are only comparable once they are absolute.``
+  [entries anchor]
+  (with-dyns [:path-cwd anchor]
+    (seq [entry :in entries]
+      (merge entry {:path (path/abspath (entry :path))}))))
+
+(defn read-config
+  "Read, parse and validate one configuration file, resolving its paths."
+  [config-path directory]
+  (absolute-paths (validate-config (parse-config (slurp config-path)))
+                  (config-anchor config-path directory)))
+
+(defn merge-configs
+  ``Concatenate `[config-path entries]` pairs into one repository list. Two
+  files may name the same checkout only when they agree on the URL; letting
+  them disagree would make the result depend on the reading order.``
+  [loaded]
+  (def seen @{})
+  (def merged @[])
+  (each [config-path entries] loaded
+    (each entry entries
+      (def previous (get seen (entry :path)))
+      (cond
+        (nil? previous)
+        (do
+          (put seen (entry :path) {:source config-path :ssh_url (entry :ssh_url)})
+          (array/push merged entry))
+
+        (not= (previous :ssh_url) (entry :ssh_url))
+        (error (string/format "%s and %s disagree on the URL for %s"
+                              (previous :source) config-path (entry :path))))))
+  merged)
+
+(defn load-config
+  ``Read every configuration file and merge them into one repository list.
+  Errors name the file they came from, since a bad entry is otherwise hard to
+  place once several files are in play.``
+  [config-paths directory]
+  (merge-configs
+    (seq [config-path :in config-paths]
+      [config-path
+       (try
+         (read-config config-path directory)
+         ([err] (error (string config-path ": " err))))])))
+
+(defn- help-requested?
+  ``Whether `args` asks for help. argparse prints usage and returns nil for
+  both `--help` and a genuine mistake, so the two are told apart here.``
+  [args]
+  (var found false)
+  (var options true)
+  (each arg args
+    (cond
+      (= "--" arg) (set options false)
+      (not options) nil
+      (= "--help" arg) (set found true)
+      (and (string/has-prefix? "-" arg)
+           (not (string/has-prefix? "--" arg))
+           (string/find "h" arg))
+      (set found true)))
+  found)
+
+(defn- parse-args
+  ``Parse `args` against an argparse specification, exiting on a mistake.
+  Asking for help is not a mistake, so it leaves through the successful door.``
+  [args & spec]
+  (or (argparse/argparse ;spec :args args)
+      (os/exit (if (help-requested? args) 0 1))))
+
+(defn- selected-config
+  ``Parse the arguments shared by every command that reads configuration, and
+  return the merged repository list. Files named on the command line replace
+  the ones in the configuration directory rather than adding to them.``
+  [args description]
+  (def parsed
+    (parse-args args description
+                :default {:kind :accumulate
+                          :help "Configuration files to read instead of the ones in the configuration directory."}))
+  (def given (or (parsed :default) @[]))
+  (def directory (config-directory))
+  (when (and (empty? given) (nil? directory))
+    (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
+            "configuration directory to read")
+    (os/exit 1))
+  (def config-paths (if (empty? given) (config-files directory) given))
+  # Nothing configured yet is a normal state, not a failure: exiting non-zero
+  # would make `just run` print a traceback over an unremarkable message.
+  (when (empty? config-paths)
+    (eprint "No configuration files in " directory)
+    (os/exit 0))
+  (try
+    (load-config config-paths directory)
+    ([err]
+      (eprint "Configuration error: " err)
+      (os/exit 1))))
+
+(defn clone-command
+  ``Run `herd clone`: check out every repository the configuration names.``
+  [args]
   (def config
-    (try
-      (read-config path)
-      ([err]
-        (eprint "Configuration error in " path ": " err)
-        (os/exit 1))))
+    (selected-config args "Check out every repository named by the configuration."))
   (def counts (checkout-all config))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
   (when (pos? (counts :failed))
     (os/exit 1)))
+
+(defn list-command
+  ``Run `herd list`: print the merged repository list, one tab-separated path
+  and URL per line, in the order the commands act on them.``
+  [args]
+  (each entry (selected-config args "Print the repositories named by the configuration.")
+    (print (entry :path) "\t" (entry :ssh_url))))
+
+(def commands
+  ``Subcommands by name. Each carries the function to run, given the arguments
+  from the command name onwards, and a one-line summary.``
+  {"clone" {:run clone-command
+            :help "Check out every repository named by the configuration."}
+   "list" {:run list-command
+           :help "Print the merged repository list."}})
+
+(defn- command-list
+  ``Render the commands for the top-level help. argparse documents named
+  options only, never positionals, so the command list has to be carried in
+  the description it prints.``
+  []
+  (string/join
+    (seq [name :in (sort (keys commands))]
+      (string/format "  %-10s%s" name (get-in commands [name :help])))
+    "\n"))
+
+(defn main
+  [& args]
+  (def parsed
+    (parse-args args
+                (string "manage multiple git/jj repositories\n\n Commands:\n"
+                        (command-list))
+                :default {:kind :accumulate
+                          :short-circuit true
+                          :help "Command to run."}))
+  # :rest starts at the command name, which the subcommand parser then reads as
+  # its own program name, so `herd clone --help` describes clone.
+  (def rest (or (parsed :rest) @[]))
+  (if-let [command (get commands (first rest))]
+    ((command :run) rest)
+    (do
+      (if (empty? rest)
+        (eprint "usage: herd " (string/join (sort (keys commands)) "|") " [option] ...")
+        (eprint "Unknown command \"" (first rest) "\""))
+      (os/exit 1))))
