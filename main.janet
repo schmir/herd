@@ -288,6 +288,34 @@
          (read-config config-path directory)
          ([err] (error (string config-path ": " err))))])))
 
+(defn- bare-path
+  ``Drop trailing slashes, which normalisation keeps but comparison must not.``
+  [path]
+  (def trimmed (string/trimr path "/"))
+  (if (empty? trimmed) "/" trimmed))
+
+(defn- holds-path?
+  ``Whether `ancestor` is `descendant` or holds it somewhere below. Compares
+  whole segments, so /srv/foobar is not held by /srv/foo.``
+  [ancestor descendant]
+  (or (= ancestor descendant)
+      (string/has-prefix? (if (= "/" ancestor) ancestor (string ancestor "/"))
+                          descendant)))
+
+(defn select-repositories
+  ``Repositories that `path` selects: the ones checked out beneath it, and the
+  one it is checked out inside. Naming a directory therefore selects
+  everything below it, and standing anywhere within a working copy selects
+  that repository, however deep. A relative path is taken from the current
+  directory, matching how a shell would read it.``
+  [path repositories]
+  (def root (bare-path (path/abspath path)))
+  (filter (fn [repository]
+            (def candidate (bare-path (repository :path)))
+            (or (holds-path? root candidate)
+                (holds-path? candidate root)))
+          repositories))
+
 (defn- help-requested?
   ``Whether `args` asks for help. argparse prints usage and returns nil for
   both `--help` and a genuine mistake, so the two are told apart here.``
@@ -314,11 +342,18 @@
 
 (defn- selected-config
   ``Parse the arguments shared by every command that reads configuration, and
-  return the merged repository list. Files named on the command line replace
-  the ones in the configuration directory rather than adding to them.``
+  return the repositories it selects. Files named on the command line replace
+  the ones in the configuration directory rather than adding to them, and
+  --under narrows the result to one subtree, defaulting to the current
+  directory so that a command acts on the checkout you are standing in.``
   [args description]
   (def parsed
     (parse-args args description
+                "under" {:kind :option
+                         :short "u"
+                         :value-name "PATH"
+                         :default (os/cwd)
+                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
                 :default {:kind :accumulate
                           :help "Configuration files to read instead of the ones in the configuration directory."}))
   (def given (or (parsed :default) @[]))
@@ -333,17 +368,27 @@
   (when (empty? config-paths)
     (eprint "No configuration files in " directory)
     (os/exit 0))
-  (try
-    (load-config config-paths directory)
-    ([err]
-      (eprint "Configuration error: " err)
-      (os/exit 1))))
+  (def config
+    (try
+      (load-config config-paths directory)
+      ([err]
+        (eprint "Configuration error: " err)
+        (os/exit 1))))
+  (def under (parsed "under"))
+  (def selected (select-repositories under config))
+  # Say why the result is empty. Since --under defaults to the current
+  # directory, standing in the wrong place otherwise looks like a broken
+  # configuration.
+  (when (and (empty? selected) (not (empty? config)))
+    (eprint "None of the " (length config) " configured repositories are beneath " under
+            " or hold it"))
+  selected)
 
 (defn clone-command
-  ``Run `herd clone`: check out every repository the configuration names.``
+  ``Run `herd clone`: check out the repositories the arguments select.``
   [args]
   (def config
-    (selected-config args "Check out every repository named by the configuration."))
+    (selected-config args "Check out the configured repositories beneath a path."))
   (def counts (checkout-all config))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
@@ -352,19 +397,19 @@
     (os/exit 1)))
 
 (defn list-command
-  ``Run `herd list`: print the merged repository list, one tab-separated path
+  ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them.``
   [args]
-  (each entry (selected-config args "Print the repositories named by the configuration.")
+  (each entry (selected-config args "Print the configured repositories beneath a path.")
     (print (entry :path) "\t" (entry :ssh_url))))
 
 (def commands
   ``Subcommands by name. Each carries the function to run, given the arguments
   from the command name onwards, and a one-line summary.``
   {"clone" {:run clone-command
-            :help "Check out every repository named by the configuration."}
+            :help "Check out the configured repositories beneath a path."}
    "list" {:run list-command
-           :help "Print the merged repository list."}})
+           :help "Print the configured repositories beneath a path."}})
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
