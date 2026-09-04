@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "janet-lsp-nix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779873787,
+        "narHash": "sha256-GPN+JxRHVyL3QwWDj/GU9nOCuoB4ywuBonebF7X/R54=",
+        "owner": "Blue-Berry",
+        "repo": "janet-lsp.nix",
+        "rev": "98385eeacff35b02bd4458cae01be5370bdcc3c2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Blue-Berry",
+        "repo": "janet-lsp.nix",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1788316716,
+        "narHash": "sha256-bc7rSpXIdn9QWGNqfWcPZWOhEVF8NoeAZkWq0XWnf/k=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "janet-lsp-nix": "janet-lsp-nix",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
