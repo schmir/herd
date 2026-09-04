@@ -13,8 +13,8 @@ run *args: deps
     jpm --local janet main.janet {{args}}
 
 # Build the standalone executable in build/.
-build: deps
-    jpm --local build
+build *args: deps
+    jpm --local build {{args}}
 
 # Remove build artifacts and the local JPM tree.
 clean:
