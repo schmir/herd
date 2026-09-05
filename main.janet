@@ -382,10 +382,6 @@
                          :value-name "PATH"
                          :default (os/cwd)
                          :help "Only act on repositories beneath PATH, or the one PATH is inside."}
-                "config" {:kind :accumulate
-                          :short "c"
-                          :value-name "FILE"
-                          :help "Read FILE instead of files in the configuration directory."}
                 "show-output" {:kind :flag
                                :help "Show output from successful commands."}
                 :default {:kind :accumulate
@@ -396,8 +392,7 @@
     (eprint "herd run needs a command")
     (os/exit 1))
   (def repositories
-    (configured-repositories (or (parsed "config") @[])
-                             (parsed "under")))
+    (configured-repositories @[] (parsed "under")))
   (def counts (run-in-repositories command repositories
                                    (parsed "show-output")))
   (print (counts :succeeded) " succeeded, "

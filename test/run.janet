@@ -125,22 +125,27 @@
 (let [dir (fixture)
       first (string dir "/first")
       second (string dir "/second")
-      config (string dir "/repositories.json")
+      config (string dir "/.config/herd/repositories.json")
+      home (os/getenv "HOME")
+      xdg (os/getenv "XDG_CONFIG_HOME")
       root (os/realpath dir)]
   (sh/create-dirs first)
   (sh/create-dirs second)
+  (sh/create-dirs-to config)
   (spit (string first "/present") "")
   (spit (string second "/present") "")
+  (os/setenv "HOME" root)
+  (os/setenv "XDG_CONFIG_HOME" nil)
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
   (def loaded (herd/read-config config (herd/config-directory)))
   (assert (deep= (map |($ :path) loaded)
                  @[(string root "/first") (string root "/second")])
-          "explicit configuration resolves under its real parent")
+          "default configuration resolves under home")
   (assert (= 2 (length (herd/select-repositories root loaded)))
           "the fixture root selects both repositories")
-  (herd/run-command ["run" "--under" root "--config" config
+  (herd/run-command ["run" "--under" root
                      "sh" "-c" `touch -- "$1"` "herd" "-command-argument"])
   (assert (= :file (os/stat (string first "/-command-argument") :mode))
           "run accepts command options without a separator")
@@ -152,7 +157,7 @@
           {"path":"missing","ssh_url":"unused"}]`)
   (with [process
          (os/spawn [(path/join (os/cwd) "build/herd")
-                    "run" "--under" root "--config" config
+                    "run" "--under" root
                     "--show-output" "printf" "shown"]
                    :p {:out :pipe :err :pipe})]
     (def output @"")
@@ -168,6 +173,8 @@
             "show-output reports successful command output")
     (assert (string/find "2 succeeded, 0 failed, 1 not checked out" output)
             "run reports repositories that are not checked out"))
+  (os/setenv "HOME" home)
+  (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm dir))
 
 (end-suite)
