@@ -86,6 +86,15 @@
                  ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
                  env repo |(array/push messages (string ;$&)))))
     (assert (empty? messages) "successful command output stays hidden")
+    (assert (= :succeeded
+               (herd/run-in-repository
+                 ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
+                 env repo |(array/push messages (string ;$&)) true)))
+    (assert (= 1 (length messages)) "requested successful output is one block")
+    (assert (string/find (string "✓ " dir) (messages 0)))
+    (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
+    (assert (string/find "| stderr\n|   note" (messages 0)))
+    (array/clear messages)
     (assert (= :failed
                (herd/run-in-repository
                  ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
@@ -99,10 +108,10 @@
 (let [messages @[]
       state @{:reported false}
       report |(array/push messages (string ;$&))]
-  (herd/report-command-failure state report "first failure")
-  (herd/report-command-failure state report "second failure")
-  (assert (deep= messages @["first failure" "" "second failure"])
-          "failure blocks have one empty line between them"))
+  (herd/report-command-result state report "first result")
+  (herd/report-command-result state report "second result")
+  (assert (deep= messages @["first result" "" "second result"])
+          "result blocks have one empty line between them"))
 
 (let [dir (fixture)
       first (string dir "/first")
@@ -126,6 +135,22 @@
           "run accepts command options without a separator")
   (assert (= :file (os/stat (string second "/-command-argument") :mode))
           "run selects every repository under the requested path")
+  (with [process
+         (os/spawn [(path/join (os/cwd) "build/herd")
+                    "run" "--under" root "--config" config
+                    "--show-output" "printf" "shown"]
+                   :p {:out :pipe :err :pipe})]
+    (def output @"")
+    (def errors @"")
+    (ev/gather
+      (:read (process :out) :all output)
+      (:read (process :err) :all errors)
+      (:wait process))
+    (assert (= 0 (process :return-code)) "show-output run succeeds")
+    (assert (string/find (string "✓ " root "/first") errors)
+            "show-output reports a successful repository")
+    (assert (string/find "| stdout\n|   shown" errors)
+            "show-output reports successful command output"))
   (sh/rm dir))
 
 (end-suite)

@@ -301,9 +301,23 @@
     (map |(string "|   " $) (string/split "\n" (string/trimr output)))
     "\n"))
 
+(defn- format-command-result
+  "Format one command result as a coherent output block."
+  [repository status stdout stderr]
+  (def heading
+    (if (zero? status)
+      (string "✓ " (repository :path))
+      (string "✗ " (repository :path) " (exit " status ")")))
+  (def sections @[heading])
+  (when (pos? (length stdout))
+    (array/push sections (string "| stdout\n" (indent-command-output stdout))))
+  (when (pos? (length stderr))
+    (array/push sections (string "| stderr\n" (indent-command-output stderr))))
+  (string/join sections "\n"))
+
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
-  [command env repository report]
+  [command env repository report &opt show-output]
   (try
     (with [process
            (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
@@ -316,24 +330,20 @@
         (:read (process :err) :all stderr)
         (:wait process))
       (def status (process :return-code))
-      (if (zero? status)
-        :succeeded
-        (do
-          (def sections @[(string "✗ " (repository :path)
-                                  " (exit " status ")")])
-          (when (pos? (length stdout))
-            (array/push sections (string "| stdout\n" (indent-command-output stdout))))
-          (when (pos? (length stderr))
-            (array/push sections (string "| stderr\n" (indent-command-output stderr))))
-          (report (string/join sections "\n"))
-          :failed)))
+      (def succeeded (zero? status))
+      (when (or (not succeeded)
+                (and show-output
+                     (or (pos? (length stdout))
+                         (pos? (length stderr)))))
+        (report (format-command-result repository status stdout stderr)))
+      (if succeeded :succeeded :failed))
     ([err]
       (report "✗ " (repository :path) "\n"
               (indent-command-output (string err)))
       :failed)))
 
-(defn report-command-failure
-  "Separate failure blocks while preserving their completion order."
+(defn report-command-result
+  "Separate result blocks while preserving their completion order."
   [state report & xs]
   (when (state :reported)
     (report ""))
@@ -342,19 +352,20 @@
 
 (defn run-in-repositories
   "Run a command in parallel and return success and failure counts."
-  [command repositories]
+  [command repositories &opt show-output]
   # Parallel commands must not share a terminal for input or output. Capture
-  # output per process so one failure is printed as one coherent block.
+  # output per process so each visible result is one coherent block.
   (with [devnull (file/open "/dev/null" :r)]
     (def env {:in devnull :out :pipe :err :pipe})
-    (def failure-state @{:reported false})
+    (def report-state @{:reported false})
     (parallel/run-repositories
       repositories
       [[:succeeded "succeeded"]
        [:failed "failed"]]
       (fn [repository report]
         (run-in-repository command env repository
-                           |(report-command-failure failure-state report ;$&))))))
+                           |(report-command-result report-state report ;$&)
+                           show-output)))))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
@@ -372,6 +383,8 @@
                           :short "c"
                           :value-name "FILE"
                           :help "Read FILE instead of files in the configuration directory."}
+                "show-output" {:kind :flag
+                               :help "Show output from successful commands."}
                 :default {:kind :accumulate
                           :short-circuit true
                           :help "Command and arguments to run."}))
@@ -382,7 +395,8 @@
   (def repositories
     (configured-repositories (or (parsed "config") @[])
                              (parsed "under")))
-  (def counts (run-in-repositories command repositories))
+  (def counts (run-in-repositories command repositories
+                                   (parsed "show-output")))
   (print (counts :succeeded) " succeeded, " (counts :failed) " failed")
   (when (pos? (counts :failed))
     (os/exit 1)))
