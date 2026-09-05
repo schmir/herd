@@ -114,18 +114,34 @@
           file)))
 
 (defn config-anchor
-  ``Directory the relative paths in `config-path` are joined to. Symlinks are
-  resolved first, so a file linked into the configuration directory anchors at
-  its real location; a file that truly lives in the configuration directory
-  anchors at the home directory instead, that directory being no place for
-  checkouts.``
+  ``Directory the relative paths in config-path are joined to. A .root symlink
+  beside a file in the configuration directory overrides the usual anchor.``
   [config-path directory]
   (def parent (path/parent (os/realpath config-path)))
   (def configuration
     (when directory (try (os/realpath directory) ([_] nil))))
-  (if (and configuration (= parent configuration))
+  (def visible-parent (os/realpath (path/parent config-path)))
+  (def in-configuration (and configuration (= visible-parent configuration)))
+  (def root-path (string config-path ".root"))
+  (def root-mode (when in-configuration (os/lstat root-path :mode)))
+  (cond
+    root-mode
+    (do
+      (unless (= :link root-mode)
+        (error (string root-path " must be a symlink to a directory")))
+      (def root
+        (try
+          (os/realpath root-path)
+          ([err]
+            (error (string "cannot resolve " root-path ": " err)))))
+      (unless (= :directory (os/stat root :mode))
+        (error (string root-path " must point to a directory")))
+      root)
+
+    (and configuration (= parent configuration))
     (or (os/getenv "HOME") parent)
-    parent))
+
+    true parent))
 
 (defn resolve-repository-paths
   ``Return the entries with every relative :path joined to `anchor`. Paths

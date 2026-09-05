@@ -32,6 +32,13 @@
                   ",\n")
                 "]")))
 
+(defn- config-error
+  "Return the error from config anchor resolution, or nil if it succeeds."
+  [config-path directory]
+  (try
+    (do (herd/config-anchor config-path directory) nil)
+    ([err] (string err))))
+
 # --- validate-config ------------------------------------------------------
 
 (assert-error "a bare object is not a configuration"
@@ -78,9 +85,11 @@
   (spit (string dir "/a.json") "[]")
   (spit (string dir "/notes.txt") "ignored")
   (sh/create-dirs (string dir "/directory.json"))
+  (sh/create-dirs (string dir "/root"))
+  (os/link (string dir "/root") (string dir "/a.json.root") true)
   (assert (deep= (herd/config-files dir)
                  @[(string dir "/a.json") (string dir "/b.json")])
-          "only .json files, sorted, and never a directory")
+          "only .json files, sorted, and never a directory or root companion")
   (sh/rm dir))
 
 # --- config-anchor --------------------------------------------------------
@@ -88,9 +97,13 @@
 (let [dir (fixture)
       configuration (string dir "/config/herd")
       elsewhere (string dir "/elsewhere")
+      root (string dir "/root")
+      linked-root (string dir "/linked-root")
       home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (sh/create-dirs elsewhere)
+  (sh/create-dirs root)
+  (sh/create-dirs linked-root)
   (spit (string configuration "/real.json") "[]")
   (spit (string elsewhere "/linked.json") "[]")
   (os/link (string elsewhere "/linked.json") (string configuration "/link.json") true)
@@ -102,13 +115,67 @@
   (assert (= (os/realpath elsewhere)
              (herd/config-anchor (string configuration "/link.json") configuration))
           "a symlink anchors where the file really is")
+  (os/link root (string elsewhere "/linked.json.root") true)
   (assert (= (os/realpath elsewhere)
              (herd/config-anchor (string elsewhere "/linked.json") configuration))
-          "a file outside anchors at its own directory")
+          "a root companion outside the configuration directory is ignored")
+  (assert (= (os/realpath elsewhere)
+             (herd/config-anchor (string configuration "/link.json") configuration))
+          "a companion beside the real file is ignored for a linked entry")
   (assert (= (os/realpath elsewhere)
              (herd/config-anchor (string elsewhere "/linked.json") nil))
           "no configuration directory still anchors at the parent")
+
+  (os/link root (string configuration "/real.json.root") true)
+  (assert (= (os/realpath root)
+             (herd/config-anchor (string configuration "/real.json") configuration))
+          "a root companion overrides the home anchor")
+  (os/link linked-root (string configuration "/link.json.root") true)
+  (assert (= (os/realpath linked-root)
+             (herd/config-anchor (string configuration "/link.json") configuration))
+          "a linked entry uses the companion beside its visible path")
   (os/setenv "HOME" home)
+  (sh/rm dir))
+
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
+      root (string dir "/root")
+      config (string configuration "/repos.json")]
+  (sh/create-dirs configuration)
+  (sh/create-dirs root)
+  (write-config config
+                [{:path "relative" :ssh_url "relative-url"}
+                 {:path "/absolute" :ssh_url "absolute-url"}])
+  (os/link root (string config ".root") true)
+  (let [loaded (herd/read-config config configuration)]
+    (assert (= (string (os/realpath root) "/relative")
+               ((loaded 0) :path))
+            "relative paths use the root companion")
+    (assert (= "/absolute" ((loaded 1) :path))
+            "absolute paths ignore the root companion"))
+  (sh/rm dir))
+
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
+      target (string dir "/target")
+      regular (string configuration "/regular.json")
+      broken (string configuration "/broken.json")
+      not-directory (string configuration "/not-directory.json")]
+  (sh/create-dirs configuration)
+  (spit target "not a directory")
+  (each config-path [regular broken not-directory]
+    (spit config-path "[]"))
+  (spit (string regular ".root") "not a symlink")
+  (os/link (string dir "/missing") (string broken ".root") true)
+  (os/link target (string not-directory ".root") true)
+
+  (each [config-path description]
+        [[regular "a regular root companion is rejected"]
+         [broken "a broken root companion is rejected"]
+         [not-directory "a root companion to a file is rejected"]]
+    (def message (config-error config-path configuration))
+    (assert (and message (string/find (string config-path ".root") message))
+            description))
   (sh/rm dir))
 
 # --- read-config and load-config ------------------------------------------
