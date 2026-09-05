@@ -319,24 +319,26 @@
   "Run and capture a command in a repository without changing herd's cwd."
   [command env repository report &opt show-output]
   (try
-    (with [process
-           (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                      "herd" (repository :path) ;command]
-                     :p env)]
-      (def stdout @"")
-      (def stderr @"")
-      (ev/gather
-        (:read (process :out) :all stdout)
-        (:read (process :err) :all stderr)
-        (:wait process))
-      (def status (process :return-code))
-      (def succeeded (zero? status))
-      (when (or (not succeeded)
-                (and show-output
-                     (or (pos? (length stdout))
-                         (pos? (length stderr)))))
-        (report (format-command-result repository status stdout stderr)))
-      (if succeeded :succeeded :failed))
+    (if (checked-out? (repository :path))
+      (with [process
+             (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                        "herd" (repository :path) ;command]
+                       :p env)]
+        (def stdout @"")
+        (def stderr @"")
+        (ev/gather
+          (:read (process :out) :all stdout)
+          (:read (process :err) :all stderr)
+          (:wait process))
+        (def status (process :return-code))
+        (def succeeded (zero? status))
+        (when (or (not succeeded)
+                  (and show-output
+                       (or (pos? (length stdout))
+                           (pos? (length stderr)))))
+          (report (format-command-result repository status stdout stderr)))
+        (if succeeded :succeeded :failed))
+      :not-checked-out)
     ([err]
       (report "✗ " (repository :path) "\n"
               (indent-command-output (string err)))
@@ -351,7 +353,7 @@
   (report ;xs))
 
 (defn run-in-repositories
-  "Run a command in parallel and return success and failure counts."
+  "Run a command in parallel and return its outcome counts."
   [command repositories &opt show-output]
   # Parallel commands must not share a terminal for input or output. Capture
   # output per process so each visible result is one coherent block.
@@ -361,7 +363,8 @@
     (parallel/run-repositories
       repositories
       [[:succeeded "succeeded"]
-       [:failed "failed"]]
+       [:failed "failed"]
+       [:not-checked-out "not checked out"]]
       (fn [repository report]
         (run-in-repository command env repository
                            |(report-command-result report-state report ;$&)
@@ -397,7 +400,9 @@
                              (parsed "under")))
   (def counts (run-in-repositories command repositories
                                    (parsed "show-output")))
-  (print (counts :succeeded) " succeeded, " (counts :failed) " failed")
+  (print (counts :succeeded) " succeeded, "
+         (counts :failed) " failed, "
+         (counts :not-checked-out) " not checked out")
   (when (pos? (counts :failed))
     (os/exit 1)))
 

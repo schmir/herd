@@ -29,12 +29,15 @@
       previous (os/cwd)]
   (sh/create-dirs first)
   (sh/create-dirs second)
+  (spit (string first "/present") "")
+  (spit (string second "/present") "")
   (def counts (herd/run-in-repositories ["touch" "command ran"]
                                         [(repository first)
                                          (repository second)]))
   (assert (= 2 (counts :succeeded))
           "successful commands report no failures")
   (assert (= 0 (counts :failed)))
+  (assert (= 0 (counts :not-checked-out)))
   (assert (= :file (os/stat (string first "/command ran") :mode))
           "the command runs in the first repository")
   (assert (= :file (os/stat (string second "/command ran") :mode))
@@ -48,12 +51,15 @@
       last (string dir "/last")]
   (sh/create-dirs first)
   (sh/create-dirs last)
+  (spit (string first "/present") "")
+  (spit (string last "/present") "")
   (def counts (herd/run-in-repositories ["touch" "ran"]
                                         [(repository first)
                                          (repository missing)
                                          (repository last)]))
-  (assert (= 1 (counts :failed))
-          "an unavailable repository counts as one failure")
+  (assert (= 0 (counts :failed)))
+  (assert (= 1 (counts :not-checked-out))
+          "an unavailable repository is not checked out")
   (assert (= 2 (counts :succeeded)))
   (assert (= :file (os/stat (string first "/ran") :mode)))
   (assert (= :file (os/stat (string last "/ran") :mode))
@@ -65,6 +71,8 @@
       second (string dir "/second")]
   (sh/create-dirs first)
   (sh/create-dirs second)
+  (spit (string first "/present") "")
+  (spit (string second "/present") "")
   (def counts
     (herd/run-in-repositories
       ["sh" "-c" "touch ran-before-failure; exit 7"]
@@ -79,6 +87,7 @@
 (let [dir (fixture)
       repo (repository dir)
       messages @[]]
+  (spit (string dir "/present") "")
   (with [devnull (file/open "/dev/null" :r)]
     (def env {:in devnull :out :pipe :err :pipe})
     (assert (= :succeeded
@@ -120,6 +129,8 @@
       root (os/realpath dir)]
   (sh/create-dirs first)
   (sh/create-dirs second)
+  (spit (string first "/present") "")
+  (spit (string second "/present") "")
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
@@ -135,6 +146,10 @@
           "run accepts command options without a separator")
   (assert (= :file (os/stat (string second "/-command-argument") :mode))
           "run selects every repository under the requested path")
+  (spit config
+        `[{"path":"first","ssh_url":"unused"},
+          {"path":"second","ssh_url":"unused"},
+          {"path":"missing","ssh_url":"unused"}]`)
   (with [process
          (os/spawn [(path/join (os/cwd) "build/herd")
                     "run" "--under" root "--config" config
@@ -150,7 +165,9 @@
     (assert (string/find (string "✓ " root "/first") errors)
             "show-output reports a successful repository")
     (assert (string/find "| stdout\n|   shown" errors)
-            "show-output reports successful command output"))
+            "show-output reports successful command output")
+    (assert (string/find "2 succeeded, 0 failed, 1 not checked out" output)
+            "run reports repositories that are not checked out"))
   (sh/rm dir))
 
 (end-suite)
