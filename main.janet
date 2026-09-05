@@ -22,7 +22,7 @@
   (and (= :directory (os/stat path :mode))
        (not (empty? (os/dir path)))))
 
-(defn checkout
+(defn clone-repository
   ``Clone a Git repository unless it is already checked out.
   Returns :skipped, :cloned or :failed.``
   [jj env report path url]
@@ -39,18 +39,18 @@
           (:wait process))
         (if (zero? (process :return-code))
             (do
-              (report "Checkout complete: " path)
+              (report "Clone complete: " path)
               :cloned)
             (do
-              (report "Checkout failed: " path)
+              (report "Clone failed: " path)
               (when (> (length stderr) 0) (report stderr))
               (when (> (length stdout) 0) (report stdout))
               :failed)))
       ([err]
-        (report "Checkout failed: " path ": " err)
+        (report "Clone failed: " path ": " err)
         :failed))))
 
-(defn checkout-all
+(defn clone-repositories
   ``Clone repositories, keeping at most `worker-count` Git processes active.
   Returns a struct of :cloned, :skipped and :failed counts.``
   [repositories]
@@ -70,9 +70,9 @@
          [:skipped "already checked out"]
          [:failed "failed"]]
         (fn [repository report]
-          (checkout jj env report
-                    (repository :path)
-                    (repository :ssh_url)))))))
+          (clone-repository jj env report
+                            (repository :path)
+                            (repository :ssh_url)))))))
 
 (defn validate-config
   "Return config unchanged, or raise a descriptive error describing its shape."
@@ -127,7 +127,7 @@
     (or (os/getenv "HOME") parent)
     parent))
 
-(defn absolute-paths
+(defn resolve-repository-paths
   ``Return the entries with every relative :path joined to `anchor`. Paths
   coming from different files are only comparable once they are absolute.``
   [entries anchor]
@@ -138,8 +138,9 @@
 (defn read-config
   "Read, parse and validate one configuration file, resolving its paths."
   [config-path directory]
-  (absolute-paths (validate-config (parse-config (slurp config-path)))
-                  (config-anchor config-path directory)))
+  (resolve-repository-paths
+    (validate-config (parse-config (slurp config-path)))
+    (config-anchor config-path directory)))
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
@@ -255,7 +256,7 @@
             " or hold it"))
   selected)
 
-(defn- selected-config
+(defn- selected-repositories
   ``Parse the arguments shared by every command that reads configuration, and
   return the repositories it selects. Files named on the command line replace
   the ones in the configuration directory rather than adding to them, and
@@ -277,9 +278,9 @@
 (defn clone-command
   ``Run `herd clone`: check out the repositories the arguments select.``
   [args]
-  (def config
-    (selected-config args "Check out the configured repositories beneath a path."))
-  (def counts (checkout-all config))
+  (def repositories
+    (selected-repositories args "Check out the configured repositories beneath a path."))
+  (def counts (clone-repositories repositories))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
@@ -290,7 +291,7 @@
   ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them.``
   [args]
-  (each entry (selected-config args "Print the configured repositories beneath a path.")
+  (each entry (selected-repositories args "Print the configured repositories beneath a path.")
     (print (entry :path) "\t" (entry :ssh_url))))
 
 (defn- indent-command-output
@@ -339,7 +340,7 @@
   (put state :reported true)
   (report ;xs))
 
-(defn run-on-repositories
+(defn run-in-repositories
   "Run a command in parallel and return success and failure counts."
   [command repositories]
   # Parallel commands must not share a terminal for input or output. Capture
@@ -381,7 +382,7 @@
   (def repositories
     (configured-repositories (or (parsed "config") @[])
                              (parsed "under")))
-  (def counts (run-on-repositories command repositories))
+  (def counts (run-in-repositories command repositories))
   (print (counts :succeeded) " succeeded, " (counts :failed) " failed")
   (when (pos? (counts :failed))
     (os/exit 1)))

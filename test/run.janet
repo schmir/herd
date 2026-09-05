@@ -29,7 +29,7 @@
       previous (os/cwd)]
   (sh/create-dirs first)
   (sh/create-dirs second)
-  (def counts (herd/run-on-repositories ["touch" "command ran"]
+  (def counts (herd/run-in-repositories ["touch" "command ran"]
                                         [(repository first)
                                          (repository second)]))
   (assert (= 2 (counts :succeeded))
@@ -48,7 +48,7 @@
       last (string dir "/last")]
   (sh/create-dirs first)
   (sh/create-dirs last)
-  (def counts (herd/run-on-repositories ["touch" "ran"]
+  (def counts (herd/run-in-repositories ["touch" "ran"]
                                         [(repository first)
                                          (repository missing)
                                          (repository last)]))
@@ -66,7 +66,7 @@
   (sh/create-dirs first)
   (sh/create-dirs second)
   (def counts
-    (herd/run-on-repositories
+    (herd/run-in-repositories
       ["sh" "-c" "touch ran-before-failure; exit 7"]
       [(repository first) (repository second)]))
   (assert (= 2 (counts :failed))

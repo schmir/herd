@@ -44,11 +44,12 @@
                  (herd/validate-config [{:path "a" :ssh_url "b"}]))
 (assert-no-error "an empty configuration is valid" (herd/validate-config []))
 
-# --- absolute-paths -------------------------------------------------------
+# --- resolve-repository-paths ---------------------------------------------
 
-(let [entries (herd/absolute-paths [{:path "rel" :ssh_url "u"}
-                                    {:path "/already/absolute" :ssh_url "u"}]
-                                   "/anchor")]
+(let [entries (herd/resolve-repository-paths
+                [{:path "rel" :ssh_url "u"}
+                 {:path "/already/absolute" :ssh_url "u"}]
+                "/anchor")]
   (assert (= "/anchor/rel" ((entries 0) :path)) "a relative path joins the anchor")
   (assert (= "/already/absolute" ((entries 1) :path)) "an absolute path is left alone")
   (assert (= "u" ((entries 0) :ssh_url)) "the rest of the entry survives"))
