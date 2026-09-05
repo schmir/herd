@@ -1,5 +1,6 @@
 # Tests for reading, validating and merging configuration files.
 (use spork/test)
+(import spork/path)
 (import spork/sh)
 (import ../main :as herd)
 
@@ -12,8 +13,8 @@
   process so parallel runs cannot collide.``
   []
   (++ fixture-count)
-  (def dir (string (os/getenv "TMPDIR" "/tmp")
-                   "/herd-test-" (os/getpid) "-" fixture-count))
+  (def dir (path/join (os/getenv "TMPDIR" "/tmp")
+                      (string "herd-test-" (os/getpid) "-" fixture-count)))
   (sh/rm dir)
   (sh/create-dirs dir)
   dir)

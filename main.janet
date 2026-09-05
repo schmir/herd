@@ -1,15 +1,7 @@
 (import spork/argparse)
 (import spork/json)
 (import spork/path)
-(import spork/rawterm)
-
-(def worker-count
-  "Number of Git processes allowed to run at the same time."
-  6)
-
-(def spinner-frames
-  "Frames cycled through beside each in-flight clone."
-  ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"])
+(import ./parallel)
 
 (defn find-executable
   "Find an executable file by searching the process PATH."
@@ -24,96 +16,6 @@
               candidate)))
         (string/split ":" (os/getenv "PATH" ""))))
 
-(defn terminal-width
-  "Usable terminal columns, falling back to 80 when the size is unknown."
-  []
-  (def [_ columns] (try (rawterm/size) ([_] [0 0])))
-  (if (< 20 columns 1000) columns 80))
-
-(defn make-progress
-  ``State backing the live display. It only draws when stderr is a terminal,
-  so redirected output stays plain.``
-  [total]
-  @{:total total
-    :active @{}
-    :cloned 0
-    :skipped 0
-    :failed 0
-    :frame 0
-    :drawn 0
-    :running true
-    :live (os/isatty stderr)})
-
-(defn- erase
-  "Remove the drawn block, leaving the cursor where it began."
-  [progress]
-  (when (pos? (progress :drawn))
-    (eprinf "\e[%dA\e[J" (progress :drawn))
-    (put progress :drawn 0)))
-
-(defn- fit-path
-  ``Trim path to `width` columns. Repository paths share long leading
-  segments, so drop those first and keep the distinguishing tail.``
-  [path width]
-  (def segments (string/split "/" path))
-  (var text path)
-  (var index 0)
-  (while (and (> (rawterm/monowidth text) width)
-              (< (inc index) (length segments)))
-    (++ index)
-    (set text (string "…/" (string/join (slice segments index) "/"))))
-  (if (> (rawterm/monowidth text) width)
-    (string (rawterm/slice-monowidth text width))
-    text))
-
-(defn- draw
-  "Repaint the block: one line per busy worker, then a tally."
-  [progress]
-  (when (progress :live)
-    (erase progress)
-    # Truncate to one column short of the edge so no line wraps; a wrapped
-    # line would make the cursor-up count in `erase` wrong.
-    (def width (dec (terminal-width)))
-    (def frame (spinner-frames (% (progress :frame) (length spinner-frames))))
-    (def lines @[])
-    (for slot 0 worker-count
-      (when-let [path (get (progress :active) slot)]
-        (array/push lines (string frame " " (fit-path path (- width 2))))))
-    (array/push lines
-                (string (rawterm/slice-monowidth
-                          (string/format "%d/%d  %d cloned  %d already checked out  %d failed"
-                                         (+ (progress :cloned) (progress :skipped) (progress :failed))
-                                         (progress :total)
-                                         (progress :cloned)
-                                         (progress :skipped)
-                                         (progress :failed))
-                          width)))
-    (each line lines
-      (eprin line)
-      (eprin "\n"))
-    (put progress :drawn (length lines))
-    (file/flush stderr)))
-
-(defn- log
-  "Write a line above the block, then redraw it."
-  [progress & xs]
-  (erase progress)
-  (eprint ;xs)
-  (draw progress))
-
-(defn- animate
-  "Cycle the spinner until the run finishes."
-  [progress]
-  (when (progress :live)
-    (ev/spawn
-      (while (progress :running)
-        (ev/sleep 0.08)
-        # :running may have been cleared while this fiber slept. Drawing after
-        # the final erase would strand a stale block below the summary.
-        (when (progress :running)
-          (update progress :frame inc)
-          (draw progress))))))
-
 (defn checked-out?
   "Check whether path already holds a checkout."
   [path]
@@ -123,7 +25,7 @@
 (defn checkout
   ``Clone a Git repository unless it is already checked out.
   Returns :skipped, :cloned or :failed.``
-  [jj env progress path url]
+  [jj env report path url]
   (if (checked-out? path)
     :skipped
     (try
@@ -137,15 +39,15 @@
           (:wait process))
         (if (zero? (process :return-code))
             (do
-              (log progress "Checkout complete: " path)
+              (report "Checkout complete: " path)
               :cloned)
             (do
-              (log progress "Checkout failed: " path)
-              (when (> (length stderr) 0) (log progress stderr))
-              (when (> (length stdout) 0) (log progress stdout))
+              (report "Checkout failed: " path)
+              (when (> (length stderr) 0) (report stderr))
+              (when (> (length stdout) 0) (report stdout))
               :failed)))
       ([err]
-        (log progress "Checkout failed: " path ": " err)
+        (report "Checkout failed: " path ": " err)
         :failed))))
 
 (defn checkout-all
@@ -162,31 +64,15 @@
     # or ssh prompt on a shared stdin would interleave or hang the whole run.
     (with [devnull (file/open "/dev/null" :r)]
       (def env {:in devnull :out :pipe :err :pipe})
-      (def progress (make-progress total))
-      (def cursor @[0])
-      # Each worker claims the next index and moves on as soon as its own
-      # clone finishes. Reading and advancing the cursor never yields, so
-      # no two workers can claim the same index.
-      (defn worker [slot]
-        (while (< (cursor 0) total)
-          (def index (cursor 0))
-          (put cursor 0 (inc index))
-          (def repository (repositories index))
-          (put (progress :active) slot (repository :path))
-          (draw progress)
-          (def result (checkout jj env progress
-                                (repository :path)
-                                (repository :ssh_url)))
-          (put (progress :active) slot nil)
-          (update progress result inc)))
-      (animate progress)
-      (ev/go-gather (seq [slot :range [0 worker-count]] |(worker slot)))
-      (put progress :running false)
-      (erase progress)
-      (file/flush stderr)
-      {:cloned (progress :cloned)
-       :skipped (progress :skipped)
-       :failed (progress :failed)})))
+      (parallel/run-repositories
+        repositories
+        [[:cloned "cloned"]
+         [:skipped "already checked out"]
+         [:failed "failed"]]
+        (fn [repository report]
+          (checkout jj env report
+                    (repository :path)
+                    (repository :ssh_url)))))))
 
 (defn validate-config
   "Return config unchanged, or raise a descriptive error describing its shape."
