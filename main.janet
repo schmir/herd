@@ -144,12 +144,13 @@
     true parent))
 
 (defn resolve-repository-paths
-  ``Return the entries with every relative :path joined to `anchor`. Paths
+  ``Return the entries with every relative path joined to anchor. Paths
   coming from different files are only comparable once they are absolute.``
   [entries anchor]
   (with-dyns [:path-cwd anchor]
     (seq [entry :in entries]
-      (merge entry {:path (path/abspath (entry :path))}))))
+      (merge entry {:path (path/abspath (entry :path))
+                    :anchors @[anchor]}))))
 
 (defn read-config
   "Read, parse and validate one configuration file, resolving its paths."
@@ -171,12 +172,19 @@
       (cond
         (nil? previous)
         (do
-          (put seen (entry :path) {:source config-path :ssh_url (entry :ssh_url)})
+          (put seen (entry :path) {:source config-path
+                                   :ssh_url (entry :ssh_url)
+                                   :anchors (entry :anchors)})
           (array/push merged entry))
 
         (not= (previous :ssh_url) (entry :ssh_url))
         (error (string/format "%s and %s disagree on the URL for %s"
-                              (previous :source) config-path (entry :path))))))
+                              (previous :source) config-path (entry :path)))
+
+        true
+        (each anchor (entry :anchors)
+          (unless (some |(= anchor $) (previous :anchors))
+            (array/push (previous :anchors) anchor))))))
   merged)
 
 (defn load-config
@@ -205,18 +213,33 @@
       (string/has-prefix? (if (= "/" ancestor) ancestor (string ancestor "/"))
                           descendant)))
 
-(defn select-repositories
-  ``Repositories that `path` selects: the ones checked out beneath it, and the
-  one it is checked out inside. Naming a directory therefore selects
-  everything below it, and standing anywhere within a working copy selects
-  that repository, however deep. A relative path is taken from the current
-  directory, matching how a shell would read it.``
+(defn containing-anchors
+  "Return each configured anchor that contains path."
   [path repositories]
+  (def root (bare-path (path/abspath path)))
+  (def found @[])
+  (each repository repositories
+    (each anchor (get repository :anchors [])
+      (def candidate (bare-path (path/abspath anchor)))
+      (when (and (holds-path? candidate root)
+                 (not (some |(= candidate $) found)))
+        (array/push found candidate))))
+  found)
+
+(defn select-repositories-with-anchors
+  "Filter repositories with anchors that were already selected."
+  [path repositories all-anchors anchors]
   (def root (bare-path (path/abspath path)))
   (filter (fn [repository]
             (def candidate (bare-path (repository :path)))
-            (or (holds-path? root candidate)
-                (holds-path? candidate root)))
+            (and (or all-anchors
+                     (some (fn [repository-anchor]
+                             (def normalized
+                               (bare-path (path/abspath repository-anchor)))
+                             (some |(= normalized $) anchors))
+                           (get repository :anchors [])))
+                 (or (holds-path? root candidate)
+                     (holds-path? candidate root))))
           repositories))
 
 (defn- help-requested?
@@ -244,14 +267,14 @@
       (os/exit (if (help-requested? args) 0 1))))
 
 (defn- configured-repositories
-  "Load the configured repositories and select the ones under a path."
-  [given under]
+  "Load the configured repositories and select the ones at a path."
+  [at all-anchors]
   (def directory (config-directory))
-  (when (and (empty? given) (nil? directory))
+  (when (nil? directory)
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
             "configuration directory to read")
     (os/exit 1))
-  (def config-paths (if (empty? given) (config-files directory) given))
+  (def config-paths (config-files directory))
   # Nothing configured yet is a normal state, not a failure: exiting non-zero
   # would make `just run` print a traceback over an unremarkable message.
   (when (empty? config-paths)
@@ -263,39 +286,60 @@
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
-  (def selected (select-repositories under config))
-  # Say why the result is empty. Since --under defaults to the current
+  (def anchors (unless all-anchors (containing-anchors at config)))
+  (def selected
+    (select-repositories-with-anchors at config all-anchors anchors))
+  # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
   (when (and (empty? selected) (not (empty? config)))
-    (eprint "None of the " (length config) " configured repositories are beneath " under
-            " or hold it"))
+    (cond
+      all-anchors
+      (eprint "None of the " (length config) " configured repositories are beneath " at
+              " or hold it")
+
+      (empty? anchors)
+      (eprint "No configuration anchor contains " at
+              "; use -a/--all-anchors to consider every anchor")
+
+      true
+      (eprint "None of the configured repositories associated with an anchor "
+              "containing " at " are beneath it or hold it; use "
+              "-a/--all-anchors to consider every anchor")))
   selected)
 
+(defn- at-option
+  "The --at specification, shared by every selecting command."
+  []
+  {:kind :option
+   :short "C"
+   :value-name "PATH"
+   :default (os/cwd)
+   :help "Select repositories using PATH as the working location."})
+
+(defn- all-anchors-option
+  "The --all-anchors specification, shared by every selecting command."
+  []
+  {:kind :flag
+   :short "a"
+   :help "Consider repositories from every configuration anchor."})
+
 (defn- selected-repositories
-  ``Parse the arguments shared by every command that reads configuration, and
-  return the repositories it selects. Files named on the command line replace
-  the ones in the configuration directory rather than adding to them, and
-  --under narrows the result to one subtree, defaulting to the current
-  directory so that a command acts on the checkout you are standing in.``
+  "Parse the selection arguments shared by clone and list."
   [args description]
   (def parsed
     (parse-args args description
-                "under" {:kind :option
-                         :short "u"
-                         :value-name "PATH"
-                         :default (os/cwd)
-                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
-                :default {:kind :accumulate
-                          :help "Configuration files to read instead of the ones in the configuration directory."}))
-  (configured-repositories (or (parsed :default) @[])
-                           (parsed "under")))
+                "at" (at-option)
+                "all-anchors" (all-anchors-option)))
+  (configured-repositories (parsed "at")
+                           (parsed "all-anchors")))
 
 (defn clone-command
   ``Run `herd clone`: check out the repositories the arguments select.``
   [args]
   (def repositories
-    (selected-repositories args "Check out the configured repositories beneath a path."))
+    (selected-repositories args
+                           "Check out the configured repositories beneath a path."))
   (def counts (clone-repositories repositories))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
@@ -307,7 +351,8 @@
   ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them.``
   [args]
-  (each entry (selected-repositories args "Print the configured repositories beneath a path.")
+  (each entry (selected-repositories args
+                                     "Print the configured repositories beneath a path.")
     (print (entry :path) "\t" (entry :ssh_url))))
 
 (defn- indent-command-output
@@ -393,11 +438,8 @@
     (parse-args args
                 (string "Run a command in each configured repository beneath a path.\n\n"
                         " Usage: herd run [option] ... CMD [CMD-ARGS]...")
-                "under" {:kind :option
-                         :short "u"
-                         :value-name "PATH"
-                         :default (os/cwd)
-                         :help "Only act on repositories beneath PATH, or the one PATH is inside."}
+                "at" (at-option)
+                "all-anchors" (all-anchors-option)
                 "show-output" {:kind :flag
                                :help "Show output from successful commands."}
                 :default {:kind :accumulate
@@ -408,7 +450,7 @@
     (eprint "herd run needs a command")
     (os/exit 1))
   (def repositories
-    (configured-repositories @[] (parsed "under")))
+    (configured-repositories (parsed "at") (parsed "all-anchors")))
   (def counts (run-in-repositories command repositories
                                    (parsed "show-output")))
   (print (counts :succeeded) " succeeded, "

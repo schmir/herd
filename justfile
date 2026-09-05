@@ -8,7 +8,7 @@ default:
 deps:
     jpm --local deps
 
-# Run the program, optionally with a configuration path.
+# Run the program
 run *args: deps
     jpm --local janet main.janet {{args}}
 

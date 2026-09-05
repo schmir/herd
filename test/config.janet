@@ -59,6 +59,8 @@
                 "/anchor")]
   (assert (= "/anchor/rel" ((entries 0) :path)) "a relative path joins the anchor")
   (assert (= "/already/absolute" ((entries 1) :path)) "an absolute path is left alone")
+  (assert (deep= @["/anchor"] ((entries 0) :anchors))
+          "resolved entries retain their configuration anchor")
   (assert (= "u" ((entries 0) :ssh_url)) "the rest of the entry survives"))
 
 # --- config-directory -----------------------------------------------------
@@ -152,7 +154,9 @@
                ((loaded 0) :path))
             "relative paths use the root companion")
     (assert (= "/absolute" ((loaded 1) :path))
-            "absolute paths ignore the root companion"))
+            "absolute paths ignore the root companion")
+    (assert (deep= @[(os/realpath root)] ((loaded 0) :anchors))
+            "the root companion is retained as the repository anchor"))
   (sh/rm dir))
 
 (let [dir (fixture)
@@ -216,6 +220,19 @@
   (assert-error "an unreadable file is refused"
                 (herd/load-config [(string dir "/absent.json")] configuration))
   (os/setenv "HOME" home)
+  (sh/rm dir))
+
+(let [dir (fixture)
+      first (string dir "/first/repos.json")
+      second (string dir "/second/repos.json")
+      checkout (string dir "/shared")]
+  (write-config first [{:path checkout :ssh_url "shared-url"}])
+  (write-config second [{:path checkout :ssh_url "shared-url"}])
+  (let [loaded (herd/load-config [first second] nil)]
+    (assert (= 1 (length loaded)) "an agreeing duplicate remains one repository")
+    (assert (deep= (map os/realpath [(path/parent first) (path/parent second)])
+                   ((loaded 0) :anchors))
+            "an agreeing duplicate retains every configuration anchor"))
   (sh/rm dir))
 
 (end-suite)

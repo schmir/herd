@@ -143,9 +143,10 @@
   (assert (deep= (map |($ :path) loaded)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
-  (assert (= 2 (length (herd/select-repositories root loaded)))
+  (assert (= 2 (length (herd/select-repositories-with-anchors
+                         root loaded false (herd/containing-anchors root loaded))))
           "the fixture root selects both repositories")
-  (herd/run-command ["run" "--under" root
+  (herd/run-command ["run" "--at" root
                      "sh" "-c" `touch -- "$1"` "herd" "-command-argument"])
   (assert (= :file (os/stat (string first "/-command-argument") :mode))
           "run accepts command options without a separator")
@@ -157,7 +158,7 @@
           {"path":"missing","ssh_url":"unused"}]`)
   (with [process
          (os/spawn [(path/join (os/cwd) "build/herd")
-                    "run" "--under" root
+                    "run" "--at" root
                     "--show-output" "printf" "shown"]
                    :p {:out :pipe :err :pipe})]
     (def output @"")
