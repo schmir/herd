@@ -89,7 +89,7 @@
   config)
 
 (defn parse-config
-  "Parse JSON source into application configuration."
+  "Parse JSON source into Janet data."
   [source]
   (json/decode source true))
 
@@ -102,46 +102,103 @@
     (when-let [home (os/getenv "HOME")]
       (path/join home ".config" "herd"))))
 
-(defn config-files
+(def config-suffix ".json")
+(def metadata-suffix ".meta.json")
+
+(defn metadata-path
+  "Return the metadata sidecar path for a JSON configuration file."
+  [config-path]
+  (string (string/slice config-path 0
+                        (- (length config-path) (length config-suffix)))
+          metadata-suffix))
+
+(defn metadata-source-name
+  "Return the JSON configuration name described by a metadata filename."
+  [name]
+  (string (string/slice name 0 (- (length name) (length metadata-suffix)))
+          config-suffix))
+
+(defn- reject-orphan-metadata
+  ``Fail when a sidecar in `directory` describes none of `files`. Metadata
+  whose configuration was renamed or removed quietly stops applying, so the
+  mistake has to surface here instead of as a repository in the wrong place.``
+  [directory names files]
+  (each name names
+    (when (string/has-suffix? metadata-suffix name)
+      (def source-name (metadata-source-name name))
+      (unless (some |(= source-name (path/basename $)) files)
+        (error (string (path/join directory name)
+                       " has no matching " source-name))))))
+
+(defn discover-config-files
   ``Configuration files in `directory`, sorted so the merge order is stable.
-  A missing directory yields none: having no configuration yet is normal.``
+  A missing directory yields none: having no configuration yet is normal.
+  Orphaned metadata, on the other hand, raises: it is a mistake, not a state.``
   [directory]
   (def names (if directory (try (os/dir directory) ([_] @[])) @[]))
-  (sort (seq [name :in names
-              :when (string/has-suffix? ".json" name)
-              :let [file (path/join directory name)]
-              :when (= :file (os/stat file :mode))]
-          file)))
+  (def files
+    (sort (seq [name :in names
+                :when (and (string/has-suffix? config-suffix name)
+                           (not (string/has-suffix? metadata-suffix name)))
+                :let [file (path/join directory name)]
+                :when (= :file (os/stat file :mode))]
+            file)))
+  (reject-orphan-metadata directory names files)
+  files)
+
+(defn validate-metadata
+  "Return file metadata unchanged, or raise a descriptive error."
+  [metadata]
+  (unless (dictionary? metadata)
+    (error "expected a JSON object"))
+  (eachp [key value] metadata
+    (case key
+      :anchor
+      (unless (and (string? value) (not (empty? value)))
+        (error "anchor must be a non-empty string"))
+
+      (error (string "unknown setting " key))))
+  metadata)
+
+(defn load-metadata
+  ``Read one JSON metadata sidecar, or return empty metadata when absent.
+  Absent means nothing is there at all: a sidecar that exists but does not
+  resolve to a readable file is a mistake worth reporting, not a default.
+  Errors name the sidecar by its file name, since whoever reports them is
+  already saying which configuration it belongs to.``
+  [config-path]
+  (def sidecar (metadata-path config-path))
+  (def name (path/basename sidecar))
+  (if (nil? (os/lstat sidecar :mode))
+    {}
+    (do
+      (def mode (os/stat sidecar :mode))
+      (cond
+        (nil? mode) (error (string "cannot resolve " name))
+        (not= :file mode) (error (string name " is not a file")))
+      (try
+        (validate-metadata (parse-config (slurp sidecar)))
+        ([err] (error (string name ": " err)))))))
 
 (defn config-anchor
-  ``Directory the relative paths in config-path are joined to. A .root symlink
-  beside a file in the configuration directory overrides the usual anchor.``
-  [config-path directory]
-  (def parent (path/parent (os/realpath config-path)))
-  (def configuration
-    (when directory (try (os/realpath directory) ([_] nil))))
-  (def visible-parent (os/realpath (path/parent config-path)))
-  (def in-configuration (and configuration (= visible-parent configuration)))
-  (def root-path (string config-path ".root"))
-  (def root-mode (when in-configuration (os/lstat root-path :mode)))
-  (cond
-    root-mode
-    (do
-      (unless (= :link root-mode)
-        (error (string root-path " must be a symlink to a directory")))
-      (def root
-        (try
-          (os/realpath root-path)
-          ([err]
-            (error (string "cannot resolve " root-path ": " err)))))
-      (unless (= :directory (os/stat root :mode))
-        (error (string root-path " must point to a directory")))
-      root)
-
-    (and configuration (= parent configuration))
-    (or (os/getenv "HOME") parent)
-
-    true parent))
+  ``Directory the relative paths in `config-path` are joined to. A metadata
+  `:anchor` decides it, taking a relative value from HOME; without one a file
+  in the configuration directory anchors at HOME and any other beside itself.
+  The anchor stays the path it was configured as, so repositories are reported
+  where they were asked for; selection is what resolves symlinks.``
+  [config-path directory metadata]
+  (def parent (path/abspath (path/parent config-path)))
+  (if-let [configured (get metadata :anchor)]
+    (if (path/abspath? configured)
+      (path/abspath configured)
+      (if-let [home (os/getenv "HOME")]
+        (with-dyns [:path-cwd home]
+          (path/abspath configured))
+        (error (string "cannot resolve relative anchor for "
+                       (path/basename config-path) " without HOME"))))
+    (if (and directory (= parent (path/abspath directory)))
+      (or (os/getenv "HOME") parent)
+      parent)))
 
 (defn resolve-repository-paths
   ``Return the entries with every relative path joined to anchor. Paths
@@ -153,11 +210,11 @@
                     :anchors @[anchor]}))))
 
 (defn read-config
-  "Read, parse and validate one configuration file, resolving its paths."
+  "Read one configuration and its metadata, resolving repository paths."
   [config-path directory]
   (resolve-repository-paths
     (validate-config (parse-config (slurp config-path)))
-    (config-anchor config-path directory)))
+    (config-anchor config-path directory (load-metadata config-path))))
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
@@ -205,6 +262,24 @@
   (def trimmed (string/trimr path "/"))
   (if (empty? trimmed) "/" trimmed))
 
+(defn- comparable-path
+  ``Absolute `path` with the symlinks resolved in as much of it as exists.
+  Selection weighs configured paths against a working directory, which the
+  system already gave us resolved, so both sides have to name the same
+  location the same way. A repository that is not checked out yet keeps the
+  part that does not exist, which is why the whole path cannot just be
+  resolved at once.``
+  [path]
+  (var head (bare-path (path/abspath path)))
+  (def missing @[])
+  (while (and (not= "/" head) (nil? (os/lstat head :mode)))
+    (array/push missing (path/basename head))
+    (set head (bare-path (path/parent head))))
+  (def resolved (bare-path (try (os/realpath head) ([_] head))))
+  (if (empty? missing)
+    resolved
+    (bare-path (path/join resolved ;(reverse missing)))))
+
 (defn- holds-path?
   ``Whether `ancestor` is `descendant` or holds it somewhere below. Compares
   whole segments, so /srv/foobar is not held by /srv/foo.``
@@ -216,11 +291,11 @@
 (defn containing-anchors
   "Return each configured anchor that contains path."
   [path repositories]
-  (def root (bare-path (path/abspath path)))
+  (def root (comparable-path path))
   (def found @[])
   (each repository repositories
     (each anchor (get repository :anchors [])
-      (def candidate (bare-path (path/abspath anchor)))
+      (def candidate (comparable-path anchor))
       (when (and (holds-path? candidate root)
                  (not (some |(= candidate $) found)))
         (array/push found candidate))))
@@ -229,13 +304,12 @@
 (defn select-repositories-with-anchors
   "Filter repositories with anchors that were already selected."
   [path repositories all-anchors anchors]
-  (def root (bare-path (path/abspath path)))
+  (def root (comparable-path path))
   (filter (fn [repository]
-            (def candidate (bare-path (repository :path)))
+            (def candidate (comparable-path (repository :path)))
             (and (or all-anchors
                      (some (fn [repository-anchor]
-                             (def normalized
-                               (bare-path (path/abspath repository-anchor)))
+                             (def normalized (comparable-path repository-anchor))
                              (some |(= normalized $) anchors))
                            (get repository :anchors [])))
                  (or (holds-path? root candidate)
@@ -274,7 +348,12 @@
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
             "configuration directory to read")
     (os/exit 1))
-  (def config-paths (config-files directory))
+  (def config-paths
+    (try
+      (discover-config-files directory)
+      ([err]
+        (eprint "Configuration error: " err)
+        (os/exit 1))))
   # Nothing configured yet is a normal state, not a failure: exiting non-zero
   # would make `just run` print a traceback over an unremarkable message.
   (when (empty? config-paths)

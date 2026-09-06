@@ -16,7 +16,9 @@
                       (string "herd-run-test-" (os/getpid) "-" fixture-count)))
   (sh/rm dir)
   (sh/create-dirs dir)
-  dir)
+  # Resolved, since TMPDIR is reached through a symlink on some systems and
+  # anchors are compared against paths that have theirs resolved.
+  (os/realpath dir))
 
 (defn- repository
   "Create a repository entry for path."

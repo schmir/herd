@@ -1,5 +1,7 @@
-# Tests for the parts that need nothing but their arguments.
+# Tests for selecting repositories, mostly from arguments alone.
 (use spork/test)
+(import spork/path)
+(import spork/sh)
 (import ../main :as herd)
 
 (start-suite "selection")
@@ -90,5 +92,37 @@
 (assert (deep= (selected-nested "/work/team/parent/deep" @["/work" "/work/team"])
                @["/work/team/parent"])
         "a repository from any containing anchor can hold the path")
+
+# Configured paths and the working location may reach the same directory
+# through different symlinks, so both sides are resolved before comparison.
+(def fixture (path/join (os/getenv "TMPDIR" "/tmp")
+                        (string "herd-selection-test-" (os/getpid))))
+(sh/rm fixture)
+(sh/create-dirs fixture)
+
+(let [dir (os/realpath fixture)
+      real (string dir "/real/work")
+      alias (string dir "/link/work")]
+  (sh/create-dirs (string real "/repo"))
+  (os/link (string dir "/real") (string dir "/link") true)
+  (defn- linked
+    "Return the paths selected for a working location and one repository."
+    [at repository-path anchor]
+    (def repositories [{:path repository-path :ssh_url "u"
+                        :anchors @[anchor]}])
+    (map |($ :path)
+         (herd/select-repositories-with-anchors
+           at repositories false (herd/containing-anchors at repositories))))
+
+  (assert (deep= (linked real (string alias "/repo") alias) @[(string alias "/repo")])
+          "a working location selects a repository configured through a link")
+  (assert (deep= (linked alias (string real "/repo") real) @[(string real "/repo")])
+          "a working location reached through a link selects a repository")
+  (assert (deep= (linked real (string alias "/absent") alias)
+                 @[(string alias "/absent")])
+          "a repository that is not checked out yet is still selected")
+  (assert (empty? (linked real (string alias "/repo") (string dir "/other")))
+          "resolving does not make an unrelated anchor contain the location")
+  (sh/rm dir))
 
 (end-suite)

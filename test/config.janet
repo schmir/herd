@@ -17,7 +17,9 @@
                       (string "herd-test-" (os/getpid) "-" fixture-count)))
   (sh/rm dir)
   (sh/create-dirs dir)
-  dir)
+  # Resolved, since TMPDIR is reached through a symlink on some systems and
+  # anchors are compared against paths that have theirs resolved.
+  (os/realpath dir))
 
 (defn- write-config
   "Write `entries` to `path` as the JSON array the format expects."
@@ -34,9 +36,9 @@
 
 (defn- config-error
   "Return the error from config anchor resolution, or nil if it succeeds."
-  [config-path directory]
+  [config-path directory metadata]
   (try
-    (do (herd/config-anchor config-path directory) nil)
+    (do (herd/config-anchor config-path directory metadata) nil)
     ([err] (string err))))
 
 # --- validate-config ------------------------------------------------------
@@ -113,21 +115,104 @@
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg))
 
-# --- config-files ---------------------------------------------------------
+# --- discover-config-files ------------------------------------------------
 
 (let [dir (fixture)]
-  (assert (empty? (herd/config-files (string dir "/missing")))
+  (assert (empty? (herd/discover-config-files (string dir "/missing")))
           "a missing directory holds no configuration")
-  (assert (empty? (herd/config-files nil)) "no directory at all holds none")
+  (assert (empty? (herd/discover-config-files nil)) "no directory at all holds none")
   (spit (string dir "/b.json") "[]")
   (spit (string dir "/a.json") "[]")
+  (spit (string dir "/a.meta.json") "{}")
   (spit (string dir "/notes.txt") "ignored")
   (sh/create-dirs (string dir "/directory.json"))
   (sh/create-dirs (string dir "/root"))
   (os/link (string dir "/root") (string dir "/a.json.root") true)
-  (assert (deep= (herd/config-files dir)
+  (assert (deep= (herd/discover-config-files dir)
                  @[(string dir "/a.json") (string dir "/b.json")])
-          "only .json files, sorted, and never a directory or root companion")
+          "repository JSON files are sorted without metadata or directories")
+  (spit (string dir "/orphan.meta.json") "{}")
+  (assert-error "orphan metadata is rejected" (herd/discover-config-files dir))
+  (sh/rm (string dir "/orphan.meta.json"))
+  (os/link (string dir "/missing") (string dir "/orphan.meta.json") true)
+  (assert-error "orphan metadata is rejected even when it dangles"
+                (herd/discover-config-files dir))
+  (sh/rm dir))
+
+# --- metadata -------------------------------------------------------------
+
+(assert (= "/config/work.meta.json"
+           (herd/metadata-path "/config/work.json"))
+        "metadata replaces the JSON suffix")
+(assert (= "work.json" (herd/metadata-source-name "work.meta.json"))
+        "metadata names its matching JSON source")
+(assert-error "metadata must be an object" (herd/validate-metadata []))
+(assert-error "metadata anchors must be strings"
+              (herd/validate-metadata {:anchor 1}))
+(assert-error "metadata anchors must not be empty"
+              (herd/validate-metadata {:anchor ""}))
+(assert-error "unknown metadata settings are rejected"
+              (herd/validate-metadata {:unknown true}))
+(assert-no-error "an empty metadata object is valid"
+                 (herd/validate-metadata {}))
+(assert-no-error "an anchor is valid metadata"
+                 (herd/validate-metadata {:anchor "work"}))
+
+(let [dir (fixture)
+      config (string dir "/repos.json")
+      sidecar (herd/metadata-path config)]
+  (write-config config [])
+  (assert (deep= {} (herd/load-metadata config))
+          "a missing sidecar yields empty metadata")
+  (spit sidecar "[]")
+  (def message
+    (try
+      (do (herd/load-metadata config) nil)
+      ([err] (string err))))
+  (assert (and message (string/find (path/basename sidecar) message))
+          "invalid metadata errors name the sidecar")
+  (spit sidecar "{")
+  (assert-error "malformed metadata JSON is rejected"
+                (herd/load-metadata config))
+  (sh/rm dir))
+
+(let [dir (fixture)
+      config (string dir "/repos.json")]
+  (write-config config [])
+  (sh/create-dirs (herd/metadata-path config))
+  (assert-error "a metadata directory is rejected"
+                (herd/load-metadata config))
+  (sh/rm dir))
+
+(let [dir (fixture)
+      config (string dir "/repos.json")
+      sidecar (herd/metadata-path config)]
+  (write-config config [])
+  (os/link (string dir "/missing") sidecar true)
+  (def message
+    (try
+      (do (herd/load-metadata config) nil)
+      ([err] (string err))))
+  (assert (and message (string/find (path/basename sidecar) message))
+          "a metadata symlink to nothing is reported, not read as absent")
+  (sh/rm dir))
+
+# A sidecar mistake is reported by whoever knows which configuration it
+# belongs to, so neither name is repeated.
+(let [dir (fixture)
+      config (string dir "/repos.json")
+      sidecar (herd/metadata-path config)]
+  (write-config config [])
+  (spit sidecar `{"unknown": true}`)
+  (def message
+    (try
+      (do (herd/load-config [config] dir) nil)
+      ([err] (string err))))
+  (assert (= (string config ": " (path/basename sidecar)
+                     ": unknown setting unknown")
+             message)
+          (string "a sidecar error names the configuration and the sidecar "
+                  "once each: " message))
   (sh/rm dir))
 
 # --- config-anchor --------------------------------------------------------
@@ -135,64 +220,84 @@
 (let [dir (fixture)
       configuration (string dir "/config/herd")
       elsewhere (string dir "/elsewhere")
-      root (string dir "/root")
-      linked-root (string dir "/linked-root")
+      sidecar-target (string elsewhere "/metadata.json")
       home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (sh/create-dirs elsewhere)
-  (sh/create-dirs root)
-  (sh/create-dirs linked-root)
   (spit (string configuration "/real.json") "[]")
   (spit (string elsewhere "/linked.json") "[]")
   (os/link (string elsewhere "/linked.json") (string configuration "/link.json") true)
+  (spit sidecar-target `{"anchor":"linked"}`)
+  (os/link sidecar-target (string configuration "/real.meta.json") true)
 
   (os/setenv "HOME" "/home/example")
   (assert (= "/home/example"
-             (herd/config-anchor (string configuration "/real.json") configuration))
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration {}))
           "a file in the configuration directory anchors at home")
-  (assert (= (os/realpath elsewhere)
-             (herd/config-anchor (string configuration "/link.json") configuration))
-          "a symlink anchors where the file really is")
-  (os/link root (string elsewhere "/linked.json.root") true)
-  (assert (= (os/realpath elsewhere)
-             (herd/config-anchor (string elsewhere "/linked.json") configuration))
-          "a root companion outside the configuration directory is ignored")
-  (assert (= (os/realpath elsewhere)
-             (herd/config-anchor (string configuration "/link.json") configuration))
-          "a companion beside the real file is ignored for a linked entry")
-  (assert (= (os/realpath elsewhere)
-             (herd/config-anchor (string elsewhere "/linked.json") nil))
-          "no configuration directory still anchors at the parent")
+  (assert (= "/home/example"
+             (herd/config-anchor (string configuration "/link.json")
+                                 configuration {}))
+          "a JSON symlink uses its visible location")
+  (assert (= "/home/example/linked"
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration
+                                 (herd/load-metadata
+                                   (string configuration "/real.json"))))
+          "a metadata symlink is read without using its target location")
+  (assert (= (path/abspath elsewhere)
+             (herd/config-anchor (string elsewhere "/linked.json")
+                                 configuration {}))
+          "a file outside the configuration directory anchors at its parent")
+  (assert (= "/home/example/work"
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration {:anchor "work"}))
+          "a relative configured anchor resolves from home")
+  (assert (= "/missing/anchor"
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration {:anchor "/missing/anchor"}))
+          "an absolute configured anchor need not exist")
+  (sh/create-dirs (string elsewhere "/work"))
+  (os/link elsewhere (string dir "/link") true)
+  (assert (= (string dir "/link/work")
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration
+                                 {:anchor (string dir "/link/work")}))
+          "a configured anchor is kept as it was written, symlinks and all")
 
-  (os/link root (string configuration "/real.json.root") true)
-  (assert (= (os/realpath root)
-             (herd/config-anchor (string configuration "/real.json") configuration))
-          "a root companion overrides the home anchor")
-  (os/link linked-root (string configuration "/link.json.root") true)
-  (assert (= (os/realpath linked-root)
-             (herd/config-anchor (string configuration "/link.json") configuration))
-          "a linked entry uses the companion beside its visible path")
+  (os/setenv "HOME" nil)
+  (assert (= (path/abspath configuration)
+             (herd/config-anchor (string configuration "/real.json")
+                                 configuration {}))
+          "the configuration directory is the default without home")
+  (def message
+    (config-error (string configuration "/real.json")
+                  configuration {:anchor "work"}))
+  (assert (and message (string/find "without HOME" message))
+          "a relative configured anchor needs home")
   (os/setenv "HOME" home)
   (sh/rm dir))
 
 (let [dir (fixture)
       configuration (string dir "/config/herd")
-      root (string dir "/root")
-      config (string configuration "/repos.json")]
+      config (string configuration "/repos.json")
+      home (os/getenv "HOME")]
   (sh/create-dirs configuration)
-  (sh/create-dirs root)
   (write-config config
                 [{:path "relative" :ssh_url "relative-url"}
                  {:path "/absolute" :ssh_url "absolute-url"}])
-  (os/link root (string config ".root") true)
-  (let [loaded (herd/read-config config configuration)]
-    (assert (= (string (os/realpath root) "/relative")
+  (spit (herd/metadata-path config) `{"anchor":"root"}`)
+  (os/setenv "HOME" dir)
+  (let [loaded (herd/load-config [config] configuration)]
+    (assert (= (string (path/abspath dir) "/root/relative")
                ((loaded 0) :path))
-            "relative paths use the root companion")
+            "relative paths use the configured anchor")
     (assert (= "/absolute" ((loaded 1) :path))
-            "absolute paths ignore the root companion")
-    (assert (deep= @[(os/realpath root)] ((loaded 0) :anchors))
-            "the root companion is retained as the repository anchor"))
+            "absolute paths ignore the configured anchor")
+    (assert (deep= @[(string (path/abspath dir) "/root")]
+                   ((loaded 0) :anchors))
+            "the configured anchor is retained on each repository"))
+  (os/setenv "HOME" home)
   (sh/rm dir))
 
 (let [dir (fixture)
@@ -200,22 +305,24 @@
       target (string dir "/target")
       regular (string configuration "/regular.json")
       broken (string configuration "/broken.json")
-      not-directory (string configuration "/not-directory.json")]
+      directory (string configuration "/directory.json")
+      home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (spit target "not a directory")
-  (each config-path [regular broken not-directory]
-    (spit config-path "[]"))
+  (each config-path [regular broken directory]
+    (write-config config-path [{:path (path/basename config-path) :ssh_url "u"}]))
   (spit (string regular ".root") "not a symlink")
   (os/link (string dir "/missing") (string broken ".root") true)
-  (os/link target (string not-directory ".root") true)
-
-  (each [config-path description]
-        [[regular "a regular root companion is rejected"]
-         [broken "a broken root companion is rejected"]
-         [not-directory "a root companion to a file is rejected"]]
-    (def message (config-error config-path configuration))
-    (assert (and message (string/find (string config-path ".root") message))
-            description))
+  (os/link target (string directory ".root") true)
+  (os/setenv "HOME" dir)
+  (let [loaded (herd/load-config (herd/discover-config-files configuration)
+                                 configuration)]
+    (assert (= 3 (length loaded)) "root companions do not affect loading")
+    (assert (every?
+              (map |(string/has-prefix? (string (path/abspath dir) "/") ($ :path))
+                   loaded))
+            "every root companion form is ignored"))
+  (os/setenv "HOME" home)
   (sh/rm dir))
 
 # --- read-config and load-config ------------------------------------------
@@ -235,23 +342,23 @@
               [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
 
-  (let [merged (herd/load-config (herd/config-files configuration) configuration)]
+  (let [merged (herd/load-config (herd/discover-config-files configuration) configuration)]
     (assert (deep= (map |($ :path) merged)
                    @[(string dir "/src/alpha")
                      "/opt/beta"
-                     (string (os/realpath elsewhere) "/gamma")])
-            "every file contributes, anchored where it really lives"))
+                     (string dir "/gamma")])
+            "every file contributes from its visible configuration location"))
 
   # The same checkout in two files is fine while they agree on the URL.
   (write-config (string configuration "/agrees.json")
               [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}])
-  (assert (= 3 (length (herd/load-config (herd/config-files configuration) configuration)))
+  (assert (= 3 (length (herd/load-config (herd/discover-config-files configuration) configuration)))
           "an agreeing duplicate is dropped")
 
   (write-config (string configuration "/agrees.json")
               [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
   (assert-error "a disagreeing duplicate is refused"
-                (herd/load-config (herd/config-files configuration) configuration))
+                (herd/load-config (herd/discover-config-files configuration) configuration))
 
   (assert-error "an unreadable file is refused"
                 (herd/load-config [(string dir "/absent.json")] configuration))
@@ -266,7 +373,7 @@
   (write-config second [{:path checkout :ssh_url "shared-url"}])
   (let [loaded (herd/load-config [first second] nil)]
     (assert (= 1 (length loaded)) "an agreeing duplicate remains one repository")
-    (assert (deep= (map os/realpath [(path/parent first) (path/parent second)])
+    (assert (deep= (map path/abspath [(path/parent first) (path/parent second)])
                    ((loaded 0) :anchors))
             "an agreeing duplicate retains every configuration anchor"))
   (sh/rm dir))
