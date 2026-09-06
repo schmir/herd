@@ -7,13 +7,13 @@
   "The VCS used for repositories that do not select one."
   "jj")
 
-(def default-output-mode
-  "The command output mode used when no other default is set."
-  "failures-only")
+(def default-show-output
+  "When to show command output, unless another default is set."
+  "on-failure")
 
-(def output-modes
-  "Valid command output modes."
-  ["none" "failures-only" "everything"])
+(def show-output-conditions
+  "Valid conditions for showing command output."
+  ["never" "on-failure" "always"])
 
 (defn find-executable
   "Find an executable file by searching the process PATH."
@@ -440,20 +440,20 @@
    :short "a"
    :help "Consider repositories from every configuration anchor."})
 
-(defn- output-mode-option
-  "Return the --output-mode specification with default."
+(defn- show-output-option
+  "Return the --show-output specification with default."
   [default]
   {:kind :option
-   :value-name "MODE"
+   :value-name "WHEN"
    :default default
-   :help "Show result blocks: none, failures-only, or everything."})
+   :help "Show command output: never, on-failure, or always."})
 
-(defn- require-output-mode
-  "Return mode, or raise an error when it is not a valid output mode."
-  [mode]
-  (unless (and (string? mode) (index-of mode output-modes))
-    (error `expected "none", "failures-only", or "everything"`))
-  mode)
+(defn- require-show-output
+  "Return condition, or raise an error when it is not a valid one."
+  [condition]
+  (unless (and (string? condition) (index-of condition show-output-conditions))
+    (error `expected "never", "on-failure", or "always"`))
+  condition)
 
 (defn- selected-repositories
   "Parse the selection arguments shared by clone and list."
@@ -545,8 +545,8 @@
 
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
-  [command env repository report &opt output-mode]
-  (def output-mode (require-output-mode (or output-mode default-output-mode)))
+  [command env repository report &opt show-output]
+  (def show-output (require-show-output (or show-output default-show-output)))
   (try
     (if (checked-out? (repository :path))
       (if-let [selected (command-for-repository command repository)]
@@ -562,16 +562,16 @@
             (:wait process))
           (def status (process :return-code))
           (def succeeded (zero? status))
-          (when (case output-mode
-                  "none" false
-                  "failures-only" (not succeeded)
-                  "everything" true)
+          (when (case show-output
+                  "never" false
+                  "on-failure" (not succeeded)
+                  "always" true)
             (report (format-command-result repository status stdout stderr)))
           (if succeeded :succeeded :failed))
         :skipped)
       :not-checked-out)
     ([err]
-      (unless (= "none" output-mode)
+      (unless (= "never" show-output)
         (report "✗ " (repository :path) "\n"
                 (indent-command-output (string err))))
       :failed)))
@@ -586,8 +586,8 @@
 
 (defn run-in-repositories
   "Run a command in parallel and return its outcome counts."
-  [command repositories &opt output-mode]
-  (def output-mode (require-output-mode (or output-mode default-output-mode)))
+  [command repositories &opt show-output]
+  (def show-output (require-show-output (or show-output default-show-output)))
   # Parallel commands must not share a terminal for input or output. Capture
   # output per process so each visible result is one coherent block.
   (with [devnull (file/open "/dev/null" :r)]
@@ -602,20 +602,20 @@
       (fn [repository report]
         (run-in-repository command env repository
                            |(report-command-result report-state report ;$&)
-                           output-mode)))))
+                           show-output)))))
 
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."
   [command parsed]
-  (def output-mode
+  (def show-output
     (try
-      (require-output-mode (parsed "output-mode"))
+      (require-show-output (parsed "show-output"))
       ([err]
-        (eprint "Invalid --output-mode: " err)
+        (eprint "Invalid --show-output: " err)
         (os/exit 1))))
   (def repositories
     (configured-repositories (parsed "at") (parsed "all-anchors")))
-  (def counts (run-in-repositories command repositories output-mode))
+  (def counts (run-in-repositories command repositories show-output))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
          (counts :skipped) " skipped, "
@@ -625,14 +625,14 @@
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."
-  [command description &opt output-mode]
-  (def output-mode (or output-mode default-output-mode))
+  [command description &opt show-output]
+  (def show-output (or show-output default-show-output))
   (fn [args]
     (def parsed
       (parse-args args description
                   "at" (at-option)
                   "all-anchors" (all-anchors-option)
-                  "output-mode" (output-mode-option output-mode)))
+                  "show-output" (show-output-option show-output)))
     (run-configured-command command parsed)))
 
 (defn run-command
@@ -644,7 +644,7 @@
                         " Usage: herd run [option] ... CMD [CMD-ARGS]...")
                 "at" (at-option)
                 "all-anchors" (all-anchors-option)
-                "output-mode" (output-mode-option default-output-mode)
+                "show-output" (show-output-option default-show-output)
                 :default {:kind :accumulate
                           :short-circuit true
                           :help "Command and arguments to run."}))
@@ -686,7 +686,7 @@
 
 (def custom-command-keys
   "Keys a custom-command definition may contain."
-  [:command :command-git :command-jj :description :output-mode])
+  [:command :command-git :command-jj :description :show-output])
 
 (defn command-from-definition
   "Return the command described by one custom-command definition."
@@ -738,14 +738,14 @@
     (def description (get definition :description))
     (unless (string? description)
       (error (string "custom command \"" name "\" needs a string :description")))
-    (def output-mode (get definition :output-mode default-output-mode))
+    (def show-output (get definition :show-output default-show-output))
     (try
-      (require-output-mode output-mode)
+      (require-show-output show-output)
       ([err]
         (error (string "custom command \"" name
-                       "\" has an invalid :output-mode; " err))))
+                       "\" has an invalid :show-output; " err))))
     (put result name
-         {:run (make-run-command command description output-mode)
+         {:run (make-run-command command description show-output)
           :help description}))
   result)
 

@@ -38,12 +38,8 @@
             "fetch help describes its operation")
     (each command ["fetch" "run"]
       (def output ((invoke [command "--help"]) :output))
-      (assert (string/find "--output-mode MODE=failures-only" output)
-              (string command " documents its default output mode"))
-      (assert (not (string/find "--show-output" output))
-              (string command " does not document the replaced output flag")))
-    (assert (not= 0 ((invoke ["run" "--show-output" "true"]) :status))
-            "run rejects the replaced output flag")))
+      (assert (string/find "--show-output WHEN=on-failure" output)
+              (string command " documents its default output condition")))))
 
 (let [directory (path/join (os/getenv "TMPDIR" "/tmp")
                            (string "herd-arguments-test-" (os/getpid)))
@@ -82,7 +78,7 @@
         `{:commands
           {"mark" {:command "printf marker | grep -q marker && touch custom-command"
                    :description "Create a marker in each repository."
-                   :output-mode "everything"}}}`)
+                   :show-output "always"}}}`)
   (assert (= command-config (herd/command-config-path))
           "the JDN configuration uses the XDG configuration directory")
   (assert (get-in (herd/load-command-config command-config)
@@ -97,7 +93,7 @@
   (assert (string/find "Create a marker" (command-help :output))
           (string "custom command help uses its configured description: "
                   (command-help :output)))
-  (assert (string/find "--output-mode MODE=everything" (command-help :output))
+  (assert (string/find "--show-output WHEN=always" (command-help :output))
           "custom command help shows its configured output default")
   (def command-result (invoke ["mark" "--at" anchor]))
   (assert (= 0 (command-result :status))
@@ -105,18 +101,18 @@
   (assert (= :file (os/stat (path/join repository "custom-command") :mode))
           "a custom shell command runs in the selected repository")
   (assert (string/find (string "✓ " repository) (command-result :output))
-          "a custom command uses its configured output mode")
+          "a custom command uses its configured output condition")
   (def quiet-command
-    (invoke ["mark" "--at" anchor "--output-mode" "none"]))
+    (invoke ["mark" "--at" anchor "--show-output" "never"]))
   (assert (not (string/find (string "✓ " repository) (quiet-command :output)))
-          "a command-line output mode overrides the configured default")
-  (def invalid-output-mode
-    (invoke ["run" "--output-mode" "sometimes" "true"]))
-  (assert (not= 0 (invalid-output-mode :status))
-          "an unknown command-line output mode fails")
-  (assert (string/find "expected \"none\", \"failures-only\", or \"everything\""
-                       (invalid-output-mode :output))
-          "an invalid output mode lists the valid values")
+          "a command-line output condition overrides the configured default")
+  (def invalid-show-output
+    (invoke ["run" "--show-output" "sometimes" "true"]))
+  (assert (not= 0 (invalid-show-output :status))
+          "an unknown command-line output condition fails")
+  (assert (string/find "expected \"never\", \"on-failure\", or \"always\""
+                       (invalid-show-output :output))
+          "an invalid output condition lists the valid values")
   (os/link anchor (path/join root "alias") true)
   (def aliased (invoke ["list" "--at" (path/join root "alias")]))
   (assert (string/find repository (aliased :output))
