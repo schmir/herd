@@ -10,11 +10,11 @@ deps:
 
 # Run the program
 run *args: deps
-    jpm --local janet main.janet {{args}}
+    jpm --local janet main.janet {{ args }}
 
 # Build the standalone executable in build/.
 build *args: deps
-    jpm --local build {{args}}
+    jpm --local build {{ args }}
 
 # Run the test suite in test/.
 test: deps

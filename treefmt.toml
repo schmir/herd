@@ -1,3 +1,8 @@
 [formatter.janet]
 command = "janet-format"
 includes = ["*.janet", "*.jdn"]
+
+[formatter.just]
+command = "sh"
+options = ["-c", 'for f in "$@"; do just --fmt --justfile "$f"; done', "--"]
+includes = ["justfile", ".justfile", "*.just"]
