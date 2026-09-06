@@ -40,12 +40,14 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              coreutils
               janet
               janet-format
               janet-lsp
               jpm
               jujutsu
               just
+              podman
               prettier
               treefmt
             ];

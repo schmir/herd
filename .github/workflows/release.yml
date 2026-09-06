@@ -29,27 +29,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The build runs under `docker run` rather than in a `container:` job on
-      # purpose: GitHub injects its own glibc-linked node to run actions like
-      # checkout, and that node cannot execute inside an Alpine container.
+      # The build happens in a container build rather than in a `container:`
+      # job on purpose: GitHub injects its own glibc-linked node to run actions
+      # like checkout, and that node cannot execute inside an Alpine container.
+      #
+      # `--output` needs BuildKit, which docker uses by default here; the
+      # variable makes that independent of the runner image's configuration.
+      # Runners start with an empty layer cache, so unlike a local `just
+      # build-musl` this rebuilds the toolchain every time.
       - name: Build static binary
+        env:
+          DOCKER_BUILDKIT: "1"
         run: |
-          docker run --rm -e HERD_VERSION -v "$PWD:/src" -w /src alpine:3.21 \
-            sh /src/.github/scripts/build-musl.sh
+          docker build --build-arg HERD_VERSION \
+            --output type=local,dest=build-musl .
 
       - name: Check the binary is static and runs
         run: |
-          file build/herd
-          file build/herd | grep -q 'statically linked'
+          file build-musl/herd
+          file build-musl/herd | grep -q 'statically linked'
           # The runner is glibc; an Alpine-built binary running here is the
           # portability claim under test. Asking for the version also proves
           # the build baked one in.
-          test "$(./build/herd --version)" = "herd $HERD_VERSION"
+          test "$(./build-musl/herd --version)" = "herd $HERD_VERSION"
 
       - uses: actions/upload-artifact@v4
         with:
           name: herd-linux-${{ matrix.arch }}
-          path: build/herd
+          path: build-musl/herd
           if-no-files-found: error
 
   macos:
