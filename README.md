@@ -11,8 +11,9 @@ repositories, with a configurable number of operations running in parallel
 Prebuilt binaries are available for Linux (x86-64 and ARM64) and macOS
 (ARM64) on the
 [releases page](https://github.com/schmir/herd/releases/latest). Put the
-downloaded binary on your `PATH` and make it executable. Cloning and
-fetching also require the VCS you use, `jj` or `git`, on `PATH`.
+downloaded binary on your `PATH` and make it executable. `herd --version`
+reports which release a binary is. Cloning and fetching also require the VCS
+you use, `jj` or `git`, on `PATH`.
 
 To build from source with Nix:
 
@@ -252,6 +253,10 @@ Enter the development shell and run the test suite:
 nix develop
 just test
 ```
+
+`just build` records the version `herd --version` reports, taking it from
+`git describe` unless `HERD_VERSION` names one; release builds pass their
+tag.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build

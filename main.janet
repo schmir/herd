@@ -3,6 +3,19 @@
 (import spork/path)
 (import ./parallel)
 
+(defmacro- baked-version
+  ``The version named by HERD_VERSION, read while this file is compiled.
+  Baking it in is what makes a downloaded binary able to say which release it
+  is: looking the variable up at run time would only describe the machine the
+  binary ended up on. A build that names no version is not a release.``
+  []
+  (def configured (os/getenv "HERD_VERSION"))
+  (if (or (nil? configured) (empty? configured)) "dev" configured))
+
+(def version
+  "Version this build was compiled for."
+  (baked-version))
+
 (def default-vcs
   "The VCS used for repositories that do not select one."
   "jj")
@@ -868,10 +881,16 @@
   (def spec
     [(string "manage multiple git/jj repositories\n\n Commands:\n"
              (command-list commands))
+     "version" {:kind :flag
+                :short "V"
+                :help "Show the version and exit."}
      :default {:kind :accumulate
                :short-circuit true
                :help "Command to run."}])
   (def parsed (parse-args args ;spec))
+  (when (parsed "version")
+    (print "herd " version)
+    (os/exit 0))
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
   (def rest (or (parsed :rest) @[]))

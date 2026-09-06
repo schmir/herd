@@ -14,7 +14,8 @@ run *args: deps
 
 # Build the standalone executable in build/.
 build *args: deps
-    jpm --local build {{ args }}
+    HERD_VERSION="${HERD_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}" \
+        jpm --local build {{ args }}
 
 # Run the test suite in test/.
 test: deps

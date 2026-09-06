@@ -43,7 +43,27 @@
     (each command ["fetch" "run"]
       (def output ((invoke [command "--help"]) :output))
       (assert (string/find "--show-output WHEN=on-failure" output)
-              (string command " documents its default output condition")))))
+              (string command " documents its default output condition")))
+
+    # The binary was compiled with whatever HERD_VERSION the build saw, which
+    # is not this test's environment, so the shape of the answer is what can
+    # be checked here.
+    (def result (invoke ["--version"]))
+    (assert (= 0 (result :status)) "--version succeeds")
+    (def reported (string/trimr (result :output)))
+    (assert (string/has-prefix? "herd " reported)
+            (string "--version names the program: " reported))
+    (assert (not (empty? (string/slice reported 5)))
+            (string "--version names a version: " reported))
+    (assert (= reported (string/trimr ((invoke ["-V"]) :output)))
+            "-V is the short form of --version")
+    (assert (string/find "-V, --version" ((invoke ["--help"]) :output))
+            "help documents the version flag")))
+
+# The version is baked in while this file is compiled, so an unset
+# HERD_VERSION has to leave something usable behind rather than nil.
+(assert (and (string? herd/version) (not (empty? herd/version)))
+        "a build always knows a version")
 
 (let [directory (path/join (os/getenv "TMPDIR" "/tmp")
                            (string "herd-arguments-test-" (os/getpid)))

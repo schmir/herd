@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # A tag build bakes its own tag into the binary. Anything else is not a
+  # release, and says so when asked for its version.
+  HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+
 jobs:
   linux:
     name: linux-${{ matrix.arch }}
@@ -29,17 +34,17 @@ jobs:
       # checkout, and that node cannot execute inside an Alpine container.
       - name: Build static binary
         run: |
-          docker run --rm -v "$PWD:/src" -w /src alpine:3.21 \
+          docker run --rm -e HERD_VERSION -v "$PWD:/src" -w /src alpine:3.21 \
             sh /src/.github/scripts/build-musl.sh
 
       - name: Check the binary is static and runs
         run: |
           file build/herd
           file build/herd | grep -q 'statically linked'
-          echo '[]' > empty.json
           # The runner is glibc; an Alpine-built binary running here is the
-          # portability claim under test.
-          ./build/herd empty.json
+          # portability claim under test. Asking for the version also proves
+          # the build baked one in.
+          test "$(./build/herd --version)" = "herd $HERD_VERSION"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -59,8 +64,7 @@ jobs:
       - name: Check the binary runs
         run: |
           file build/herd
-          echo '[]' > empty.json
-          ./build/herd empty.json
+          test "$(./build/herd --version)" = "herd $HERD_VERSION"
 
       - uses: actions/upload-artifact@v4
         with:
