@@ -108,18 +108,18 @@
   (assert-no-error (string "a custom command accepts " mode " output")
                    (herd/custom-commands
                      {:commands {"check" {:command "true"
-                                           :description "Check repositories."
-                                           :output-mode mode}}})))
+                                          :description "Check repositories."
+                                          :output-mode mode}}})))
 (assert-error "a custom command output mode must be a string"
               (herd/custom-commands
                 {:commands {"check" {:command "true"
-                                      :description "Check repositories."
-                                      :output-mode :everything}}}))
+                                     :description "Check repositories."
+                                     :output-mode :everything}}}))
 (assert-error "a custom command output mode must be known"
               (herd/custom-commands
                 {:commands {"check" {:command "true"
-                                      :description "Check repositories."
-                                      :output-mode "sometimes"}}}))
+                                     :description "Check repositories."
+                                     :output-mode "sometimes"}}}))
 (assert-error "a command cannot mix common and VCS-specific forms"
               (herd/custom-commands
                 {:commands {"check"
@@ -140,7 +140,7 @@
 (let [commands
       (herd/custom-commands
         {:commands {"check" {:command "true"
-                              :description "Check repositories."}}})]
+                             :description "Check repositories."}}})]
   (assert (= "Check repositories." (get-in commands ["check" :help]))
           "a custom command retains its description")
   (assert (function? (get-in commands ["check" :run]))
@@ -150,8 +150,8 @@
       (herd/custom-commands
         {:commands
          {"check" {:command-git "git status"
-                    :command-jj "jj status"
-                    :description "Check repositories."}}})]
+                   :command-jj "jj status"
+                   :description "Check repositories."}}})]
   (assert (function? (get-in commands ["check" :run]))
           "a VCS-specific custom command provides a handler"))
 
@@ -430,10 +430,10 @@
   (os/setenv "HOME" dir)
 
   (write-config (string configuration "/a.json")
-              [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}
-               {:path "/opt/beta" :ssh_url "git@example.com:beta.git"}])
+                [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}
+                 {:path "/opt/beta" :ssh_url "git@example.com:beta.git"}])
   (write-config (string elsewhere "/b.json")
-              [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
+                [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
 
   (let [merged (herd/load-config (herd/discover-config-files configuration) configuration)]
@@ -445,12 +445,12 @@
 
   # The same checkout in two files is fine while they agree on the URL.
   (write-config (string configuration "/agrees.json")
-              [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}])
+                [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}])
   (assert (= 3 (length (herd/load-config (herd/discover-config-files configuration) configuration)))
           "an agreeing duplicate is dropped")
 
   (write-config (string configuration "/agrees.json")
-              [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
+                [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
   (assert-error "a disagreeing duplicate is refused"
                 (herd/load-config (herd/discover-config-files configuration) configuration))
 

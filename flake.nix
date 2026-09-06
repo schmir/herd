@@ -6,8 +6,12 @@
     url = "github:Blue-Berry/janet-lsp.nix";
     flake = false;
   };
+  inputs.spork = {
+    url = "github:janet-lang/spork";
+    flake = false;
+  };
 
-  outputs = { janet-lsp-nix, nixpkgs, ... }:
+  outputs = { janet-lsp-nix, nixpkgs, spork, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -22,16 +26,21 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          janet-format = pkgs.writeShellScriptBin "janet-format" ''
+            exec ${pkgs.janet}/bin/janet --syspath ${spork} ${spork}/bin/janet-format "$@"
+          '';
           janet-lsp = pkgs.callPackage janet-lsp-nix { };
         in
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
               janet
+              janet-format
               janet-lsp
               jujutsu
               jpm
               just
+              treefmt
             ];
           };
         }

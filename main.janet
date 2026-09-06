@@ -60,14 +60,14 @@
           (:read (process :err) :all stderr)
           (:wait process))
         (if (zero? (process :return-code))
-            (do
-              (report "Clone complete: " path)
-              :cloned)
-            (do
-              (report "Clone failed: " path)
-              (when (> (length stderr) 0) (report stderr))
-              (when (> (length stdout) 0) (report stdout))
-              :failed)))
+          (do
+            (report "Clone complete: " path)
+            :cloned)
+          (do
+            (report "Clone failed: " path)
+            (when (> (length stderr) 0) (report stderr))
+            (when (> (length stdout) 0) (report stdout))
+            :failed)))
       ([err]
         (report "Clone failed: " path ": " err)
         :failed))))
@@ -659,9 +659,9 @@
   {"clone" {:run clone-command
             :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
-                    {:command-git "git fetch"
-                     :command-jj "jj git fetch"}
-                    "Fetch Git remotes in each configured repository beneath a path.")
+                   {:command-git "git fetch"
+                    :command-jj "jj git fetch"}
+                   "Fetch Git remotes in each configured repository beneath a path.")
             :help "Fetch Git remotes in configured repositories beneath a path."}
    "list" {:run list-command
            :help "Print the configured repositories beneath a path."}

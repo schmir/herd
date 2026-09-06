@@ -35,7 +35,24 @@
     "root": {
       "inputs": {
         "janet-lsp-nix": "janet-lsp-nix",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "spork": "spork"
+      }
+    },
+    "spork": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788526829,
+        "narHash": "sha256-F/wU9XBvsL56JySUzcYdC/w+ETn9c2L3AdEgs5tInyY=",
+        "owner": "janet-lang",
+        "repo": "spork",
+        "rev": "0667f96b74de52747ffe5e19e185563ebf53816b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "janet-lang",
+        "repo": "spork",
+        "type": "github"
       }
     }
   },

@@ -1,0 +1,3 @@
+[formatter.janet]
+command = "janet-format"
+includes = ["*.janet", "*.jdn"]
