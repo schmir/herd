@@ -476,9 +476,8 @@
     (os/exit 1))
   (run-configured-command command parsed))
 
-(def commands
-  ``Subcommands by name. Each carries the function to run, given the arguments
-  from the command name onwards, and a one-line summary.``
+(def built-in-commands
+  "Subcommands by name, with their argument handler and one-line summary."
   {"clone" {:run clone-command
             :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
@@ -490,11 +489,63 @@
    "run" {:run run-command
           :help "Run a command in each configured repository beneath a path."}})
 
+(defn command-config-path
+  "Return the JDN configuration path, or nil without a config directory."
+  []
+  (when-let [directory (config-directory)]
+    (path/join directory "config.jdn")))
+
+(defn custom-commands
+  "Validate a JDN configuration and return its command handlers."
+  [config]
+  (unless (dictionary? config)
+    (error "expected a JDN dictionary with a :commands dictionary"))
+  (def configured (get config :commands {}))
+  (unless (dictionary? configured)
+    (error ":commands must be a dictionary"))
+  (def result @{})
+  (eachp [name definition] configured
+    (unless (and (string? name) (not (empty? name)))
+      (error "custom command names must be non-empty strings"))
+    (when (get built-in-commands name)
+      (error (string "custom command \"" name "\" conflicts with a built-in command")))
+    (unless (dictionary? definition)
+      (error (string "custom command \"" name "\" must be a dictionary")))
+    (def command (get definition :command))
+    (def description (get definition :description))
+    (unless (string? command)
+      (error (string "custom command \"" name "\" needs a string :command")))
+    (unless (string? description)
+      (error (string "custom command \"" name "\" needs a string :description")))
+    (put result name
+         {:run (make-run-command ["sh" "-c" command] description)
+          :help description}))
+  result)
+
+(defn load-custom-commands
+  "Read and validate custom commands, or return none when no file exists."
+  [config-path]
+  (if (nil? (os/stat config-path))
+    {}
+    (do
+      (unless (= :file (os/stat config-path :mode))
+        (error (string config-path " is not a file")))
+      (try
+        (custom-commands (parse (slurp config-path)))
+        ([err] (error (string config-path ": " err)))))))
+
+(defn available-commands
+  "Return built-in commands merged with the configured custom commands."
+  []
+  (if-let [config-path (command-config-path)]
+    (merge built-in-commands (load-custom-commands config-path))
+    built-in-commands))
+
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
   options only, never positionals, so the command list has to be carried in
   the description it prints.``
-  []
+  [commands]
   (string/join
     (seq [name :in (sort (keys commands))]
       (string/format "  %-10s%s" name (get-in commands [name :help])))
@@ -502,10 +553,16 @@
 
 (defn main
   [& args]
+  (def commands
+    (try
+      (available-commands)
+      ([err]
+        (eprint "Configuration error: " err)
+        (os/exit 1))))
   (def parsed
     (parse-args args
                 (string "manage multiple git/jj repositories\n\n Commands:\n"
-                        (command-list))
+                        (command-list commands))
                 :default {:kind :accumulate
                           :short-circuit true
                           :help "Command to run."}))

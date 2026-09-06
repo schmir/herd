@@ -2,6 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
+(import ../main :as herd)
 
 (start-suite "arguments")
 
@@ -45,7 +46,11 @@
   (def xdg (os/getenv "XDG_CONFIG_HOME"))
   (def root (os/realpath directory))
   (def configuration (path/join root "config/herd/repos.json"))
+  (def command-config (path/join root "config/herd/config.jdn"))
+  (def repository (path/join root "repo"))
   (sh/create-dirs-to configuration)
+  (sh/create-dirs repository)
+  (spit (path/join repository "present") "")
   (spit configuration `[{"path": "repo", "ssh_url": "unused"}]`)
   (os/setenv "HOME" root)
   (os/setenv "XDG_CONFIG_HOME" (path/join root "config"))
@@ -57,6 +62,28 @@
   (assert (= 0 (no-repository :status)) "an empty anchor is not an error")
   (assert (string/find "-a/--all-anchors" (no-repository :output))
           "an empty anchor suggests all-anchor selection")
+  (spit command-config
+        `{:commands
+          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+                   :description "Create a marker in each repository."}}}`)
+  (assert (= command-config (herd/command-config-path))
+          "the JDN configuration uses the XDG configuration directory")
+  (assert (get (herd/load-custom-commands command-config) "mark")
+          "the JDN configuration loads a custom command")
+  (def top-help (invoke ["--help"]))
+  (assert (= 0 (top-help :status))
+          (string "help accepts a valid JDN configuration: " (top-help :output)))
+  (assert (string/find "mark" (top-help :output))
+          (string "top-level help lists a custom command: " (top-help :output)))
+  (def command-help (invoke ["mark" "--help"]))
+  (assert (string/find "Create a marker" (command-help :output))
+          (string "custom command help uses its configured description: "
+                  (command-help :output)))
+  (def command-result (invoke ["mark" "--at" root]))
+  (assert (= 0 (command-result :status))
+          (string "a custom shell command succeeds: " (command-result :output)))
+  (assert (= :file (os/stat (path/join repository "custom-command") :mode))
+          "a custom shell command runs in the selected repository")
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm directory))

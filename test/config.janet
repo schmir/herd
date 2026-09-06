@@ -51,6 +51,42 @@
                  (herd/validate-config [{:path "a" :ssh_url "b"}]))
 (assert-no-error "an empty configuration is valid" (herd/validate-config []))
 
+# --- custom-commands ------------------------------------------------------
+
+(assert-error "custom command JDN must be a dictionary"
+              (herd/custom-commands []))
+(assert-error "the custom command collection must be a dictionary"
+              (herd/custom-commands {:commands []}))
+(assert-error "a custom command cannot replace a built-in command"
+              (herd/custom-commands
+                {:commands {"run" {:command "true" :description "Conflict."}}}))
+(assert-error "a custom command needs a shell command"
+              (herd/custom-commands
+                {:commands {"check" {:description "Check repositories."}}}))
+(assert-error "a custom command needs a description"
+              (herd/custom-commands
+                {:commands {"check" {:command "true"}}}))
+
+(let [commands
+      (herd/custom-commands
+        {:commands {"check" {:command "true"
+                              :description "Check repositories."}}})]
+  (assert (= "Check repositories." (get-in commands ["check" :help]))
+          "a custom command retains its description")
+  (assert (function? (get-in commands ["check" :run]))
+          "a custom command provides a handler"))
+
+(let [dir (fixture)
+      config-path (path/join dir "config.jdn")]
+  (spit config-path `(error "this code must not run")`)
+  (def message
+    (try
+      (do (herd/load-custom-commands config-path) nil)
+      ([err] (string err))))
+  (assert (and message (string/find "expected a JDN dictionary" message))
+          "loading JDN parses an expression as data instead of running it")
+  (sh/rm dir))
+
 # --- resolve-repository-paths ---------------------------------------------
 
 (let [entries (herd/resolve-repository-paths
