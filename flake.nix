@@ -11,7 +11,13 @@
     flake = false;
   };
 
-  outputs = { janet-lsp-nix, nixpkgs, spork, ... }:
+  outputs =
+    {
+      janet-lsp-nix,
+      nixpkgs,
+      spork,
+      ...
+    }:
     let
       systems = [
         "aarch64-darwin"
@@ -37,9 +43,10 @@
               janet
               janet-format
               janet-lsp
-              jujutsu
               jpm
+              jujutsu
               just
+              prettier
               treefmt
             ];
           };

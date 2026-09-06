@@ -1,3 +1,6 @@
+[global]
+excludes = ["LICENSE"]
+
 [formatter.janet]
 command = "janet-format"
 includes = ["*.janet", "*.jdn"]
@@ -6,3 +9,8 @@ includes = ["*.janet", "*.jdn"]
 command = "sh"
 options = ["-c", 'for f in "$@"; do just --fmt --justfile "$f"; done', "--"]
 includes = ["justfile", ".justfile", "*.just"]
+
+[formatter.prettier]
+command = "prettier"
+options = ["--write"]
+includes = ["*.md"]
