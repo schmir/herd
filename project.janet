@@ -6,4 +6,5 @@
 
 (declare-executable
   :name "herd"
-  :entry "main.janet")
+  :entry "main.janet"
+  :deps ["parallel.janet"])
