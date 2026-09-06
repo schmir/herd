@@ -17,6 +17,13 @@
 (assert (= :skipped (herd/clone-repository nil nil nil existing "unused"))
         "an existing checkout does not start a process")
 
+(assert (deep= ["git-bin" "clone" "--" "url" "checkout"]
+               (herd/clone-process-command "git" "git-bin" "url" "checkout"))
+        "git clone uses the native Git argument form")
+(assert (deep= ["jj-bin" "git" "clone" "--colocate" "--" "url" "checkout"]
+               (herd/clone-process-command "jj" "jj-bin" "url" "checkout"))
+        "jj clone creates a colocated repository")
+
 (with [devnull (file/open "/dev/null" :r)]
   (def env {:in devnull :out :pipe :err :pipe})
   (var messages @[])

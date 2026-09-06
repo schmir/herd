@@ -20,17 +20,22 @@
       (:wait process))
     {:status (process :return-code) :output (string stdout stderr)}))
 
-(each command ["clone" "fetch" "list" "run"]
-  (def result (invoke [command "--help"]))
-  (assert (= 0 (result :status))
-          (string command " help succeeds"))
-  (assert (string/find "-C, --at" (result :output))
-          (string command " supports working-location selection"))
-  (assert (string/find "-a, --all-anchors" (result :output))
-          (string command " supports all-anchor selection")))
+(let [xdg (os/getenv "XDG_CONFIG_HOME")
+      isolated (path/join (os/getenv "TMPDIR" "/tmp")
+                          (string "herd-help-test-" (os/getpid)))]
+  (defer (os/setenv "XDG_CONFIG_HOME" xdg)
+    (os/setenv "XDG_CONFIG_HOME" isolated)
+    (each command ["clone" "fetch" "list" "run"]
+      (def result (invoke [command "--help"]))
+      (assert (= 0 (result :status))
+              (string command " help succeeds"))
+      (assert (string/find "-C, --at" (result :output))
+              (string command " supports working-location selection"))
+      (assert (string/find "-a, --all-anchors" (result :output))
+              (string command " supports all-anchor selection")))
 
-(assert (string/find "Fetch Git remotes" ((invoke ["fetch" "--help"]) :output))
-        "fetch help describes its operation")
+    (assert (string/find "Fetch Git remotes" ((invoke ["fetch" "--help"]) :output))
+            "fetch help describes its operation")))
 
 (let [directory (path/join (os/getenv "TMPDIR" "/tmp")
                            (string "herd-arguments-test-" (os/getpid)))
@@ -71,7 +76,8 @@
                    :description "Create a marker in each repository."}}}`)
   (assert (= command-config (herd/command-config-path))
           "the JDN configuration uses the XDG configuration directory")
-  (assert (get (herd/load-custom-commands command-config) "mark")
+  (assert (get-in (herd/load-command-config command-config)
+                  [:commands "mark"])
           "the JDN configuration loads a custom command")
   (def top-help (invoke ["--help"]))
   (assert (= 0 (top-help :status))
@@ -92,6 +98,43 @@
   (assert (string/find repository (aliased :output))
           (string "a working location reached through a symlink selects the "
                   "same repositories: " (aliased :output)))
+  (def original-path (os/getenv "PATH"))
+  (def bin (path/join root "bin"))
+  (def fake-git (path/join bin "git"))
+  (def fake-jj (path/join bin "jj"))
+  (def git-clone-arguments (path/join root "git-clone-arguments"))
+  (def jj-clone-arguments (path/join root "jj-clone-arguments"))
+  (def git-repository (path/join anchor "git-repo"))
+  (def jj-repository (path/join anchor "jj-repo"))
+  (sh/create-dirs bin)
+  (spit fake-git
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../git-clone-arguments\"\n")
+  (spit fake-jj
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../jj-clone-arguments\"\n")
+  (sh/exec-fail "chmod" "+x" fake-git)
+  (sh/exec-fail "chmod" "+x" fake-jj)
+  (spit command-config `{:vcs "git"}`)
+  (sh/rm repository)
+  (spit configuration
+        `[{"path":"git-repo","ssh_url":"git-url"},
+          {"path":"jj-repo","ssh_url":"jj-url","vcs":"jj"}]`)
+  (defer (os/setenv "PATH" original-path)
+    (os/setenv "PATH" (string bin ":" original-path))
+    (def clone-result (invoke ["clone" "--at" anchor]))
+    (assert (= 0 (clone-result :status))
+            (string "clone supports mixed Git and jj repositories: "
+                    (clone-result :output)))
+    (def received-git-arguments (string (slurp git-clone-arguments)))
+    (assert (= (string "clone\n--\ngit-url\n" git-repository "\n")
+               received-git-arguments)
+            (string "the default Git clone receives the URL and path: "
+                    (string/format "%j" received-git-arguments)))
+    (def received-jj-arguments (string (slurp jj-clone-arguments)))
+    (assert (= (string "git\nclone\n--colocate\n--\njj-url\n"
+                       jj-repository "\n")
+               received-jj-arguments)
+            (string "the repository jj override receives the URL and path: "
+                    (string/format "%j" received-jj-arguments))))
   (spit (path/join root "config/herd/orphan.meta.json") "{}")
   (def orphan (invoke ["list" "--at" anchor]))
   (assert (not= 0 (orphan :status)) "orphan metadata fails repository discovery")

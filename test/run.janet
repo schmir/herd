@@ -48,6 +48,54 @@
   (sh/rm dir))
 
 (let [dir (fixture)
+      git-repository (string dir "/git")
+      jj-repository (string dir "/jj")]
+  (sh/create-dirs (string git-repository "/.git"))
+  (sh/create-dirs (string jj-repository "/.jj"))
+  (def counts
+    (herd/run-in-repositories
+      {:command-git "touch selected-git"
+       :command-jj "touch selected-jj"}
+      [(repository git-repository) (repository jj-repository)]))
+  (assert (= 2 (counts :succeeded))
+          "VCS-specific commands run in both repository types")
+  (assert (= :file (os/stat (string git-repository "/selected-git") :mode))
+          "a Git repository selects command-git")
+  (assert (= :file (os/stat (string jj-repository "/selected-jj") :mode))
+          "a jj repository selects command-jj")
+  (sh/rm dir))
+
+(let [dir (fixture)]
+  (sh/create-dirs (string dir "/.git"))
+  (sh/create-dirs (string dir "/.jj"))
+  (def counts
+    (herd/run-in-repositories
+      {:command-git "touch selected-git"
+       :command-jj "touch selected-jj"}
+      [(repository dir)]))
+  (assert (= 1 (counts :succeeded))
+          "a colocated repository runs one command")
+  (assert (= :file (os/stat (string dir "/selected-jj") :mode))
+          "a colocated repository selects the jj command")
+  (assert (nil? (os/stat (string dir "/selected-git")))
+          "a colocated repository does not select the Git command")
+  (sh/rm dir))
+
+(let [dir (fixture)]
+  (sh/create-dirs (string dir "/.jj"))
+  (def counts
+    (herd/run-in-repositories
+      {:command-git "touch selected-git"}
+      [(repository dir)]))
+  (assert (= 1 (counts :skipped))
+          "a missing command for the repository VCS is skipped")
+  (assert (= 0 (counts :failed))
+          "a missing VCS-specific command is not a failure")
+  (assert (nil? (os/stat (string dir "/selected-git")))
+          "a skipped command does not run")
+  (sh/rm dir))
+
+(let [dir (fixture)
       first (string dir "/first")
       missing (string dir "/missing")
       last (string dir "/last")]
@@ -148,7 +196,7 @@
   (assert (= 2 (length (herd/select-repositories-with-anchors
                          root loaded false (herd/containing-anchors root loaded))))
           "the fixture root selects both repositories")
-  ((herd/make-run-command ["touch" "fixed-command"]
+  ((herd/make-run-command "touch fixed-command"
                           "Run the fixed test command.")
    ["fixed" "--at" root])
   (assert (= :file (os/stat (string first "/fixed-command") :mode))
@@ -181,7 +229,8 @@
             "show-output reports a successful repository")
     (assert (string/find "| stdout\n|   shown" errors)
             "show-output reports successful command output")
-    (assert (string/find "2 succeeded, 0 failed, 1 not checked out" output)
+    (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
+                         output)
             "run reports repositories that are not checked out"))
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)

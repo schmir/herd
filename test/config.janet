@@ -49,8 +49,18 @@
 (assert-error "path is required" (herd/validate-config [{:ssh_url "b"}]))
 (assert-error "ssh_url is required" (herd/validate-config [{:path "a"}]))
 (assert-error "path must be a string" (herd/validate-config [{:path 1 :ssh_url "b"}]))
+(assert-error "vcs must be a string"
+              (herd/validate-config [{:path "a" :ssh_url "b" :vcs :jj}]))
+(assert-error "vcs cannot be false"
+              (herd/validate-config [{:path "a" :ssh_url "b" :vcs false}]))
+(assert-error "vcs must be git or jj"
+              (herd/validate-config [{:path "a" :ssh_url "b" :vcs "svn"}]))
 (assert-no-error "a well formed entry passes"
                  (herd/validate-config [{:path "a" :ssh_url "b"}]))
+(assert-no-error "a repository can select Git"
+                 (herd/validate-config [{:path "a" :ssh_url "b" :vcs "git"}]))
+(assert-no-error "a repository can select jj"
+                 (herd/validate-config [{:path "a" :ssh_url "b" :vcs "jj"}]))
 (assert-no-error "an empty configuration is valid" (herd/validate-config []))
 
 # --- custom-commands ------------------------------------------------------
@@ -65,9 +75,51 @@
 (assert-error "a custom command needs a shell command"
               (herd/custom-commands
                 {:commands {"check" {:description "Check repositories."}}}))
+(def missing-command-message
+  (try
+    (do
+      (herd/custom-commands
+        {:commands {"check" {:description "Check repositories."}}})
+      nil)
+    ([err] (string err))))
+(assert (string/find ":command, :command-git, or :command-jj"
+                     missing-command-message)
+        "a missing command lists the valid fields")
 (assert-error "a custom command needs a description"
               (herd/custom-commands
                 {:commands {"check" {:command "true"}}}))
+(assert-no-error "a custom command can be jj-only"
+                 (herd/custom-commands
+                   {:commands {"check"
+                               {:command-jj "jj status"
+                                :description "Check repositories."}}}))
+(assert-no-error "a custom command can be Git-only"
+                 (herd/custom-commands
+                   {:commands {"check"
+                               {:command-git "git status"
+                                :description "Check repositories."}}}))
+(assert-error "a custom command cannot have an unknown key"
+              (herd/custom-commands
+                {:commands {"check"
+                            {:command-git "git status"
+                             :comand-jj "jj status"
+                             :description "Check repositories."}}}))
+(assert-error "a command cannot mix common and VCS-specific forms"
+              (herd/custom-commands
+                {:commands {"check"
+                            {:command "status"
+                             :command-git "git status"
+                             :command-jj "jj status"
+                             :description "Check repositories."}}}))
+(assert (= "jj" (herd/configured-vcs {})) "jj is the default VCS")
+(assert (= "git" (herd/configured-vcs {:vcs "git"}))
+        "git can be selected as the VCS")
+(assert (= "jj" (herd/configured-vcs {:vcs "jj"}))
+        "jj can be selected explicitly")
+(assert-error "the VCS must be git or jj"
+              (herd/configured-vcs {:vcs "svn"}))
+(assert-error "the VCS must be a string"
+              (herd/configured-vcs {:vcs :git}))
 
 (let [commands
       (herd/custom-commands
@@ -78,15 +130,41 @@
   (assert (function? (get-in commands ["check" :run]))
           "a custom command provides a handler"))
 
+(let [commands
+      (herd/custom-commands
+        {:commands
+         {"check" {:command-git "git status"
+                    :command-jj "jj status"
+                    :description "Check repositories."}}})]
+  (assert (function? (get-in commands ["check" :run]))
+          "a VCS-specific custom command provides a handler"))
+
+(assert (deep= {:command-git "git status" :command-jj "jj status"}
+               (herd/command-from-definition
+                 "check"
+                 {:command-git "git status" :command-jj "jj status"}))
+        "VCS-specific configuration becomes a per-repository command")
+(assert (deep= {:command-jj "jj status"}
+               (herd/command-from-definition
+                 "check" {:command-jj "jj status"}))
+        "a VCS-specific command can support only jj")
+
 (let [dir (fixture)
       config-path (path/join dir "config.jdn")]
   (spit config-path `(error "this code must not run")`)
   (def message
     (try
-      (do (herd/load-custom-commands config-path) nil)
+      (do (herd/load-command-config config-path) nil)
       ([err] (string err))))
   (assert (and message (string/find "expected a JDN dictionary" message))
           "loading JDN parses an expression as data instead of running it")
+  (sh/rm dir))
+
+(let [dir (fixture)
+      config-path (path/join dir "config.jdn")]
+  (spit config-path `{:vcs "git"}`)
+  (assert (= "git" ((herd/load-command-config config-path) :vcs))
+          "the VCS is loaded from config.jdn")
   (sh/rm dir))
 
 # --- resolve-repository-paths ---------------------------------------------

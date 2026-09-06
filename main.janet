@@ -3,6 +3,10 @@
 (import spork/path)
 (import ./parallel)
 
+(def default-vcs
+  "The VCS used for repositories that do not select one."
+  "jj")
+
 (defn find-executable
   "Find an executable file by searching the process PATH."
   [name]
@@ -22,15 +26,25 @@
   (and (= :directory (os/stat path :mode))
        (not (empty? (os/dir path)))))
 
+(defn clone-process-command
+  "Return the process command that clones url to path with vcs."
+  [vcs executable url path]
+  (case vcs
+    "git" [executable "clone" "--" url path]
+    "jj" [executable "git" "clone" "--colocate" "--" url path]
+    (error (string "unsupported VCS " vcs))))
+
 (defn clone-repository
-  ``Clone a Git repository unless it is already checked out.
-  Returns :skipped, :cloned or :failed.``
-  [jj env report path url]
+  "Clone a repository with vcs unless it is already checked out.
+  Return :skipped, :cloned, or :failed."
+  [executable env report path url &opt vcs]
   (if (checked-out? path)
     :skipped
     (try
       (do
-        (def process (os/spawn [jj "git" "clone" "--colocate" url path] : env))
+        (def command (clone-process-command (or vcs default-vcs)
+                                            executable url path))
+        (def process (os/spawn command : env))
         (def stdout @"")
         (def stderr @"")
         (ev/gather
@@ -51,28 +65,33 @@
         :failed))))
 
 (defn clone-repositories
-  ``Clone repositories, keeping at most `worker-count` Git processes active.
-  Returns a struct of :cloned, :skipped and :failed counts.``
-  [repositories]
-  (def jj (find-executable "jj"))
-  (def total (length repositories))
-  (if (nil? jj)
-    (do
-      (eprint "jj was not found on PATH")
-      {:cloned 0 :skipped 0 :failed total})
-    # Clones must never inherit the terminal: several run at once, and a jj
-    # or ssh prompt on a shared stdin would interleave or hang the whole run.
-    (with [devnull (file/open "/dev/null" :r)]
-      (def env {:in devnull :out :pipe :err :pipe})
-      (parallel/run-repositories
-        repositories
-        [[:cloned "cloned"]
-         [:skipped "already checked out"]
-         [:failed "failed"]]
-        (fn [repository report]
-          (clone-repository jj env report
+  "Clone repositories with their selected VCS and limit concurrent processes.
+  Return the cloned, skipped, and failed counts."
+  [repositories &opt vcs]
+  (def vcs (or vcs default-vcs))
+  (def executables {"git" (find-executable "git")
+                    "jj" (find-executable "jj")})
+  # Clones must never inherit the terminal: several run at once, and a VCS
+  # or SSH prompt on a shared stdin would interleave or hang the whole run.
+  (with [devnull (file/open "/dev/null" :r)]
+    (def env {:in devnull :out :pipe :err :pipe})
+    (parallel/run-repositories
+      repositories
+      [[:cloned "cloned"]
+       [:skipped "already checked out"]
+       [:failed "failed"]]
+      (fn [repository report]
+        (def selected-vcs (get repository :vcs vcs))
+        (def executable (get executables selected-vcs))
+        (if (or executable (checked-out? (repository :path)))
+          (clone-repository executable env report
                             (repository :path)
-                            (repository :ssh_url)))))))
+                            (repository :ssh_url)
+                            selected-vcs)
+          (do
+            (report "Clone failed: " (repository :path) ": "
+                    selected-vcs " was not found on PATH")
+            :failed))))))
 
 (defn validate-config
   "Return config unchanged, or raise a descriptive error describing its shape."
@@ -85,7 +104,12 @@
       (error (string "entry " index " is not a JSON object")))
     (each key [:path :ssh_url]
       (unless (string? (entry key))
-        (error (string "entry " index " needs a string \"" key "\"")))))
+        (error (string "entry " index " needs a string \"" key "\""))))
+    (def vcs (get entry :vcs :not-configured))
+    (unless (= :not-configured vcs)
+      (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
+        (error (string "entry " index " has an invalid \"vcs\"; "
+                       "expected \"git\" or \"jj\"")))))
   config)
 
 (defn parse-config
@@ -218,8 +242,8 @@
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
-  files may name the same checkout only when they agree on the URL; letting
-  them disagree would make the result depend on the reading order.``
+  files may name the same checkout only when they agree on the URL and VCS;
+  letting them disagree would make the result depend on the reading order.``
   [loaded]
   (def seen @{})
   (def merged @[])
@@ -231,11 +255,16 @@
         (do
           (put seen (entry :path) {:source config-path
                                    :ssh_url (entry :ssh_url)
+                                   :vcs (get entry :vcs)
                                    :anchors (entry :anchors)})
           (array/push merged entry))
 
         (not= (previous :ssh_url) (entry :ssh_url))
         (error (string/format "%s and %s disagree on the URL for %s"
+                              (previous :source) config-path (entry :path)))
+
+        (not= (get previous :vcs) (get entry :vcs))
+        (error (string/format "%s and %s disagree on the VCS for %s"
                               (previous :source) config-path (entry :path)))
 
         true
@@ -414,12 +443,12 @@
                            (parsed "all-anchors")))
 
 (defn clone-command
-  ``Run `herd clone`: check out the repositories the arguments select.``
-  [args]
+  "Run herd clone with the selected VCS."
+  [args &opt vcs]
   (def repositories
     (selected-repositories args
                            "Check out the configured repositories beneath a path."))
-  (def counts (clone-repositories repositories))
+  (def counts (clone-repositories repositories (or vcs default-vcs)))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
@@ -455,29 +484,67 @@
     (array/push sections (string "| stderr\n" (indent-command-output stderr))))
   (string/join sections "\n"))
 
+(defn repository-vcs
+  "Return the VCS identified by repository metadata, or nil."
+  [repository]
+  (def root (repository :path))
+  (cond
+    (os/lstat (path/join root ".jj") :mode) :jj
+    (os/lstat (path/join root ".git") :mode) :git))
+
+(defn command-for-repository
+  "Return the process command selected for repository."
+  [command repository]
+  (cond
+    (string? command)
+    ["sh" "-c" command]
+
+    (dictionary? command)
+    (if-let [vcs (repository-vcs repository)]
+      (do
+        (def key (case vcs
+                   :git :command-git
+                   :jj :command-jj))
+        (def selected (get command key))
+        (if (nil? selected)
+          nil
+          (do
+            (unless (string? selected)
+              (error (string "VCS command structure needs a string " key)))
+            ["sh" "-c" selected])))
+      (error "repository has no .git or .jj metadata"))
+
+    # herd run passes an argument vector instead of a configured command.
+    (indexed? command)
+    command
+
+    (error "command must be a string, VCS command structure, or argument vector")))
+
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
   [command env repository report &opt show-output]
   (try
     (if (checked-out? (repository :path))
-      (with [process
-             (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                        "herd" (repository :path) ;command]
-                       :p env)]
-        (def stdout @"")
-        (def stderr @"")
-        (ev/gather
-          (:read (process :out) :all stdout)
-          (:read (process :err) :all stderr)
-          (:wait process))
-        (def status (process :return-code))
-        (def succeeded (zero? status))
-        (when (or (not succeeded)
-                  (and show-output
-                       (or (pos? (length stdout))
-                           (pos? (length stderr)))))
-          (report (format-command-result repository status stdout stderr)))
-        (if succeeded :succeeded :failed))
+      (if-let [selected (command-for-repository command repository)]
+        (with [process
+               (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                          "herd" (repository :path) ;selected]
+                         :p env)]
+          (def stdout @"")
+          (def stderr @"")
+          (ev/gather
+            (:read (process :out) :all stdout)
+            (:read (process :err) :all stderr)
+            (:wait process))
+          (def status (process :return-code))
+          (def succeeded (zero? status))
+          (when (or (not succeeded)
+                    (and show-output
+                         (or (pos? (length stdout))
+                             (pos? (length stderr)))))
+            (report (format-command-result repository status stdout stderr)))
+          (if succeeded :succeeded :failed))
+        :skipped)
       :not-checked-out)
     ([err]
       (report "✗ " (repository :path) "\n"
@@ -504,6 +571,7 @@
       repositories
       [[:succeeded "succeeded"]
        [:failed "failed"]
+       [:skipped "skipped"]
        [:not-checked-out "not checked out"]]
       (fn [repository report]
         (run-in-repository command env repository
@@ -519,6 +587,7 @@
                                    (parsed "show-output")))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
+         (counts :skipped) " skipped, "
          (counts :not-checked-out) " not checked out")
   (when (pos? (counts :failed))
     (os/exit 1)))
@@ -560,7 +629,8 @@
   {"clone" {:run clone-command
             :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
-                    ["jj" "git" "fetch"]
+                    {:command-git "git fetch"
+                     :command-jj "jj git fetch"}
                     "Fetch Git remotes in each configured repository beneath a path.")
             :help "Fetch Git remotes in configured repositories beneath a path."}
    "list" {:run list-command
@@ -573,6 +643,46 @@
   []
   (when-let [directory (config-directory)]
     (path/join directory "config.jdn")))
+
+(defn configured-vcs
+  "Return the configured VCS, or jj when it is not set."
+  [config]
+  (unless (dictionary? config)
+    (error "expected a JDN dictionary"))
+  (def vcs (get config :vcs default-vcs))
+  (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
+    (error `:vcs must be "git" or "jj"`))
+  vcs)
+
+(def custom-command-keys
+  "Keys a custom-command definition may contain."
+  [:command :command-git :command-jj :description])
+
+(defn command-from-definition
+  "Return the command described by one custom-command definition."
+  [name definition]
+  (def command (get definition :command))
+  (def command-git (get definition :command-git))
+  (def command-jj (get definition :command-jj))
+  (if (not (nil? command))
+    (do
+      (unless (string? command)
+        (error (string "custom command \"" name "\" needs a string :command")))
+      (when (or (not (nil? command-git)) (not (nil? command-jj)))
+        (error (string "custom command \"" name
+                       "\" cannot combine :command with VCS-specific commands")))
+      command)
+    (do
+      (when (and (nil? command-git) (nil? command-jj))
+        (error (string "custom command \"" name
+                       "\" needs :command, :command-git, or :command-jj")))
+      (unless (or (nil? command-git) (string? command-git))
+        (error (string "custom command \"" name
+                       "\" needs a string :command-git")))
+      (unless (or (nil? command-jj) (string? command-jj))
+        (error (string "custom command \"" name
+                       "\" needs a string :command-jj")))
+      {:command-git command-git :command-jj command-jj})))
 
 (defn custom-commands
   "Validate a JDN configuration and return its command handlers."
@@ -590,34 +700,51 @@
       (error (string "custom command \"" name "\" conflicts with a built-in command")))
     (unless (dictionary? definition)
       (error (string "custom command \"" name "\" must be a dictionary")))
-    (def command (get definition :command))
+    (eachk key definition
+      (unless (index-of key custom-command-keys)
+        (error (string "custom command \"" name "\" has an unknown key "
+                       (describe key)))))
+    (def command (command-from-definition name definition))
     (def description (get definition :description))
-    (unless (string? command)
-      (error (string "custom command \"" name "\" needs a string :command")))
     (unless (string? description)
       (error (string "custom command \"" name "\" needs a string :description")))
     (put result name
-         {:run (make-run-command ["sh" "-c" command] description)
+         {:run (make-run-command command description)
           :help description}))
   result)
 
-(defn load-custom-commands
-  "Read and validate custom commands, or return none when no file exists."
+(defn prepare-command-config
+  "Validate raw JDN configuration and construct its command handlers."
+  [config]
+  {:vcs (configured-vcs config)
+   :commands (custom-commands config)})
+
+(defn load-command-config
+  "Read and validate JDN configuration, or return defaults when absent."
   [config-path]
   (if (nil? (os/stat config-path))
-    {}
+    (prepare-command-config {})
     (do
       (unless (= :file (os/stat config-path :mode))
         (error (string config-path " is not a file")))
       (try
-        (custom-commands (parse (slurp config-path)))
+        (prepare-command-config (parse (slurp config-path)))
         ([err] (error (string config-path ": " err)))))))
+
+(defn commands-for-config
+  "Return all commands from prepared configuration."
+  [config]
+  (def vcs (config :vcs))
+  (merge built-in-commands
+         {"clone" {:run (fn [args] (clone-command args vcs))
+                   :help (get-in built-in-commands ["clone" :help])}}
+         (config :commands)))
 
 (defn available-commands
   "Return built-in commands merged with the configured custom commands."
   []
   (if-let [config-path (command-config-path)]
-    (merge built-in-commands (load-custom-commands config-path))
+    (commands-for-config (load-command-config config-path))
     built-in-commands))
 
 (defn- command-list
