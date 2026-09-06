@@ -19,7 +19,7 @@
       (:wait process))
     {:status (process :return-code) :output (string stdout stderr)}))
 
-(each command ["clone" "list" "run"]
+(each command ["clone" "fetch" "list" "run"]
   (def result (invoke [command "--help"]))
   (assert (= 0 (result :status))
           (string command " help succeeds"))
@@ -27,6 +27,9 @@
           (string command " supports working-location selection"))
   (assert (string/find "-a, --all-anchors" (result :output))
           (string command " supports all-anchor selection")))
+
+(assert (string/find "Fetch Git remotes" ((invoke ["fetch" "--help"]) :output))
+        "fetch help describes its operation")
 
 (let [directory (path/join (os/getenv "TMPDIR" "/tmp")
                            (string "herd-arguments-test-" (os/getpid)))

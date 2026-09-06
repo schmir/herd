@@ -431,6 +431,31 @@
                            |(report-command-result report-state report ;$&)
                            show-output)))))
 
+(defn- run-configured-command
+  "Run a command in the selected repositories and report its outcome."
+  [command parsed]
+  (def repositories
+    (configured-repositories (parsed "at") (parsed "all-anchors")))
+  (def counts (run-in-repositories command repositories
+                                   (parsed "show-output")))
+  (print (counts :succeeded) " succeeded, "
+         (counts :failed) " failed, "
+         (counts :not-checked-out) " not checked out")
+  (when (pos? (counts :failed))
+    (os/exit 1)))
+
+(defn make-run-command
+  "Return a handler that uses description for help and runs command."
+  [command description]
+  (fn [args]
+    (def parsed
+      (parse-args args description
+                  "at" (at-option)
+                  "all-anchors" (all-anchors-option)
+                  "show-output" {:kind :flag
+                                 :help "Show output from successful commands."}))
+    (run-configured-command command parsed)))
+
 (defn run-command
   "Run herd run with the command and repository selection in args."
   [args]
@@ -449,21 +474,17 @@
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
-  (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors")))
-  (def counts (run-in-repositories command repositories
-                                   (parsed "show-output")))
-  (print (counts :succeeded) " succeeded, "
-         (counts :failed) " failed, "
-         (counts :not-checked-out) " not checked out")
-  (when (pos? (counts :failed))
-    (os/exit 1)))
+  (run-configured-command command parsed))
 
 (def commands
   ``Subcommands by name. Each carries the function to run, given the arguments
   from the command name onwards, and a one-line summary.``
   {"clone" {:run clone-command
             :help "Check out the configured repositories beneath a path."}
+   "fetch" {:run (make-run-command
+                    ["jj" "git" "fetch"]
+                    "Fetch Git remotes in each configured repository beneath a path.")
+            :help "Fetch Git remotes in configured repositories beneath a path."}
    "list" {:run list-command
            :help "Print the configured repositories beneath a path."}
    "run" {:run run-command

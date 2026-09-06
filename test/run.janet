@@ -146,6 +146,13 @@
   (assert (= 2 (length (herd/select-repositories-with-anchors
                          root loaded false (herd/containing-anchors root loaded))))
           "the fixture root selects both repositories")
+  ((herd/make-run-command ["touch" "fixed-command"]
+                          "Run the fixed test command.")
+   ["fixed" "--at" root])
+  (assert (= :file (os/stat (string first "/fixed-command") :mode))
+          "a generated handler runs its command in the first repository")
+  (assert (= :file (os/stat (string second "/fixed-command") :mode))
+          "a generated handler runs its command in the second repository")
   (herd/run-command ["run" "--at" root
                      "sh" "-c" `touch -- "$1"` "herd" "-command-argument"])
   (assert (= :file (os/stat (string first "/-command-argument") :mode))
