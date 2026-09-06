@@ -93,6 +93,18 @@
           (string "help accepts a valid JDN configuration: " (top-help :output)))
   (assert (string/find "mark" (top-help :output))
           (string "top-level help lists a custom command: " (top-help :output)))
+  (def no-command (invoke []))
+  (assert (not= 0 (no-command :status)) "naming no command is a usage error")
+  (each fragment ["manage multiple git/jj repositories" "Commands:" "mark"
+                  "-h, --help"]
+    (assert (string/find fragment (no-command :output))
+            (string "the bare invocation shows the full help: " fragment)))
+  (assert (= (top-help :output) (no-command :output))
+          "the bare invocation prints exactly what --help prints")
+  (def unknown-command (invoke ["bogus"]))
+  (assert (not= 0 (unknown-command :status)) "an unknown command is an error")
+  (assert (string/find `Unknown command "bogus"` (unknown-command :output))
+          "an unknown command is named rather than shown the whole help")
   (def command-help (invoke ["mark" "--help"]))
   (assert (string/find "Create a marker" (command-help :output))
           (string "custom command help uses its configured description: "

@@ -865,13 +865,13 @@
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
-  (def parsed
-    (parse-args args
-                (string "manage multiple git/jj repositories\n\n Commands:\n"
-                        (command-list commands))
-                :default {:kind :accumulate
-                          :short-circuit true
-                          :help "Command to run."}))
+  (def spec
+    [(string "manage multiple git/jj repositories\n\n Commands:\n"
+             (command-list commands))
+     :default {:kind :accumulate
+               :short-circuit true
+               :help "Command to run."}])
+  (def parsed (parse-args args ;spec))
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
   (def rest (or (parsed :rest) @[]))
@@ -879,6 +879,8 @@
     ((command :run) rest)
     (do
       (if (empty? rest)
-        (eprint "usage: herd " (string/join (sort (keys commands)) "|") " [option] ...")
+        # Naming no command is still a usage error, but a bare usage line
+        # hides what the commands do, so show the same help `--help` prints.
+        (argparse/argparse ;spec :args [(get args 0 "herd") "--help"])
         (eprint "Unknown command \"" (first rest) "\""))
       (os/exit 1))))
