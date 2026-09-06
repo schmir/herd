@@ -137,6 +137,14 @@
 (assert-error "the VCS must be a string"
               (herd/configured-vcs {:vcs :git}))
 
+(assert (= 6 (herd/configured-jobs {})) "six jobs is the default")
+(assert (= 3 (herd/configured-jobs {:jobs 3})) "a job count can be configured")
+(each invalid [0 -2 1.5 "4" :four 2147483648]
+  (assert-error (string "a configured job count rejects " (describe invalid))
+                (herd/configured-jobs {:jobs invalid})))
+(assert-error "the job configuration must be a dictionary"
+              (herd/configured-jobs []))
+
 (let [commands
       (herd/custom-commands
         {:commands {"check" {:command "true"

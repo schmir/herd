@@ -29,7 +29,39 @@
 (assert (= 12 (counts :succeeded)) "every successful operation is counted")
 (assert (= 12 (length seen)) "every repository runs once")
 (assert (= 12 (length (distinct seen))) "no repository runs twice")
-(assert (= parallel/worker-count most-active) "the runner uses all six workers")
+(assert (= parallel/default-jobs most-active)
+        "the runner uses every worker by default")
+
+(var limited-active 0)
+(var limited-most-active 0)
+(def limited
+  (parallel/run-repositories
+    repositories outcomes
+    (fn [repository report]
+      (++ limited-active)
+      (set limited-most-active (max limited-most-active limited-active))
+      (ev/sleep 0.001)
+      (-- limited-active)
+      :succeeded)
+    2))
+
+(assert (= 12 (limited :succeeded)) "a job limit still runs every repository")
+(assert (= 2 limited-most-active) "a job limit bounds the active operations")
+
+(var wide-most-active 0)
+(var wide-active 0)
+(parallel/run-repositories
+  (slice repositories 0 3) outcomes
+  (fn [repository report]
+    (++ wide-active)
+    (set wide-most-active (max wide-most-active wide-active))
+    (ev/sleep 0.001)
+    (-- wide-active)
+    :succeeded)
+  8)
+
+(assert (= 3 wide-most-active)
+        "more jobs than repositories starts no idle workers")
 
 (def completed @[])
 (def failed
@@ -45,7 +77,23 @@
 (assert (= 1 (failed :failed)) "an operation error counts as a failure")
 (assert (= 3 (length completed)) "an error does not stop later work")
 
-(def progress (parallel/make-progress 3 outcomes false))
+(assert-error "a misplaced live flag is rejected instead of hanging"
+              (parallel/make-progress 3 outcomes false))
+(assert-error "a fractional job count is rejected"
+              (parallel/make-progress 3 outcomes 1.5))
+
+# Clamping the count to the repository total must not launder a bad value,
+# so these reject regardless of how many repositories there are.
+(each count [0 -2 1.5 false]
+  (each total [1 5]
+    (assert-error (string "run-repositories rejects " count
+                          " with " total " repositories")
+                  (parallel/run-repositories
+                    (slice repositories 0 total) outcomes
+                    (fn [repository report] :succeeded)
+                    count))))
+
+(def progress (parallel/make-progress 3 outcomes 1 false))
 (put (progress :active) 0 "/a/long/common/path/first")
 (put (progress :counts) :succeeded 1)
 (put (progress :counts) :failed 1)

@@ -75,7 +75,7 @@
 (defn clone-repositories
   "Clone repositories with their selected VCS and limit concurrent processes.
   Return the cloned, skipped, and failed counts."
-  [repositories &opt vcs]
+  [repositories &opt vcs jobs]
   (def vcs (or vcs default-vcs))
   (def executables {"git" (find-executable "git")
                     "jj" (find-executable "jj")})
@@ -99,7 +99,8 @@
           (do
             (report "Clone failed: " (repository :path) ": "
                     selected-vcs " was not found on PATH")
-            :failed))))))
+            :failed)))
+      jobs)))
 
 (defn validate-config
   "Return config unchanged, or raise a descriptive error describing its shape."
@@ -448,6 +449,27 @@
    :default default
    :help "Show command output: never, on-failure, or always."})
 
+(defn- jobs-option
+  "Return the --jobs specification with default, shared by running commands."
+  [&opt configured]
+  (default configured parallel/default-jobs)
+  {:kind :option
+   :short "j"
+   :value-name "N"
+   :default (string configured)
+   :help "Run at most N repository operations at the same time."})
+
+(defn- require-jobs
+  ``Return `count` as a positive integer, or raise a descriptive error.
+  The accepted range is the one parallel/run-repositories accepts, so an
+  out-of-range count fails here with a message instead of there with a
+  stack trace.``
+  [count]
+  (def parsed (if (string? count) (scan-number count) count))
+  (unless (and (int? parsed) (pos? parsed))
+    (error "expected a positive integer no greater than 2147483647"))
+  parsed)
+
 (defn- require-show-output
   "Return condition, or raise an error when it is not a valid one."
   [condition]
@@ -455,23 +477,41 @@
     (error `expected "never", "on-failure", or "always"`))
   condition)
 
+(defn- parse-selection
+  "Parse the selection arguments shared by every selecting command."
+  [args description & spec]
+  (parse-args args description
+              "at" (at-option)
+              "all-anchors" (all-anchors-option)
+              ;spec))
+
+(defn- parsed-jobs
+  "Return the validated --jobs count, or report the mistake and exit."
+  [parsed]
+  (try
+    (require-jobs (parsed "jobs"))
+    ([err]
+      (eprint "Invalid --jobs: " err)
+      (os/exit 1))))
+
 (defn- selected-repositories
-  "Parse the selection arguments shared by clone and list."
+  "Parse the selection arguments and load the repositories they select."
   [args description]
-  (def parsed
-    (parse-args args description
-                "at" (at-option)
-                "all-anchors" (all-anchors-option)))
+  (def parsed (parse-selection args description))
   (configured-repositories (parsed "at")
                            (parsed "all-anchors")))
 
 (defn clone-command
   "Run herd clone with the selected VCS."
-  [args &opt vcs]
+  [args &opt vcs jobs]
+  (def parsed
+    (parse-selection args
+                     "Check out the configured repositories beneath a path."
+                     "jobs" (jobs-option jobs)))
+  (def jobs (parsed-jobs parsed))
   (def repositories
-    (selected-repositories args
-                           "Check out the configured repositories beneath a path."))
-  (def counts (clone-repositories repositories (or vcs default-vcs)))
+    (configured-repositories (parsed "at") (parsed "all-anchors")))
+  (def counts (clone-repositories repositories (or vcs default-vcs) jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
@@ -586,7 +626,7 @@
 
 (defn run-in-repositories
   "Run a command in parallel and return its outcome counts."
-  [command repositories &opt show-output]
+  [command repositories &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Parallel commands must not share a terminal for input or output. Capture
   # output per process so each visible result is one coherent block.
@@ -602,7 +642,8 @@
       (fn [repository report]
         (run-in-repository command env repository
                            |(report-command-result report-state report ;$&)
-                           show-output)))))
+                           show-output))
+      jobs)))
 
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."
@@ -613,9 +654,10 @@
       ([err]
         (eprint "Invalid --show-output: " err)
         (os/exit 1))))
+  (def jobs (parsed-jobs parsed))
   (def repositories
     (configured-repositories (parsed "at") (parsed "all-anchors")))
-  (def counts (run-in-repositories command repositories show-output))
+  (def counts (run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
          (counts :skipped) " skipped, "
@@ -625,48 +667,60 @@
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."
-  [command description &opt show-output]
+  [command description &opt show-output jobs]
   (def show-output (or show-output default-show-output))
   (fn [args]
     (def parsed
-      (parse-args args description
-                  "at" (at-option)
-                  "all-anchors" (all-anchors-option)
-                  "show-output" (show-output-option show-output)))
+      (parse-selection args description
+                       "show-output" (show-output-option show-output)
+                       "jobs" (jobs-option jobs)))
     (run-configured-command command parsed)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
-  [args]
+  [args &opt jobs]
   (def parsed
-    (parse-args args
-                (string "Run a command in each configured repository beneath a path.\n\n"
-                        " Usage: herd run [option] ... CMD [CMD-ARGS]...")
-                "at" (at-option)
-                "all-anchors" (all-anchors-option)
-                "show-output" (show-output-option default-show-output)
-                :default {:kind :accumulate
-                          :short-circuit true
-                          :help "Command and arguments to run."}))
+    (parse-selection args
+                     (string "Run a command in each configured repository beneath a path.\n\n"
+                             " Usage: herd run [option] ... CMD [CMD-ARGS]...")
+                     "show-output" (show-output-option default-show-output)
+                     "jobs" (jobs-option jobs)
+                     :default {:kind :accumulate
+                               :short-circuit true
+                               :help "Command and arguments to run."}))
   (def command (or (parsed :rest) @[]))
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
   (run-configured-command command parsed))
 
-(def built-in-commands
-  "Subcommands by name, with their argument handler and one-line summary."
-  {"clone" {:run clone-command
-            :help "Check out the configured repositories beneath a path."}
+(def built-in-command-help
+  "One-line summaries for the built-in subcommands, by name."
+  {"clone" "Check out the configured repositories beneath a path."
+   "fetch" "Fetch Git remotes in configured repositories beneath a path."
+   "list" "Print the configured repositories beneath a path."
+   "run" "Run a command in each configured repository beneath a path."})
+
+(defn built-in-commands
+  ``Subcommands by name, with their argument handler and one-line summary.
+  The configured VCS and job count are bound here so every handler starts
+  from them, leaving the command line to override.``
+  [&opt vcs jobs]
+  (default vcs default-vcs)
+  (default jobs parallel/default-jobs)
+  {"clone" {:run (fn [args] (clone-command args vcs jobs))
+            :help (built-in-command-help "clone")}
    "fetch" {:run (make-run-command
                    {:command-git "git fetch"
                     :command-jj "jj git fetch"}
-                   "Fetch Git remotes in each configured repository beneath a path.")
-            :help "Fetch Git remotes in configured repositories beneath a path."}
+                   "Fetch Git remotes in each configured repository beneath a path."
+                   default-show-output
+                   jobs)
+            :help (built-in-command-help "fetch")}
    "list" {:run list-command
-           :help "Print the configured repositories beneath a path."}
-   "run" {:run run-command
-          :help "Run a command in each configured repository beneath a path."}})
+           :help (built-in-command-help "list")}
+   "run" {:run (fn [args] (run-command args jobs))
+          :help (built-in-command-help "run")}})
 
 (defn command-config-path
   "Return the JDN configuration path, or nil without a config directory."
@@ -683,6 +737,16 @@
   (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
     (error `:vcs must be "git" or "jj"`))
   vcs)
+
+(defn configured-jobs
+  "Return the configured job count, or the default when it is not set."
+  [config]
+  (unless (dictionary? config)
+    (error "expected a JDN dictionary"))
+  (def jobs (get config :jobs parallel/default-jobs))
+  (unless (and (int? jobs) (pos? jobs))
+    (error ":jobs must be a positive integer no greater than 2147483647"))
+  jobs)
 
 (def custom-command-keys
   "Keys a custom-command definition may contain."
@@ -716,7 +780,8 @@
 
 (defn custom-commands
   "Validate a JDN configuration and return its command handlers."
-  [config]
+  [config &opt jobs]
+  (default jobs parallel/default-jobs)
   (unless (dictionary? config)
     (error "expected a JDN dictionary with a :commands dictionary"))
   (def configured (get config :commands {}))
@@ -726,7 +791,7 @@
   (eachp [name definition] configured
     (unless (and (string? name) (not (empty? name)))
       (error "custom command names must be non-empty strings"))
-    (when (get built-in-commands name)
+    (when (get built-in-command-help name)
       (error (string "custom command \"" name "\" conflicts with a built-in command")))
     (unless (dictionary? definition)
       (error (string "custom command \"" name "\" must be a dictionary")))
@@ -745,15 +810,17 @@
         (error (string "custom command \"" name
                        "\" has an invalid :show-output; " err))))
     (put result name
-         {:run (make-run-command command description show-output)
+         {:run (make-run-command command description show-output jobs)
           :help description}))
   result)
 
 (defn prepare-command-config
   "Validate raw JDN configuration and construct its command handlers."
   [config]
+  (def jobs (configured-jobs config))
   {:vcs (configured-vcs config)
-   :commands (custom-commands config)})
+   :jobs jobs
+   :commands (custom-commands config jobs)})
 
 (defn load-command-config
   "Read and validate JDN configuration, or return defaults when absent."
@@ -770,10 +837,7 @@
 (defn commands-for-config
   "Return all commands from prepared configuration."
   [config]
-  (def vcs (config :vcs))
-  (merge built-in-commands
-         {"clone" {:run (fn [args] (clone-command args vcs))
-                   :help (get-in built-in-commands ["clone" :help])}}
+  (merge (built-in-commands (config :vcs) (config :jobs))
          (config :commands)))
 
 (defn available-commands
@@ -781,7 +845,7 @@
   []
   (if-let [config-path (command-config-path)]
     (commands-for-config (load-command-config config-path))
-    built-in-commands))
+    (built-in-commands)))
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named

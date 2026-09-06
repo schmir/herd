@@ -34,6 +34,10 @@
       (assert (string/find "-a, --all-anchors" (result :output))
               (string command " supports all-anchor selection")))
 
+    (each command ["clone" "fetch" "run"]
+      (assert (string/find "-j, --jobs N=6" ((invoke [command "--help"]) :output))
+              (string command " documents its default job count")))
+
     (assert (string/find "Fetch Git remotes" ((invoke ["fetch" "--help"]) :output))
             "fetch help describes its operation")
     (each command ["fetch" "run"]
@@ -106,6 +110,53 @@
     (invoke ["mark" "--at" anchor "--show-output" "never"]))
   (assert (not (string/find (string "✓ " repository) (quiet-command :output)))
           "a command-line output condition overrides the configured default")
+  (def limited-jobs (invoke ["mark" "--at" anchor "--jobs" "1"]))
+  (assert (= 0 (limited-jobs :status))
+          (string "a job limit runs the selected repositories: "
+                  (limited-jobs :output)))
+  (assert (string/find (string "✓ " repository) (limited-jobs :output))
+          "a job limit does not change the reported results")
+  (each invalid ["0" "-2" "many" "1.5" "2147483648" "1e18"]
+    (def result (invoke ["run" "--jobs" invalid "true"]))
+    (assert (not= 0 (result :status))
+            (string "--jobs " invalid " fails"))
+    (assert (string/find "Invalid --jobs: expected a positive integer"
+                         (result :output))
+            (string "--jobs " invalid " explains the expected value")))
+  (spit command-config
+        `{:jobs 2
+          :commands
+          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+                   :description "Create a marker in each repository."
+                   :show-output "always"}}}`)
+  (each command ["clone" "fetch" "run" "mark"]
+    (assert (string/find "-j, --jobs N=2" ((invoke [command "--help"]) :output))
+            (string command " help shows the configured job count")))
+  (assert (string/find "-j, --jobs N=2"
+                       ((invoke ["run" "--jobs" "5" "--help"]) :output))
+          "the command line does not change the documented default")
+  (def configured-jobs-run (invoke ["mark" "--at" anchor]))
+  (assert (= 0 (configured-jobs-run :status))
+          (string "a configured job count runs the selected repositories: "
+                  (configured-jobs-run :output)))
+  (assert (= 0 ((invoke ["mark" "--at" anchor "--jobs" "1"]) :status))
+          "the command line overrides the configured job count")
+  (assert (string/find "Invalid --jobs"
+                       ((invoke ["mark" "--at" anchor "--jobs" "0"]) :output))
+          "an invalid command-line count still fails with a message")
+  (spit command-config `{:jobs 0}`)
+  (def bad-configured-jobs (invoke ["list" "--at" anchor]))
+  (assert (not= 0 (bad-configured-jobs :status))
+          "an invalid configured job count fails")
+  (assert (string/find ":jobs must be a positive integer"
+                       (bad-configured-jobs :output))
+          (string "an invalid configured job count names the setting: "
+                  (bad-configured-jobs :output)))
+  (spit command-config
+        `{:commands
+          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+                   :description "Create a marker in each repository."
+                   :show-output "always"}}}`)
   (def invalid-show-output
     (invoke ["run" "--show-output" "sometimes" "true"]))
   (assert (not= 0 (invalid-show-output :status))

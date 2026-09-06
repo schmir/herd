@@ -1,6 +1,6 @@
 (import spork/rawterm)
 
-(def worker-count
+(def default-jobs
   "Number of repository operations allowed to run at the same time."
   6)
 
@@ -14,14 +14,26 @@
   (def [_ columns] (try (rawterm/size) ([_] [0 0])))
   (if (< 20 columns 1000) columns 80))
 
+(defn- require-jobs
+  ``Return `jobs` unchanged, or raise when it is not a positive integer.
+  The count bounds the slot loop in progress-lines, where a non-integer never
+  ends it, so this runs before any clamping that could hide a bad value.``
+  [jobs]
+  (unless (and (int? jobs) (pos? jobs))
+    (error "jobs must be a positive integer"))
+  jobs)
+
 (defn make-progress
   "Create the state for one parallel repository run."
-  [total outcomes &opt live]
+  [total outcomes &opt jobs live]
+  (default jobs default-jobs)
   (default live (os/isatty stderr))
+  (require-jobs jobs)
   (def counts @{})
   (each outcome outcomes
     (put counts (outcome 0) 0))
   @{:total total
+    :jobs jobs
     :outcomes outcomes
     :counts counts
     :active @{}
@@ -56,7 +68,7 @@
   [progress width]
   (def frame (spinner-frames (% (progress :frame) (length spinner-frames))))
   (def lines @[])
-  (for slot 0 worker-count
+  (for slot 0 (progress :jobs)
     (when-let [path (get (progress :active) slot)]
       (array/push lines (string frame " " (fit-path path (- width 2))))))
   (var completed 0)
@@ -106,14 +118,19 @@
           (draw progress))))))
 
 (defn run-repositories
-  ``Run `operation` for each repository with at most six active callbacks.
+  ``Run `operation` for each repository with at most `jobs` active callbacks.
   The callback receives the repository and a reporter, and returns an outcome
   key. Errors and unknown outcomes count as :failed.``
-  [repositories outcomes operation]
+  [repositories outcomes operation &opt jobs]
   (unless (some |(= :failed ($ 0)) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
-  (def progress (make-progress total outcomes))
+  # Only an absent count falls back, so a supplied bad one still raises.
+  (default jobs default-jobs)
+  (require-jobs jobs)
+  # More workers than repositories would only draw empty spinner rows.
+  (def workers (max 1 (min jobs total)))
+  (def progress (make-progress total outcomes workers))
   (def cursor @[0])
   (defn worker [slot]
     (while (< (cursor 0) total)
@@ -141,5 +158,5 @@
       (put progress :running false)
       (erase progress)
       (file/flush stderr))
-    (ev/go-gather (seq [slot :range [0 worker-count]] |(worker slot))))
+    (ev/go-gather (seq [slot :range [0 workers]] |(worker slot))))
   (progress :counts))
