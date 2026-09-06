@@ -148,12 +148,25 @@
     (assert (= :succeeded
                (herd/run-in-repository
                  ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
-                 env repo |(array/push messages (string ;$&)) true)))
+                 env repo |(array/push messages (string ;$&)) "everything")))
     (assert (= 1 (length messages)) "requested successful output is one block")
     (assert (string/find (string "✓ " dir) (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
     (assert (string/find "| stderr\n|   note" (messages 0)))
     (array/clear messages)
+    (assert (= :succeeded
+               (herd/run-in-repository
+                 ["true"] env repo |(array/push messages (string ;$&))
+                 "everything")))
+    (assert (and (= 1 (length messages))
+                 (= (string "✓ " dir) (messages 0)))
+            "everything reports a successful command without output")
+    (array/clear messages)
+    (assert (= :succeeded
+               (herd/run-in-repository
+                 ["printf" "suppressed"] env repo
+                 |(array/push messages (string ;$&)) "none")))
+    (assert (empty? messages) "none hides successful command results")
     (assert (= :failed
                (herd/run-in-repository
                  ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
@@ -161,7 +174,12 @@
     (assert (= 1 (length messages)) "failure output is one buffered block")
     (assert (string/find (string "✗ " dir " (exit 7)") (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   second line" (messages 0)))
-    (assert (string/find "| stderr\n|   problem" (messages 0))))
+    (assert (string/find "| stderr\n|   problem" (messages 0)))
+    (array/clear messages)
+    (assert (= :failed
+               (herd/run-in-repository
+                 ["false"] env repo |(array/push messages (string ;$&)) "none")))
+    (assert (empty? messages) "none hides failed command results"))
   (sh/rm dir))
 
 (let [messages @[]
@@ -216,7 +234,7 @@
   (with [process
          (os/spawn [(path/join (os/cwd) "build/herd")
                     "run" "--at" root
-                    "--show-output" "printf" "shown"]
+                    "--output-mode" "everything" "printf" "shown"]
                    :p {:out :pipe :err :pipe})]
     (def output @"")
     (def errors @"")
@@ -224,11 +242,11 @@
       (:read (process :out) :all output)
       (:read (process :err) :all errors)
       (:wait process))
-    (assert (= 0 (process :return-code)) "show-output run succeeds")
+    (assert (= 0 (process :return-code)) "everything run succeeds")
     (assert (string/find (string "✓ " root "/first") errors)
-            "show-output reports a successful repository")
+            "everything reports a successful repository")
     (assert (string/find "| stdout\n|   shown" errors)
-            "show-output reports successful command output")
+            "everything reports successful command output")
     (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
                          output)
             "run reports repositories that are not checked out"))

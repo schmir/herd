@@ -35,7 +35,15 @@
               (string command " supports all-anchor selection")))
 
     (assert (string/find "Fetch Git remotes" ((invoke ["fetch" "--help"]) :output))
-            "fetch help describes its operation")))
+            "fetch help describes its operation")
+    (each command ["fetch" "run"]
+      (def output ((invoke [command "--help"]) :output))
+      (assert (string/find "--output-mode MODE=failures-only" output)
+              (string command " documents its default output mode"))
+      (assert (not (string/find "--show-output" output))
+              (string command " does not document the replaced output flag")))
+    (assert (not= 0 ((invoke ["run" "--show-output" "true"]) :status))
+            "run rejects the replaced output flag")))
 
 (let [directory (path/join (os/getenv "TMPDIR" "/tmp")
                            (string "herd-arguments-test-" (os/getpid)))
@@ -73,7 +81,8 @@
   (spit command-config
         `{:commands
           {"mark" {:command "printf marker | grep -q marker && touch custom-command"
-                   :description "Create a marker in each repository."}}}`)
+                   :description "Create a marker in each repository."
+                   :output-mode "everything"}}}`)
   (assert (= command-config (herd/command-config-path))
           "the JDN configuration uses the XDG configuration directory")
   (assert (get-in (herd/load-command-config command-config)
@@ -88,11 +97,26 @@
   (assert (string/find "Create a marker" (command-help :output))
           (string "custom command help uses its configured description: "
                   (command-help :output)))
+  (assert (string/find "--output-mode MODE=everything" (command-help :output))
+          "custom command help shows its configured output default")
   (def command-result (invoke ["mark" "--at" anchor]))
   (assert (= 0 (command-result :status))
           (string "a custom shell command succeeds: " (command-result :output)))
   (assert (= :file (os/stat (path/join repository "custom-command") :mode))
           "a custom shell command runs in the selected repository")
+  (assert (string/find (string "✓ " repository) (command-result :output))
+          "a custom command uses its configured output mode")
+  (def quiet-command
+    (invoke ["mark" "--at" anchor "--output-mode" "none"]))
+  (assert (not (string/find (string "✓ " repository) (quiet-command :output)))
+          "a command-line output mode overrides the configured default")
+  (def invalid-output-mode
+    (invoke ["run" "--output-mode" "sometimes" "true"]))
+  (assert (not= 0 (invalid-output-mode :status))
+          "an unknown command-line output mode fails")
+  (assert (string/find "expected \"none\", \"failures-only\", or \"everything\""
+                       (invalid-output-mode :output))
+          "an invalid output mode lists the valid values")
   (os/link anchor (path/join root "alias") true)
   (def aliased (invoke ["list" "--at" (path/join root "alias")]))
   (assert (string/find repository (aliased :output))

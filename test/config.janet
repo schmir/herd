@@ -104,6 +104,22 @@
                             {:command-git "git status"
                              :comand-jj "jj status"
                              :description "Check repositories."}}}))
+(each mode ["none" "failures-only" "everything"]
+  (assert-no-error (string "a custom command accepts " mode " output")
+                   (herd/custom-commands
+                     {:commands {"check" {:command "true"
+                                           :description "Check repositories."
+                                           :output-mode mode}}})))
+(assert-error "a custom command output mode must be a string"
+              (herd/custom-commands
+                {:commands {"check" {:command "true"
+                                      :description "Check repositories."
+                                      :output-mode :everything}}}))
+(assert-error "a custom command output mode must be known"
+              (herd/custom-commands
+                {:commands {"check" {:command "true"
+                                      :description "Check repositories."
+                                      :output-mode "sometimes"}}}))
 (assert-error "a command cannot mix common and VCS-specific forms"
               (herd/custom-commands
                 {:commands {"check"
