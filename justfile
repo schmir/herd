@@ -12,6 +12,10 @@ deps:
 run *args: deps
     jpm --local janet main.janet {{ args }}
 
+# Start a REPL inside a source file, private bindings included.
+repl file="main.janet": deps
+    jpm --local janet -e '(repl nil nil (dofile "{{ file }}"))'
+
 # Build the standalone executable in build/.
 build *args: deps
     HERD_VERSION="${HERD_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}" \
