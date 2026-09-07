@@ -33,15 +33,12 @@ jobs:
       # job on purpose: GitHub injects its own glibc-linked node to run actions
       # like checkout, and that node cannot execute inside an Alpine container.
       #
-      # `--output` needs BuildKit, which docker uses by default here; the
-      # variable makes that independent of the runner image's configuration.
-      # Runners start with an empty layer cache, so unlike a local `just
-      # build-musl` this rebuilds the toolchain every time.
+      # podman, so a release build is the same command as a local `just
+      # build-musl`. Runners start with an empty layer cache, so unlike the
+      # local build this rebuilds the toolchain every time.
       - name: Build static binary
-        env:
-          DOCKER_BUILDKIT: "1"
         run: |
-          docker build --build-arg HERD_VERSION \
+          podman build --build-arg HERD_VERSION \
             --output type=local,dest=build-musl .
 
       - name: Check the binary is static and runs
@@ -90,16 +87,25 @@ jobs:
         with:
           path: artifacts
 
-      # Every job uploads a file named `herd`; rename each one after the
-      # artifact directory it came from so the assets are distinguishable.
+      # All artifact files have the name `herd`. Use the artifact directory
+      # name to identify the platform. The archive name includes the release
+      # tag and the platform. The file in the archive keeps the name `herd`.
       - name: Collect assets
         run: |
-          mkdir dist
+          mkdir dist stage
           for dir in artifacts/*/; do
-            cp "$dir/herd" "dist/$(basename "$dir")"
+            platform="$(basename "$dir")"
+            platform="${platform#herd-}"
+            install -m 755 "$dir/herd" stage/herd
+            # Set the owner and group IDs to 0. This prevents the archive from
+            # containing runner account information.
+            tar -czf "dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz" \
+              --owner=0 --group=0 --numeric-owner -C stage herd
           done
-          chmod +x dist/*
-          (cd dist && sha256sum * > SHA256SUMS)
+          rm -rf stage
+          # Include the tag in the checksum file name. This gives each release
+          # a different checksum file name.
+          (cd dist && sha256sum *.tar.gz > "herd-${GITHUB_REF_NAME}-SHA256SUMS")
           ls -l dist
 
       - name: Publish release

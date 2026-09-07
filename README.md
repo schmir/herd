@@ -10,10 +10,28 @@ repositories, with a configurable number of operations running in parallel
 
 Prebuilt binaries are available for Linux (x86-64 and ARM64) and macOS
 (ARM64) on the
-[releases page](https://github.com/schmir/herd/releases/latest). Put the
-downloaded binary on your `PATH` and make it executable. `herd --version`
-reports which release a binary is. Cloning and fetching also require the VCS
-you use, `jj` or `git`, on `PATH`.
+[releases page](https://github.com/schmir/herd/releases/latest). Every
+release ships one `herd-<version>-<platform>.tar.gz` per platform, each
+holding a single executable named `herd`, so unpacking it leaves the binary
+ready to move onto your `PATH`:
+
+```sh
+tar xzf herd-v1.2.3-macos-arm64.tar.gz
+install -m 755 herd ~/.local/bin/herd
+```
+
+On macOS, a browser marks whatever it downloads as quarantined, and `herd`
+is not signed with an Apple Developer ID, so Gatekeeper refuses to run a
+quarantined copy. Unpacking the archive with `tar` in a terminal leaves the
+binary unmarked, but Safari and Finder unpack archives themselves and do
+pass the mark on. If macOS declines to run `herd`, clear it:
+
+```sh
+xattr -d com.apple.quarantine ~/.local/bin/herd
+```
+
+`herd --version` reports which release a binary is. Cloning and fetching
+also require the VCS you use, `jj` or `git`, on `PATH`.
 
 To build from source with Nix:
 
