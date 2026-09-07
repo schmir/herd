@@ -66,6 +66,18 @@ install:
 install-musl: build-musl
     install -D -m 755 build-musl/herd "$HOME/.local/bin/herd"
 
+# Update the flake inputs and show the resulting dev shell package changes.
+flake-update-diff:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    system=$(nix eval --impure --raw --expr builtins.currentSystem)
+    target=".#devShells.${system}.default"
+    # Build the dev shell closure before and after updating, then diff the two.
+    before=$(nix build --no-link --no-warn-dirty --print-out-paths "$target")
+    nix flake update
+    after=$(nix build --no-link --no-warn-dirty --print-out-paths "$target")
+    nix shell nixpkgs#nvd --command nvd diff "$before" "$after"
+
 # Remove build artifacts and the local JPM trees.
 clean:
     rm -rf build build-musl jpm_tree
