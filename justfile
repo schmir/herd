@@ -74,7 +74,7 @@ flake-update-diff:
     target=".#devShells.${system}.default"
     # Build the dev shell closure before and after updating, then diff the two.
     before=$(nix build --no-link --no-warn-dirty --print-out-paths "$target")
-    nix flake update
+    nix flake update --no-warn-dirty
     after=$(nix build --no-link --no-warn-dirty --print-out-paths "$target")
     nix shell nixpkgs#nvd --command nvd diff "$before" "$after"
 
