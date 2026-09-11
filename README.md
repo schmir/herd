@@ -71,52 +71,108 @@ repositories:
 
 Both `path` and `ssh_url` are required and must be strings. The optional
 `vcs` is `"jj"` or `"git"` and decides how `herd clone` checks that
-repository out; without it the configured default applies, which is `jj`
-unless [`config.jdn`](#settings-and-custom-commands) says otherwise.
+repository out; see [Checkout options](#checkout-options).
 
-Every configuration file has an **anchor**: the directory its relative paths
-resolve against. By default the anchor is `$HOME`, or the configuration
-directory if `HOME` is not set. Absolute paths remain unchanged, whatever
-the anchor. The anchor also decides which repositories a command considers;
-see [Selection](#selection).
+Every configuration file is checked out under one or more **anchors**: the
+directories its relative paths resolve against. By default there is a single
+anchor, `$HOME`, or the configuration directory if `HOME` is not set.
+Absolute paths remain unchanged, whatever the anchors. The anchors also
+decide which repositories a command considers; see [Selection](#selection).
 
 You can split repositories across any number of JSON files; files are loaded
 in name order. Duplicate paths are accepted only when their URLs and their
-`vcs` agree.
+checkout options agree.
 
-### Anchor a file elsewhere
+A repository list holds nothing but repositories, so whatever writes one
+needs to know nothing else. Where a list is anchored and how its
+repositories are checked out is configured by the `:checkouts` rows in
+`config.jdn`.
 
-To resolve one file's relative paths from another directory, add a companion
-metadata sidecar. For `work.json`, create `work.meta.json` beside it:
+### Settings
 
-```json
-{
-  "anchor": "work"
-}
-```
-
-A relative anchor resolves from `$HOME`, so `work.json` is then anchored at
-`$HOME/work` and an entry such as `team/api` resolves to
-`$HOME/work/team/api`. An absolute anchor is used exactly as written and
-need not exist yet. `anchor` is the only setting a sidecar may carry.
-
-A sidecar whose configuration file is missing is an error rather than a
-silently ignored file: metadata left behind by a renamed or deleted
-configuration would otherwise stop applying without a word.
-
-A configuration file may itself be a symlink. It is still anchored by its
-visible location in the configuration directory, so point a sidecar at the
-directory tree it describes when the list lives next to that tree.
-
-### Settings and custom commands
-
-An optional `config.jdn` in the configuration directory sets defaults and
-defines extra commands:
+An optional `config.jdn` in the configuration directory carries the
+settings:
 
 ```janet
-{:vcs "jj"
- :jobs 6
+{:jobs 6
+
+ :defaults {:anchor "src" :vcs "jj"}
+
+ :checkouts
+ [{:from "work.json"   :anchor "work"}
+  {:from "work.json"   :anchor "/srv/review" :vcs "git"}
+  {:from "vendor.json" :anchor "/opt/vendor" :vcs "git"}]
+
  :commands
+ {"update" {:command "jj git fetch && jj up"
+            :description "Fetch and update each repository."}}}
+```
+
+`:jobs` is the default number of operations run in parallel.
+
+`:checkouts` is where the repository lists are anchored. Each row reads one
+configuration file, named by `:from` as it is named in the configuration
+directory, and anchors its repositories at one directory. `:defaults` holds
+what every row starts from, so a row naming one setting keeps the rest, and
+a list no row reads is checked out once from the defaults alone — dropping a
+list into the configuration directory checks it out rather than waiting to
+be mentioned.
+
+A row whose `:from` is not in the configuration directory is an error rather
+than a row quietly ignored: a row left behind by a renamed or deleted list
+would otherwise stop applying without a word, and the list it was written
+for would fall back to the defaults.
+
+### Anchors
+
+A row's `:anchor` is the directory the relative paths in its configuration
+file resolve against. A relative anchor resolves from `$HOME`, so the first
+row above anchors `work.json` at `$HOME/work` and an entry such as
+`team/api` resolves to `$HOME/work/team/api`. An absolute anchor is used
+exactly as written and need not exist yet. A row that names no anchor at all
+falls back to `:defaults`, and without those to `$HOME` — or to the
+configuration file's own directory, when the file is not in the
+configuration directory.
+
+Several rows reading the same file describe the same set of repositories
+checked out under each of their anchors. `team/api` above names both
+`$HOME/work/team/api` and `/srv/review/team/api`, and `herd clone` checks
+the repository out at each. An entry with an absolute path resolves the same
+way under every anchor, so it stays a single repository, reachable from all
+of them.
+
+A configuration file may itself be a symlink. It is still anchored by its
+visible location in the configuration directory, which is also the name
+`:from` knows it by, so point its rows at the directory tree it describes
+when the list lives next to that tree.
+
+### Checkout options
+
+`:vcs` decides how `herd clone` checks a repository out: `"jj"` for a
+colocated Git/Jujutsu working copy, `"git"` for a plain Git one. It can be
+set at three levels, and the innermost one that names it wins:
+
+| Level          | Where it is written                |
+| -------------- | ---------------------------------- |
+| the repository | `"vcs"` on an entry in a JSON list |
+| the checkout   | `:vcs` on a `:checkouts` row       |
+| every checkout | `:vcs` in `:defaults`              |
+
+A repository no level settles is checked out with `jj`.
+
+The row is where a location, rather than a repository, decides. With the
+settings above, one `team/api` entry in `work.json` becomes a jj working
+copy at `$HOME/work/team/api` and a plain Git one at `/srv/review/team/api`,
+while an entry naming `"vcs": "git"` itself is a Git checkout under either
+anchor.
+
+### Custom commands
+
+Each entry in `:commands` becomes a subcommand with the same options as
+`herd run`, listed in `herd --help` by its `:description`:
+
+```janet
+{:commands
  {"update" {:command "jj git fetch && jj up"
             :description "Fetch and update each repository."}
   "status" {:command-git "git status --short"
@@ -125,17 +181,13 @@ defines extra commands:
             :show-output "always"}}}
 ```
 
-`:vcs` is the default VCS for repositories that do not name one, and `:jobs`
-the default number of operations run in parallel.
-
-Each entry in `:commands` becomes a subcommand with the same options as
-`herd run`, listed in `herd --help` by its `:description`. A command is
-either a single `:command` string, or `:command-git` and `:command-jj`
-strings chosen by what the repository actually contains — a `.jj` directory
-selects the jj command, a `.git` directory the Git one. A repository whose
-VCS has no command is skipped. Commands run through `sh -c`, so pipes and
-`&&` work. `:show-output` sets that command's default output condition; see
-[Use](#use). Custom names cannot shadow the built-in commands.
+A command is either a single `:command` string, or `:command-git` and
+`:command-jj` strings chosen by what the repository actually contains — a
+`.jj` directory selects the jj command, a `.git` directory the Git one. A
+repository whose VCS has no command is skipped. Commands run through
+`sh -c`, so pipes and `&&` work. `:show-output` sets that command's default
+output condition; see [Use](#use). Custom names cannot shadow the built-in
+commands.
 
 ## Use
 
@@ -155,7 +207,7 @@ the output is a stable input for scripts:
 ```
 
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
-plain Git ones, following each repository's `vcs`:
+plain Git ones, following the checkout options in force for each:
 
 ```sh
 herd clone
@@ -224,14 +276,14 @@ By path, a repository is selected when it is at or below the current
 directory, or when it contains the current directory. Standing anywhere
 inside a working copy therefore selects that repository, however deep.
 
-By anchor, only configuration files whose anchor contains the current
-directory take part. This keeps a command run from a broad parent such as
-`/` from reaching unrelated groups of repositories. Given:
+By anchor, only repositories reached from an anchor that contains the
+current directory take part. This keeps a command run from a broad parent
+such as `/` from reaching unrelated groups of repositories. Given:
 
 ```
 ~/.config/herd/personal.json          anchored at ~
 ~/.config/herd/work.json              anchored at ~/work
-~/.config/herd/work.meta.json         {"anchor": "work"}
+~/.config/herd/config.jdn             {:checkouts [{:from "work.json" :anchor "work"}]}
 ```
 
 running `herd list` in `~` selects only the repositories from

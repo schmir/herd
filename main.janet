@@ -28,6 +28,27 @@
   "Valid conditions for showing command output."
   ["never" "on-failure" "always"])
 
+(def default-checkout-options
+  ``Default checkout options. Their keys define the options that each
+  configuration level accepts.``
+  {:vcs default-vcs})
+
+(def checkout-keys
+  "Checkout option names accepted at each configuration level."
+  (keys default-checkout-options))
+
+(defn validate-checkout-options
+  ``Validate checkout options and return `options`. Use `where` and the
+  format-specific `spelling` in errors.``
+  [options where &opt spelling]
+  (default spelling ":vcs")
+  (def vcs (get options :vcs :unset))
+  (unless (= :unset vcs)
+    (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
+      (error (string where " has an invalid " spelling
+                     "; expected \"git\" or \"jj\""))))
+  options)
+
 (defn find-executable
   "Find an executable file by searching the process PATH."
   [name]
@@ -88,8 +109,7 @@
 (defn clone-repositories
   "Clone repositories with their selected VCS and limit concurrent processes.
   Return the cloned, skipped, and failed counts."
-  [repositories &opt vcs jobs]
-  (def vcs (or vcs default-vcs))
+  [repositories &opt jobs]
   (def executables {"git" (find-executable "git")
                     "jj" (find-executable "jj")})
   # Clones must never inherit the terminal: several run at once, and a VCS
@@ -102,7 +122,8 @@
        [:skipped "already checked out"]
        [:failed "failed"]]
       (fn [repository report]
-        (def selected-vcs (get repository :vcs vcs))
+        # Each checkout has its final VCS after loading.
+        (def selected-vcs (get repository :vcs default-vcs))
         (def executable (get executables selected-vcs))
         (if (or executable (checked-out? (repository :path)))
           (clone-repository executable env report
@@ -127,11 +148,7 @@
     (each key [:path :ssh_url]
       (unless (string? (entry key))
         (error (string "entry " index " needs a string \"" key "\""))))
-    (def vcs (get entry :vcs :not-configured))
-    (unless (= :not-configured vcs)
-      (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
-        (error (string "entry " index " has an invalid \"vcs\"; "
-                       "expected \"git\" or \"jj\"")))))
+    (validate-checkout-options entry (string "entry " index) `"vcs"`))
   config)
 
 (defn parse-config
@@ -149,118 +166,155 @@
       (path/join home ".config" "herd"))))
 
 (def config-suffix ".json")
-(def metadata-suffix ".meta.json")
-
-(defn metadata-path
-  "Return the metadata sidecar path for a JSON configuration file."
-  [config-path]
-  (string (string/slice config-path 0
-                        (- (length config-path) (length config-suffix)))
-          metadata-suffix))
-
-(defn metadata-source-name
-  "Return the JSON configuration name described by a metadata filename."
-  [name]
-  (string (string/slice name 0 (- (length name) (length metadata-suffix)))
-          config-suffix))
-
-(defn- reject-orphan-metadata
-  ``Fail when a sidecar in `directory` describes none of `files`. Metadata
-  whose configuration was renamed or removed quietly stops applying, so the
-  mistake has to surface here instead of as a repository in the wrong place.``
-  [directory names files]
-  (each name names
-    (when (string/has-suffix? metadata-suffix name)
-      (def source-name (metadata-source-name name))
-      (unless (some |(= source-name (path/basename $)) files)
-        (error (string (path/join directory name)
-                       " has no matching " source-name))))))
 
 (defn discover-config-files
   ``Configuration files in `directory`, sorted so the merge order is stable.
-  A missing directory yields none: having no configuration yet is normal.
-  Orphaned metadata, on the other hand, raises: it is a mistake, not a state.``
+  A missing directory yields none: having no configuration yet is normal.``
   [directory]
   (def names (if directory (try (os/dir directory) ([_] @[])) @[]))
-  (def files
-    (sort (seq [name :in names
-                :when (and (string/has-suffix? config-suffix name)
-                           (not (string/has-suffix? metadata-suffix name)))
-                :let [file (path/join directory name)]
-                :when (= :file (os/stat file :mode))]
-            file)))
-  (reject-orphan-metadata directory names files)
-  files)
+  (sort (seq [name :in names
+              :when (string/has-suffix? config-suffix name)
+              :let [file (path/join directory name)]
+              :when (= :file (os/stat file :mode))]
+          file)))
 
-(defn validate-metadata
-  "Return file metadata unchanged, or raise a descriptive error."
-  [metadata]
-  (unless (dictionary? metadata)
-    (error "expected a JSON object"))
-  (eachp [key value] metadata
-    (case key
-      :anchor
-      (unless (and (string? value) (not (empty? value)))
-        (error "anchor must be a non-empty string"))
+(def checkout-row-keys
+  "Non-option keys that a checkout row can contain."
+  [:from :anchor])
 
-      (error (string "unknown setting " key))))
-  metadata)
+(defn- reject-unknown-setting
+  "Raise for a setting that is not configurable."
+  [where key known]
+  (unless (index-of key known)
+    (error (string where " has an unknown setting " (describe key)))))
 
-(defn load-metadata
-  ``Read one JSON metadata sidecar, or return empty metadata when absent.
-  Absent means nothing is there at all: a sidecar that exists but does not
-  resolve to a readable file is a mistake worth reporting, not a default.
-  Errors name the sidecar by its file name, since whoever reports them is
-  already saying which configuration it belongs to.``
-  [config-path]
-  (def sidecar (metadata-path config-path))
-  (def name (path/basename sidecar))
-  (if (nil? (os/lstat sidecar :mode))
-    {}
-    (do
-      (def mode (os/stat sidecar :mode))
-      (cond
-        (nil? mode) (error (string "cannot resolve " name))
-        (not= :file mode) (error (string name " is not a file")))
-      (try
-        (validate-metadata (parse-config (slurp sidecar)))
-        ([err] (error (string name ": " err)))))))
+(defn- validate-anchor-setting
+  "Validate an optional anchor as a non-empty string."
+  [settings where]
+  (def anchor (get settings :anchor :unset))
+  (unless (= :unset anchor)
+    (unless (and (string? anchor) (not (empty? anchor)))
+      (error (string where " needs a non-empty :anchor"))))
+  settings)
 
-(defn config-anchor
-  ``Directory the relative paths in `config-path` are joined to. A metadata
-  `:anchor` decides it, taking a relative value from HOME; without one a file
-  in the configuration directory anchors at HOME and any other beside itself.
-  The anchor stays the path it was configured as, so repositories are reported
-  where they were asked for; selection is what resolves symlinks.``
-  [config-path directory metadata]
+(defn validate-checkout-row
+  ``Validate one `:checkouts` row and return it. Each row must name a
+  configuration file.``
+  [row where]
+  (unless (dictionary? row)
+    (error (string where " must be a dictionary")))
+  (eachk key row
+    (reject-unknown-setting where key [;checkout-row-keys ;checkout-keys]))
+  (def from (get row :from))
+  (unless (and (string? from) (not (empty? from)))
+    (error (string where " needs a :from naming a configuration file")))
+  (validate-anchor-setting row where)
+  (validate-checkout-options row where)
+  row)
+
+(defn validate-checkout-defaults
+  "Validate `:defaults` and return them. Defaults cannot name a source."
+  [defaults]
+  (unless (dictionary? defaults)
+    (error ":defaults must be a dictionary"))
+  (eachk key defaults
+    (reject-unknown-setting ":defaults" key [:anchor ;checkout-keys]))
+  (validate-anchor-setting defaults ":defaults")
+  (validate-checkout-options defaults ":defaults")
+  defaults)
+
+(def default-repository-settings
+  "Repository settings used when config.jdn is absent."
+  {:defaults {} :rows {}})
+
+(defn configured-repository-settings
+  ``Validate repository settings and group checkout rows by source.
+  Preserve the row order for each source.``
+  [config]
+  (unless (dictionary? config)
+    (error "expected a JDN dictionary"))
+  (def configured (get config :checkouts []))
+  (unless (indexed? configured)
+    (error ":checkouts must be an array of rows"))
+  (def rows @{})
+  (for index 0 (length configured)
+    (def row (validate-checkout-row (configured index)
+                                    (string ":checkouts row " index)))
+    (if-let [written (get rows (row :from))]
+      (array/push written row)
+      (put rows (row :from) @[row])))
+  {:defaults (validate-checkout-defaults (get config :defaults {}))
+   :rows rows})
+
+(defn rows-for-file
+  ``Merge each row for `name` with the defaults. Return the defaults alone
+  when no row names the file.``
+  [settings name]
+  (def defaults (get settings :defaults {}))
+  (if-let [configured (get-in settings [:rows name])]
+    (map |(merge defaults $) configured)
+    @[(merge defaults)]))
+
+(defn- checkout-options
+  "Return only the checkout options set in `source`."
+  [source]
+  (def options @{})
+  (each key checkout-keys
+    (def value (get source key))
+    (unless (nil? value)
+      (put options key value)))
+  options)
+
+(defn config-anchors
+  ``Resolve one anchor for each checkout row and retain its options. Relative
+  anchors use HOME. A missing anchor uses HOME for configured files and the
+  file's parent otherwise. Keep configured paths because selection resolves
+  symbolic links.``
+  [config-path directory rows]
   (def parent (path/abspath (path/parent config-path)))
-  (if-let [configured (get metadata :anchor)]
-    (if (path/abspath? configured)
-      (path/abspath configured)
-      (if-let [home (os/getenv "HOME")]
-        (with-dyns [:path-cwd home]
-          (path/abspath configured))
-        (error (string "cannot resolve relative anchor for "
-                       (path/basename config-path) " without HOME"))))
-    (if (and directory (= parent (path/abspath directory)))
-      (or (os/getenv "HOME") parent)
-      parent)))
+  (def name (path/basename config-path))
+  (seq [row :in rows]
+    (def anchor (get row :anchor))
+    (def resolved
+      (cond
+        (nil? anchor)
+        (if (and directory (= parent (path/abspath directory)))
+          (or (os/getenv "HOME") parent)
+          parent)
+
+        (path/abspath? anchor)
+        (path/abspath anchor)
+
+        (if-let [home (os/getenv "HOME")]
+          (with-dyns [:path-cwd home]
+            (path/abspath anchor))
+          (error (string "cannot resolve relative anchor for "
+                         name " without HOME")))))
+    (merge (checkout-options row) {:path resolved})))
 
 (defn resolve-repository-paths
-  ``Return the entries with every relative path joined to anchor. Paths
-  coming from different files are only comparable once they are absolute.``
-  [entries anchor]
-  (with-dyns [:path-cwd anchor]
-    (seq [entry :in entries]
-      (merge entry {:path (path/abspath (entry :path))
-                    :anchors @[anchor]}))))
+  ``Resolve each entry once per anchor and apply its checkout options. Entries
+  without anchors produce no checkouts. Absolute paths remain the same under
+  all anchors so `merge-configs` can combine them.``
+  [entries anchors]
+  (def resolved @[])
+  (each anchor anchors
+    (def options (checkout-options anchor))
+    (with-dyns [:path-cwd (anchor :path)]
+      (each entry entries
+        # Apply options from least to most specific: defaults, anchor, entry.
+        (array/push resolved
+                    (merge default-checkout-options options entry
+                           {:path (path/abspath (entry :path))
+                            :anchors @[(anchor :path)]})))))
+  resolved)
 
 (defn read-config
-  "Read one configuration and its metadata, resolving repository paths."
-  [config-path directory]
+  "Read one configuration file, resolving each repository into checkouts."
+  [config-path directory rows]
   (resolve-repository-paths
     (validate-config (parse-config (slurp config-path)))
-    (config-anchor config-path directory (load-metadata config-path))))
+    (config-anchors config-path directory rows)))
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
@@ -295,16 +349,29 @@
             (array/push (previous :anchors) anchor))))))
   merged)
 
+(defn- reject-unknown-sources
+  ``Reject checkout rows whose source file is missing. This prevents a
+  renamed list from silently using the defaults.``
+  [settings config-paths]
+  (def present (map |(path/basename $) config-paths))
+  (each name (keys (get settings :rows {}))
+    (unless (index-of name present)
+      (error (string "config.jdn: :checkouts reads " (describe name)
+                     ", which is not in the configuration directory")))))
+
 (defn load-config
   ``Read every configuration file and merge them into one repository list.
   Errors name the file they came from, since a bad entry is otherwise hard to
   place once several files are in play.``
-  [config-paths directory]
+  [config-paths directory &opt settings]
+  (default settings default-repository-settings)
+  (reject-unknown-sources settings config-paths)
   (merge-configs
     (seq [config-path :in config-paths]
       [config-path
        (try
-         (read-config config-path directory)
+         (read-config config-path directory
+                      (rows-for-file settings (path/basename config-path)))
          ([err] (error (string config-path ": " err))))])))
 
 (defn- bare-path
@@ -393,7 +460,8 @@
 
 (defn- configured-repositories
   "Load the configured repositories and select the ones at a path."
-  [at all-anchors]
+  [at all-anchors &opt settings]
+  (default settings default-repository-settings)
   (def directory (config-directory))
   (when (nil? directory)
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
@@ -405,17 +473,18 @@
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
+  # Validate checkout sources even when no repository lists exist.
+  (def config
+    (try
+      (load-config config-paths directory settings)
+      ([err]
+        (eprint "Configuration error: " err)
+        (os/exit 1))))
   # Nothing configured yet is a normal state, not a failure: exiting non-zero
   # would make `just run` print a traceback over an unremarkable message.
   (when (empty? config-paths)
     (eprint "No configuration files in " directory)
     (os/exit 0))
-  (def config
-    (try
-      (load-config config-paths directory)
-      ([err]
-        (eprint "Configuration error: " err)
-        (os/exit 1))))
   (def anchors (unless all-anchors (containing-anchors at config)))
   (def selected
     (select-repositories-with-anchors at config all-anchors anchors))
@@ -509,22 +578,23 @@
 
 (defn- selected-repositories
   "Parse the selection arguments and load the repositories they select."
-  [args description]
+  [args description settings]
   (def parsed (parse-selection args description))
   (configured-repositories (parsed "at")
-                           (parsed "all-anchors")))
+                           (parsed "all-anchors")
+                           settings))
 
 (defn clone-command
-  "Run herd clone with the selected VCS."
-  [args &opt vcs jobs]
+  "Run herd clone with each repository's configured VCS."
+  [args &opt settings jobs]
   (def parsed
     (parse-selection args
                      "Check out the configured repositories beneath a path."
                      "jobs" (jobs-option jobs)))
   (def jobs (parsed-jobs parsed))
   (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors")))
-  (def counts (clone-repositories repositories (or vcs default-vcs) jobs))
+    (configured-repositories (parsed "at") (parsed "all-anchors") settings))
+  (def counts (clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
@@ -534,9 +604,10 @@
 (defn list-command
   ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them.``
-  [args]
+  [args &opt settings]
   (each entry (selected-repositories args
-                                     "Print the configured repositories beneath a path.")
+                                     "Print the configured repositories beneath a path."
+                                     settings)
     (print (entry :path) "\t" (entry :ssh_url))))
 
 (defn- indent-command-output
@@ -660,7 +731,7 @@
 
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."
-  [command parsed]
+  [command parsed &opt settings]
   (def show-output
     (try
       (require-show-output (parsed "show-output"))
@@ -669,7 +740,7 @@
         (os/exit 1))))
   (def jobs (parsed-jobs parsed))
   (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors")))
+    (configured-repositories (parsed "at") (parsed "all-anchors") settings))
   (def counts (run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
@@ -680,18 +751,18 @@
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."
-  [command description &opt show-output jobs]
+  [command description &opt show-output jobs settings]
   (def show-output (or show-output default-show-output))
   (fn [args]
     (def parsed
       (parse-selection args description
                        "show-output" (show-output-option show-output)
                        "jobs" (jobs-option jobs)))
-    (run-configured-command command parsed)))
+    (run-configured-command command parsed settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
-  [args &opt jobs]
+  [args &opt jobs settings]
   (def parsed
     (parse-selection args
                      (string "Run a command in each configured repository beneath a path.\n\n"
@@ -705,7 +776,7 @@
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
-  (run-configured-command command parsed))
+  (run-configured-command command parsed settings))
 
 (def built-in-command-help
   "One-line summaries for the built-in subcommands, by name."
@@ -716,23 +787,24 @@
 
 (defn built-in-commands
   ``Subcommands by name, with their argument handler and one-line summary.
-  The configured VCS and job count are bound here so every handler starts
+  The per-file settings and job count are bound here so every handler starts
   from them, leaving the command line to override.``
-  [&opt vcs jobs]
-  (default vcs default-vcs)
+  [&opt settings jobs]
+  (default settings default-repository-settings)
   (default jobs parallel/default-jobs)
-  {"clone" {:run (fn [args] (clone-command args vcs jobs))
+  {"clone" {:run (fn [args] (clone-command args settings jobs))
             :help (built-in-command-help "clone")}
    "fetch" {:run (make-run-command
                    {:command-git "git fetch"
                     :command-jj "jj git fetch"}
                    "Fetch Git remotes in each configured repository beneath a path."
                    default-show-output
-                   jobs)
+                   jobs
+                   settings)
             :help (built-in-command-help "fetch")}
-   "list" {:run list-command
+   "list" {:run (fn [args] (list-command args settings))
            :help (built-in-command-help "list")}
-   "run" {:run (fn [args] (run-command args jobs))
+   "run" {:run (fn [args] (run-command args jobs settings))
           :help (built-in-command-help "run")}})
 
 (defn command-config-path
@@ -740,16 +812,6 @@
   []
   (when-let [directory (config-directory)]
     (path/join directory "config.jdn")))
-
-(defn configured-vcs
-  "Return the configured VCS, or jj when it is not set."
-  [config]
-  (unless (dictionary? config)
-    (error "expected a JDN dictionary"))
-  (def vcs (get config :vcs default-vcs))
-  (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
-    (error `:vcs must be "git" or "jj"`))
-  vcs)
 
 (defn configured-jobs
   "Return the configured job count, or the default when it is not set."
@@ -793,7 +855,7 @@
 
 (defn custom-commands
   "Validate a JDN configuration and return its command handlers."
-  [config &opt jobs]
+  [config &opt jobs settings]
   (default jobs parallel/default-jobs)
   (unless (dictionary? config)
     (error "expected a JDN dictionary with a :commands dictionary"))
@@ -823,7 +885,7 @@
         (error (string "custom command \"" name
                        "\" has an invalid :show-output; " err))))
     (put result name
-         {:run (make-run-command command description show-output jobs)
+         {:run (make-run-command command description show-output jobs settings)
           :help description}))
   result)
 
@@ -831,9 +893,10 @@
   "Validate raw JDN configuration and construct its command handlers."
   [config]
   (def jobs (configured-jobs config))
-  {:vcs (configured-vcs config)
+  (def settings (configured-repository-settings config))
+  {:settings settings
    :jobs jobs
-   :commands (custom-commands config jobs)})
+   :commands (custom-commands config jobs settings)})
 
 (defn load-command-config
   "Read and validate JDN configuration, or return defaults when absent."
@@ -850,7 +913,7 @@
 (defn commands-for-config
   "Return all commands from prepared configuration."
   [config]
-  (merge (built-in-commands (config :vcs) (config :jobs))
+  (merge (built-in-commands (config :settings) (config :jobs))
          (config :commands)))
 
 (defn available-commands

@@ -207,7 +207,7 @@
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
-  (def loaded (herd/read-config config (herd/config-directory)))
+  (def loaded (herd/read-config config (herd/config-directory) @[{}]))
   (assert (deep= (map |($ :path) loaded)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")

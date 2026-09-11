@@ -79,15 +79,22 @@
   (def xdg (os/getenv "XDG_CONFIG_HOME"))
   (def root (os/realpath directory))
   (def configuration (path/join root "config/herd/repos.json"))
-  (def metadata (path/join root "config/herd/repos.meta.json"))
   (def command-config (path/join root "config/herd/config.jdn"))
   (def anchor (path/join root "work"))
   (def repository (path/join anchor "repo"))
+  (defn write-command-config
+    ``Write config.jdn with the checkout row required by these tests.
+    Add `body` to the shared settings.``
+    [&opt body]
+    (default body "")
+    (spit command-config
+          (string `{:checkouts [{:from "repos.json" :anchor "work"}]`
+                  "\n " body "}")))
   (sh/create-dirs-to configuration)
   (sh/create-dirs repository)
   (spit (path/join repository "present") "")
   (spit configuration `[{"path": "repo", "ssh_url": "unused"}]`)
-  (spit metadata `{"anchor": "work"}`)
+  (write-command-config)
   (os/setenv "HOME" root)
   (os/setenv "XDG_CONFIG_HOME" (path/join root "config"))
   (def no-anchor (invoke ["list" "--at" "/unconfigured-herd-test"]))
@@ -98,11 +105,11 @@
   (assert (= 0 (no-repository :status)) "an empty anchor is not an error")
   (assert (string/find "-a/--all-anchors" (no-repository :output))
           "an empty anchor suggests all-anchor selection")
-  (spit command-config
-        `{:commands
-          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
-                   :description "Create a marker in each repository."
-                   :show-output "always"}}}`)
+  (write-command-config
+    `:commands
+     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+              :description "Create a marker in each repository."
+              :show-output "always"}}`)
   (assert (= command-config (herd/command-config-path))
           "the JDN configuration uses the XDG configuration directory")
   (assert (get-in (herd/load-command-config command-config)
@@ -155,12 +162,12 @@
     (assert (string/find "Invalid --jobs: expected a positive integer"
                          (result :output))
             (string "--jobs " invalid " explains the expected value")))
-  (spit command-config
-        `{:jobs 2
-          :commands
-          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
-                   :description "Create a marker in each repository."
-                   :show-output "always"}}}`)
+  (write-command-config
+    `:jobs 2
+     :commands
+     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+              :description "Create a marker in each repository."
+              :show-output "always"}}`)
   (each command ["clone" "fetch" "run" "mark"]
     (assert (string/find "-j, --jobs N=2" ((invoke [command "--help"]) :output))
             (string command " help shows the configured job count")))
@@ -176,7 +183,7 @@
   (assert (string/find "Invalid --jobs"
                        ((invoke ["mark" "--at" anchor "--jobs" "0"]) :output))
           "an invalid command-line count still fails with a message")
-  (spit command-config `{:jobs 0}`)
+  (write-command-config ":jobs 0")
   (def bad-configured-jobs (invoke ["list" "--at" anchor]))
   (assert (not= 0 (bad-configured-jobs :status))
           "an invalid configured job count fails")
@@ -184,11 +191,11 @@
                        (bad-configured-jobs :output))
           (string "an invalid configured job count names the setting: "
                   (bad-configured-jobs :output)))
-  (spit command-config
-        `{:commands
-          {"mark" {:command "printf marker | grep -q marker && touch custom-command"
-                   :description "Create a marker in each repository."
-                   :show-output "always"}}}`)
+  (write-command-config
+    `:commands
+     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+              :description "Create a marker in each repository."
+              :show-output "always"}}`)
   (def invalid-show-output
     (invoke ["run" "--show-output" "sometimes" "true"]))
   (assert (not= 0 (invalid-show-output :status))
@@ -216,7 +223,7 @@
         "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../jj-clone-arguments\"\n")
   (sh/exec-fail "chmod" "+x" fake-git)
   (sh/exec-fail "chmod" "+x" fake-jj)
-  (spit command-config `{:vcs "git"}`)
+  (write-command-config `:defaults {:vcs "git"}`)
   (sh/rm repository)
   (spit configuration
         `[{"path":"git-repo","ssh_url":"git-url"},
@@ -238,11 +245,25 @@
                received-jj-arguments)
             (string "the repository jj override receives the URL and path: "
                     (string/format "%j" received-jj-arguments))))
-  (spit (path/join root "config/herd/orphan.meta.json") "{}")
-  (def orphan (invoke ["list" "--at" anchor]))
-  (assert (not= 0 (orphan :status)) "orphan metadata fails repository discovery")
-  (assert (string/find "has no matching orphan.json" (orphan :output))
-          "an orphan metadata error names its missing source")
+  (spit command-config `{:checkouts [{:from "renamed.json" :anchor "work"}]}`)
+  (def renamed (invoke ["list" "--at" anchor]))
+  (assert (not= 0 (renamed :status))
+          "a row reading a configuration file that is not there fails")
+  (assert (string/find `"renamed.json"` (renamed :output))
+          "the mistake names the file the row could not read")
+  # Confirm that a stale row fails after its last repository list is removed.
+  (sh/rm configuration)
+  (def stale (invoke ["list" "--at" anchor]))
+  (assert (not= 0 (stale :status))
+          "a stale row fails even when no repository list is left")
+  (assert (string/find `"renamed.json"` (stale :output))
+          "and is still named rather than passed over as an empty directory")
+  (spit command-config "{}")
+  (def nothing-configured (invoke ["list" "--at" anchor]))
+  (assert (= 0 (nothing-configured :status))
+          "an empty configuration directory on its own is not an error")
+  (assert (string/find "No configuration files" (nothing-configured :output))
+          "and says so")
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm directory))
