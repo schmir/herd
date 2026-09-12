@@ -1,5 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Export the build version so all recipes that invoke jpm use the same value.
+export HERD_VERSION := env_var_or_default("HERD_VERSION", `git describe --tags --always --dirty 2>/dev/null || echo dev`)
+
 # Show the available project commands.
 default:
     @just --list
@@ -18,8 +21,17 @@ repl file="main.janet": deps
 
 # Build the standalone executable in build/.
 build *args: deps
-    HERD_VERSION="${HERD_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}" \
-        jpm --local build {{ args }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # JPM does not track HERD_VERSION. Remove all outputs when the executable
+    # has a different version so JPM regenerates the versioned sources.
+    if [[ ! -x build/herd \
+          || "$(build/herd --version 2>/dev/null || true)" != "herd $HERD_VERSION" ]]; then
+        rm -f build/herd build/herd.c build/*.o
+    fi
+    jpm --local build {{ args }}
+    # Apply the same version check as the release workflow.
+    test "$(build/herd --version)" = "herd $HERD_VERSION"
 
 # Run the test suite in test/.
 test: deps
@@ -33,7 +45,7 @@ ci: && test
 build-musl:
     #!/usr/bin/env bash
     set -euo pipefail
-    version="${HERD_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
+    version="$HERD_VERSION"
     podman build \
         --build-arg HERD_VERSION="$version" \
         --output type=local,dest=build-musl .
