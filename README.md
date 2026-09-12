@@ -1,39 +1,51 @@
 # herd
 
-`herd` manages a collection of Git repositories, checked out with
-[Jujutsu](https://jj-vcs.github.io/jj/latest/) or with Git. It can clone
-missing working copies, fetch remotes, and run a command in the selected
-repositories, with a configurable number of operations running in parallel
-(six by default).
+`herd` manages a set of source code repositories. The repositories can use
+[Jujutsu](https://jj-vcs.github.io/jj/latest/) or Git. `herd` can clone
+missing working copies, fetch remotes, and run a command in selected
+repositories.
 
 ## Install
 
-Prebuilt binaries are available for Linux (x86-64 and ARM64) and macOS
-(ARM64) on the
-[releases page](https://github.com/schmir/herd/releases/latest). Every
-release ships one `herd-<version>-<platform>.tar.gz` per platform, each
-holding a single executable named `herd`, so unpacking it leaves the binary
-ready to move onto your `PATH`:
+Binaries are available for these platforms:
+
+| Platform        | System          |
+| --------------- | --------------- |
+| `linux-x86_64`  | Linux on x86-64 |
+| `linux-aarch64` | Linux on ARM64  |
+| `macos-arm64`   | macOS on ARM64  |
+
+Download the binaries from the
+[releases page](https://github.com/schmir/herd/releases/latest). Each
+release has one `herd-<version>-<platform>.tar.gz` archive for each
+platform. The table shows the `<platform>` values. Each archive contains one
+executable file named `herd`. The Linux binaries are static. They do not
+need a C library on the target system.
+
+Extract the archive:
 
 ```sh
 tar xzf herd-v1.2.3-macos-arm64.tar.gz
+```
+
+Install the executable on your `PATH`:
+
+```sh
 install -m 755 herd ~/.local/bin/herd
 ```
 
-On macOS, a browser marks whatever it downloads as quarantined, and `herd`
-is not signed with an Apple Developer ID, so Gatekeeper refuses to run a
-quarantined copy. Unpacking the archive with `tar` in a terminal leaves the
-binary unmarked, but Safari and Finder unpack archives themselves and do
-pass the mark on. If macOS declines to run `herd`, clear it:
+On macOS, the `herd` executable can have the quarantine attribute. If `herd`
+has this attribute, macOS does not run `herd`. Remove the attribute:
 
 ```sh
 xattr -d com.apple.quarantine ~/.local/bin/herd
 ```
 
-`herd --version` reports which release a binary is. Cloning and fetching
-also require the VCS you use, `jj` or `git`, on `PATH`.
+Use `herd --version` to show the release version. To clone and fetch
+repositories, also install `jj` or `git`. Make sure that the applicable
+command is on your `PATH`.
 
-To build from source with Nix:
+To build `herd` from source with Nix:
 
 ```sh
 nix develop
@@ -41,19 +53,25 @@ just build
 install -m 755 build/herd ~/.local/bin/herd
 ```
 
-Without Nix, install [Janet](https://janet-lang.org/),
-[JPM](https://github.com/janet-lang/jpm), `just`, and `jj`, then run
-`just build`.
+To build without Nix, install these tools:
+
+- [Janet](https://janet-lang.org/)
+- [JPM](https://github.com/janet-lang/jpm)
+- `just`
+- `jj`
+
+Then, run `just build`.
 
 ## Configure
 
-`herd` reads its configuration from `$XDG_CONFIG_HOME/herd`, or from
-`~/.config/herd` when `XDG_CONFIG_HOME` is not set.
+`herd` reads its configuration from `$XDG_CONFIG_HOME/herd`. If
+`XDG_CONFIG_HOME` is not set, it reads the configuration from
+`~/.config/herd`.
 
 ### Repositories
 
-Every `*.json` file in the configuration directory holds an array of
-repositories:
+`herd` reads all `*.json` files in the configuration directory. Each JSON
+file defines a set of repositories and their locations in a directory tree:
 
 ```json
 [
@@ -69,107 +87,113 @@ repositories:
 ]
 ```
 
-Both `path` and `ssh_url` are required and must be strings. The optional
-`vcs` is `"jj"` or `"git"` and decides how `herd clone` checks that
-repository out; see [Checkout options](#checkout-options).
+The `path` and `ssh_url` values are required strings. The `ssh_url` value
+identifies the remote repository. The `path` value sets its location in each
+configured directory tree. `herd` resolves a relative path from the checkout
+anchor. It uses an absolute path without changes. For more information, see
+[Anchors](#anchors).
 
-Every configuration file is checked out under one or more **anchors**: the
-directories its relative paths resolve against. By default there is a single
-anchor, `$HOME`, or the configuration directory if `HOME` is not set.
-Absolute paths remain unchanged, whatever the anchors. The anchors also
-decide which repositories a command considers; see [Selection](#selection).
+The optional `vcs` value is `"jj"` or `"git"`. This value specifies how
+`herd clone` checks out the repository. For more information, see
+[Version control](#version-control).
 
-You can split repositories across any number of JSON files; files are loaded
-in name order. Duplicate paths are accepted only when their URLs and their
-checkout options agree.
+### Configure repository checkouts
 
-A repository list holds nothing but repositories, so whatever writes one
-needs to know nothing else. Where a list is anchored and how its
-repositories are checked out is configured by the `:checkouts` rows in
-`config.jdn`.
-
-### Settings
-
-An optional `config.jdn` in the configuration directory carries the
-settings:
+Use checkout settings to specify where and how `herd` checks out the
+repositories in a JSON file. Add a `config.jdn` file to the configuration
+directory. Use `:defaults` and `:checkouts` in this file:
 
 ```janet
-{:jobs 6
-
- :defaults {:anchor "src" :vcs "jj"}
+{:defaults {:anchor "src" :vcs "jj"}
 
  :checkouts
  [{:from "work.json"   :anchor "work"}
   {:from "work.json"   :anchor "/srv/review" :vcs "git"}
-  {:from "vendor.json" :anchor "/opt/vendor" :vcs "git"}]
-
- :commands
- {"update" {:command "jj git fetch && jj up"
-            :description "Fetch and update each repository."}}}
+  {:from "vendor.json" :anchor "/opt/vendor" :vcs "git"}]}
 ```
 
-`:jobs` is the default number of operations run in parallel.
+Each row in the `:checkouts` array contains checkout settings for one JSON
+file. The required `:from` value must identify a file in the configuration
+directory. If it does not, `herd` reports an error. The optional `:anchor`
+value sets the base directory for relative repository paths. The optional
+`:vcs` value selects Jujutsu or Git.
 
-`:checkouts` is where the repository lists are anchored. Each row reads one
-configuration file, named by `:from` as it is named in the configuration
-directory, and anchors its repositories at one directory. `:defaults` holds
-what every row starts from, so a row naming one setting keeps the rest, and
-a list no row reads is checked out once from the defaults alone — dropping a
-list into the configuration directory checks it out rather than waiting to
-be mentioned.
+Each row uses the values in `:defaults`. A value in the row replaces the
+related default value. If no row refers to a JSON file, `herd` checks out
+its repositories one time with only the default values. Therefore, you do
+not have to add a row for each JSON file.
 
-A row whose `:from` is not in the configuration directory is an error rather
-than a row quietly ignored: a row left behind by a renamed or deleted list
-would otherwise stop applying without a word, and the list it was written
-for would fall back to the defaults.
+#### Anchors
 
-### Anchors
+The `:anchor` value in a row is the base directory for relative paths in its
+configuration file. `herd` resolves a relative `:anchor` value from `$HOME`.
+For example, the first row sets the anchor for `work.json` to `$HOME/work`.
+The path `team/api` in that file becomes `$HOME/work/team/api`.
 
-A row's `:anchor` is the directory the relative paths in its configuration
-file resolve against. A relative anchor resolves from `$HOME`, so the first
-row above anchors `work.json` at `$HOME/work` and an entry such as
-`team/api` resolves to `$HOME/work/team/api`. An absolute anchor is used
-exactly as written and need not exist yet. A row that names no anchor at all
-falls back to `:defaults`, and without those to `$HOME` — or to the
-configuration file's own directory, when the file is not in the
-configuration directory.
+`herd` uses an anchor only with a relative `path` value. It does not change
+an absolute `path` value. The repository directory does not have to exist
+before you run `herd clone`.
 
-Several rows reading the same file describe the same set of repositories
-checked out under each of their anchors. `team/api` above names both
-`$HOME/work/team/api` and `/srv/review/team/api`, and `herd clone` checks
-the repository out at each. An entry with an absolute path resolves the same
-way under every anchor, so it stays a single repository, reachable from all
-of them.
+`herd` gets the anchor from the first applicable level in this table:
 
-A configuration file may itself be a symlink. It is still anchored by its
-visible location in the configuration directory, which is also the name
-`:from` knows it by, so point its rows at the directory tree it describes
-when the list lives next to that tree.
+| Level         | Location                        |
+| ------------- | ------------------------------- |
+| the checkout  | `:anchor` in a `:checkouts` row |
+| all checkouts | `:anchor` in `:defaults`        |
 
-### Checkout options
+If no level sets the value, `herd` uses `$HOME`. `herd` reports an error if
+it must resolve a relative anchor and `HOME` is not set.
 
-`:vcs` decides how `herd clone` checks a repository out: `"jj"` for a
-colocated Git/Jujutsu working copy, `"git"` for a plain Git one. It can be
-set at three levels, and the innermost one that names it wins:
+More than one row can refer to the same JSON file. Each row creates a set of
+repository locations below its anchor. In the example, the `team/api` entry
+in `work.json` identifies these two locations:
 
-| Level          | Where it is written                |
+- `$HOME/work/team/api`
+- `/srv/review/team/api`
+
+`herd clone` checks out the repository at both locations. An absolute
+repository path is the same for all anchors. `herd` checks out that
+repository one time only.
+
+#### Version control
+
+The `:vcs` value selects the version control system (VCS). It specifies how
+`herd clone` checks out a repository. Use `"jj"` for a working copy that
+Jujutsu and Git share. Use `"git"` for a plain Git working copy.
+
+You can set this value at three levels. The setting at the first applicable
+level in this table has priority:
+
+| Level          | Location                           |
 | -------------- | ---------------------------------- |
-| the repository | `"vcs"` on an entry in a JSON list |
-| the checkout   | `:vcs` on a `:checkouts` row       |
-| every checkout | `:vcs` in `:defaults`              |
+| the repository | `"vcs"` in a JSON repository entry |
+| the checkout   | `:vcs` in a `:checkouts` row       |
+| all checkouts  | `:vcs` in `:defaults`              |
 
-A repository no level settles is checked out with `jj`.
+If no level sets the value, `herd` uses `jj`.
 
-The row is where a location, rather than a repository, decides. With the
-settings above, one `team/api` entry in `work.json` becomes a jj working
-copy at `$HOME/work/team/api` and a plain Git one at `/srv/review/team/api`,
-while an entry naming `"vcs": "git"` itself is a Git checkout under either
-anchor.
+Use the checkout level when the location, and not the repository, must set
+the VCS. In the example settings, one `team/api` entry in `work.json`
+creates two types of working copy. The working copy at `$HOME/work/team/api`
+uses Jujutsu. The working copy at `/srv/review/team/api` uses plain Git. If
+the repository entry has `"vcs": "git"`, both working copies use Git.
+
+### Configure parallel operations
+
+The default number of operations that run at the same time is 6. Use `:jobs`
+in `config.jdn` to set a different number:
+
+```janet
+{:jobs 12}
+```
+
+The `-j` and `--jobs` options replace this value for one command. For more
+information, see [Use](#use).
 
 ### Custom commands
 
-Each entry in `:commands` becomes a subcommand with the same options as
-`herd run`, listed in `herd --help` by its `:description`:
+Each entry in `:commands` adds a subcommand. The subcommand has the same
+options as `herd run`. `herd --help` shows the value of `:description`:
 
 ```janet
 {:commands
@@ -181,64 +205,72 @@ Each entry in `:commands` becomes a subcommand with the same options as
             :show-output "always"}}}
 ```
 
-A command is either a single `:command` string, or `:command-git` and
-`:command-jj` strings chosen by what the repository actually contains — a
-`.jj` directory selects the jj command, a `.git` directory the Git one. A
-repository whose VCS has no command is skipped. Commands run through
-`sh -c`, so pipes and `&&` work. `:show-output` sets that command's default
-output condition; see [Use](#use). Custom names cannot shadow the built-in
-commands.
+Each entry needs a `:description` string. If an entry has no description,
+`herd` reports an error. Each entry also needs a command. You can define one
+`:command` string. As an alternative, you can define `:command-git` and
+`:command-jj` strings. `herd` selects the applicable command from the
+contents of the repository. A `.jj` directory selects the Jujutsu command. A
+`.git` directory selects the Git command. If there is no command for the
+detected VCS, `herd` skips the repository.
+
+Commands run through `sh -c`. You can use shell operators such as pipes and
+`&&`. The `:show-output` value sets the default output condition for the
+command. For more information, see [Use](#use). A custom command cannot have
+the same name as a built-in command.
 
 ## Use
 
-List the selected repositories, one per line, as a path and URL separated by
-a tab:
+To list the selected repositories, run:
 
 ```sh
 herd list
 ```
 
-Every configured repository is listed whether or not it is checked out, so
-the output is a stable input for scripts:
+A tab character separates the path and the URL in each output line. The list
+includes repositories that are not checked out. You can use the output as
+input for scripts:
 
 ```
 /home/you/src/acme/api	git@github.com:acme/api.git
 /home/you/src/acme/web	git@github.com:acme/web.git
 ```
 
-Clone missing repositories, as colocated Git/Jujutsu working copies or as
-plain Git ones, following the checkout options in force for each:
+To clone missing repositories, run:
 
 ```sh
 herd clone
 ```
 
-An existing non-empty target directory is treated as already checked out and
-is left unchanged. `clone` finishes with a summary and exits non-zero if any
-clone failed:
+`herd clone` uses the checkout settings to create working copies that
+Jujutsu and Git share, or plain Git working copies. If a target directory
+exists and contains files, `herd` does not change it. The command shows a
+summary when it is complete. It returns an exit status that is not zero if a
+clone fails:
 
 ```
 2 cloned, 1 already checked out, 0 failed
 ```
 
-Fetch the Git remotes of every checked-out repository:
+To fetch the Git remotes of all checked-out repositories, run:
 
 ```sh
 herd fetch
 ```
 
-Run any command in every checked-out repository:
+To run a command in all checked-out repositories, run:
 
 ```sh
 herd run jj st
 herd run --show-output always git remote -v
 ```
 
-The command runs with the repository as its working directory.
-`--show-output` takes `never`, `on-failure`, or `always`, and defaults to
-`on-failure`: a successful command stays quiet, a failing one shows what it
-printed. Output is captured per repository and reported as one block, so
-parallel runs stay readable:
+`herd` uses each repository as the working directory for the command. The
+`--show-output` option accepts `never`, `on-failure`, or `always`. The
+default is `on-failure`. A successful command does not show its output. A
+failed command shows its output.
+
+`herd` captures the output separately for each repository. It shows each
+result as one block. Output from parallel operations is easy to read:
 
 ```
 ✓ /home/you/src/acme/api
@@ -247,21 +279,24 @@ parallel runs stay readable:
 |   origin	git@github.com:acme/api.git (push)
 ```
 
-A failed command is headed by `✗` and its exit status.
+The heading for a failed command starts with `✗` and includes its exit
+status.
 
-Commands do not receive terminal input, so they must be non-interactive.
-`run`, `fetch`, and custom commands finish with a summary and exit non-zero
-if any command failed:
+Commands cannot read terminal input. Make sure that each command runs
+without it. The `run`, `fetch`, and custom commands show a summary when they
+are complete. They return an exit status that is not zero if a command
+fails:
 
 ```
 3 succeeded, 0 failed, 0 skipped, 1 not checked out
 ```
 
-Repositories that are not checked out are skipped rather than counted as
-failures, so `herd run` is safe to use before everything has been cloned.
+`herd` skips repositories that are not checked out. It does not count them
+as failures. You can use `herd run` before you clone all repositories.
 
-`clone`, `fetch`, `run`, and custom commands take `-j N` (or `--jobs N`) to
-override how many repositories are worked on at the same time:
+The `clone`, `fetch`, `run`, and custom commands accept `-j N` or
+`--jobs N`. Use this option to change the number of repositories that `herd`
+processes at the same time:
 
 ```sh
 herd clone -j 12
@@ -269,16 +304,21 @@ herd clone -j 12
 
 ## Selection
 
-Commands act on the repositories selected from the current directory.
-Selection has two parts, and both must hold.
+Commands select repositories relative to the current directory. A repository
+must match the path condition and the anchor condition.
 
-By path, a repository is selected when it is at or below the current
-directory, or when it contains the current directory. Standing anywhere
-inside a working copy therefore selects that repository, however deep.
+The path condition selects a repository in these cases:
 
-By anchor, only repositories reached from an anchor that contains the
-current directory take part. This keeps a command run from a broad parent
-such as `/` from reaching unrelated groups of repositories. Given:
+- The repository is in or below the current directory.
+- The repository contains the current directory.
+
+`herd` selects a repository from any directory in its working copy.
+
+The anchor condition selects repositories only from anchors that contain the
+current directory. This condition makes sure that a command in `/` does not
+select unrelated groups of repositories.
+
+For example, use this configuration:
 
 ```
 ~/.config/herd/personal.json          anchored at ~
@@ -286,53 +326,58 @@ such as `/` from reaching unrelated groups of repositories. Given:
 ~/.config/herd/config.jdn             {:checkouts [{:from "work.json" :anchor "work"}]}
 ```
 
-running `herd list` in `~` selects only the repositories from
-`personal.json`, because `~/work` does not contain `~`. Running it in
-`~/work/team/api` selects from both files, because `~` and `~/work` both
-contain that directory.
+If you run `herd list` in `~`, it selects only repositories from
+`personal.json`. The `~/work` anchor does not contain `~`. If you run the
+command in `~/work/team/api`, it selects repositories from both files. The
+`~` and `~/work` anchors both contain that directory.
 
-All commands accept `-C PATH` (or `--at PATH`) to select as if invoked
-somewhere else:
+All commands accept `-C PATH` or `--at PATH`. Use this option to select
+repositories relative to a different directory:
 
 ```sh
 herd list -C "$HOME/src/acme"
 herd run -C "$HOME/src/acme/api" jj log -r @
 ```
 
-Use `-a` or `--all-anchors` to consider every configuration file regardless
-of its anchor. To operate on all configured repositories, combine it with
-the filesystem root:
+Use `-a` or `--all-anchors` to include all configuration files. This option
+ignores their anchors. To operate on all configured repositories, also set
+the path to the file-system root:
 
 ```sh
 herd list --all-anchors -C /
 herd clone --all-anchors -C /
 ```
 
-When nothing is selected, `herd` says whether no anchor contained the
-location or no repository was in range, and points at `--all-anchors`. An
-empty selection is not an error.
+If the selection is empty, `herd` gives the reason. It tells you if no
+anchor contains the location or if no repository is in the applicable path.
+It also refers to `--all-anchors`. An empty selection is not an error.
 
-Run `herd --help` or `herd <command> --help` for the complete command-line
-reference, including any custom commands.
+For the full command-line reference, run `herd --help` or
+`herd <command> --help`. The help also includes custom commands.
 
 ## Develop
 
-Enter the development shell and run the test suite:
+Enter the development shell:
 
 ```sh
 nix develop
+```
+
+Run the test suite:
+
+```sh
 just test
 ```
 
-`just build` records the version `herd --version` reports, taking it from
-`git describe` unless `HERD_VERSION` names one; release builds pass their
-tag.
+The `just build` command records the version that `herd --version` shows. By
+default, it gets the version from `git describe`. Set `HERD_VERSION` to use
+a different version. Release builds set this variable to their tag.
 
-`treefmt` formats the Janet sources and the justfile; CI checks that the
-tree is already formatted. Useful recipes are listed by `just`. Build
-artifacts and locally installed JPM dependencies are stored in `build/` and
-`jpm_tree/`.
+The `treefmt` command formats the Janet source files and the justfile. CI
+checks that these files have the correct format. Run `just` to list the
+recipes. Build artifacts are in `build/`. JPM installs its local
+dependencies in `jpm_tree/`.
 
 ## License
 
-`herd` is licensed under [GPL-3.0-only](LICENSE).
+`herd` uses the [GPL-3.0-only](LICENSE) license.
