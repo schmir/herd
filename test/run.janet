@@ -158,9 +158,8 @@
                (herd/run-in-repository
                  ["true"] env repo |(array/push messages (string ;$&))
                  "always")))
-    (assert (and (= 1 (length messages))
-                 (= (string "✓ " dir) (messages 0)))
-            "always reports a successful command without output")
+    (assert (empty? messages)
+            "always stays quiet about a successful command without output")
     (array/clear messages)
     (assert (= :succeeded
                (herd/run-in-repository
@@ -179,7 +178,14 @@
     (assert (= :failed
                (herd/run-in-repository
                  ["false"] env repo |(array/push messages (string ;$&)) "never")))
-    (assert (empty? messages) "never hides failed command results"))
+    (assert (empty? messages) "never hides failed command results")
+    (array/clear messages)
+    (assert (= :failed
+               (herd/run-in-repository
+                 ["false"] env repo |(array/push messages (string ;$&)))))
+    (assert (and (= 1 (length messages))
+                 (= (string "✗ " dir " (exit 1)") (messages 0)))
+            "a failure without output still names the repository"))
   (sh/rm dir))
 
 (let [messages @[]
@@ -250,6 +256,23 @@
     (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
                          output)
             "run reports repositories that are not checked out"))
+  (with [process
+         (os/spawn [(path/join (os/cwd) "build/herd")
+                    "run" "--at" root "--show-output" "always" "true"]
+                   :p {:out :pipe :err :pipe})]
+    (def output @"")
+    (def errors @"")
+    (ev/gather
+      (:read (process :out) :all output)
+      (:read (process :err) :all errors)
+      (:wait process))
+    (assert (= 0 (process :return-code)) "a silent always run succeeds")
+    (assert (empty? (string errors))
+            (string "always prints nothing for a command without output: "
+                    errors))
+    (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
+                         output)
+            "a silent run still reports its counts"))
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm dir))

@@ -686,10 +686,17 @@
             (:wait process))
           (def status (process :return-code))
           (def succeeded (zero? status))
-          (when (case show-output
-                  "never" false
-                  "on-failure" (not succeeded)
-                  "always" true)
+          # A successful command that printed nothing has nothing to report:
+          # its heading alone would only add noise. A failing one still needs
+          # a heading, because the counts do not name the repository.
+          (def worth-reporting
+            (or (not succeeded)
+                (pos? (+ (length stdout) (length stderr)))))
+          (when (and worth-reporting
+                     (case show-output
+                       "never" false
+                       "on-failure" (not succeeded)
+                       "always" true))
             (report (format-command-result repository status stdout stderr)))
           (if succeeded :succeeded :failed))
         :skipped)

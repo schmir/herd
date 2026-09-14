@@ -237,8 +237,10 @@ herd run --show-output always git remote -v
 The command runs with the repository as its working directory.
 `--show-output` takes `never`, `on-failure`, or `always`, and defaults to
 `on-failure`: a successful command stays quiet, a failing one shows what it
-printed. Output is captured per repository and reported as one block, so
-parallel runs stay readable:
+printed. A command that printed nothing is reported only when it failed, so
+`always` across a hundred repositories names just the ones that spoke up.
+Output is captured per repository and reported as one block, so parallel
+runs stay readable:
 
 ```
 ✓ /home/you/src/acme/api

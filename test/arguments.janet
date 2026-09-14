@@ -107,7 +107,7 @@
           "an empty anchor suggests all-anchor selection")
   (write-command-config
     `:commands
-     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+     {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
               :show-output "always"}}`)
   (assert (= command-config (herd/command-config-path))
@@ -165,7 +165,7 @@
   (write-command-config
     `:jobs 2
      :commands
-     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+     {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
               :show-output "always"}}`)
   (each command ["clone" "fetch" "run" "mark"]
@@ -193,7 +193,7 @@
                   (bad-configured-jobs :output)))
   (write-command-config
     `:commands
-     {"mark" {:command "printf marker | grep -q marker && touch custom-command"
+     {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
               :show-output "always"}}`)
   (def invalid-show-output
