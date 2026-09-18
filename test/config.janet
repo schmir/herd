@@ -337,6 +337,66 @@
   (assert (= 1 (length (get-in settings [:rows "vendor.json"])))
           "each file keeps only the rows that read it"))
 
+
+# --- filter settings ------------------------------------------------------
+
+(assert-error "a row filter must be an array, not a bare name"
+              (herd/validate-checkout-row {:from "a.json" :filter "active"}
+                                          ":checkouts row 0"))
+(assert-error "a row filter names strings"
+              (herd/validate-checkout-row {:from "a.json" :filter [1]}
+                                          ":checkouts row 0"))
+(assert-error "a row filter name must not be empty"
+              (herd/validate-checkout-row {:from "a.json" :filter [""]}
+                                          ":checkouts row 0"))
+(assert-no-error "a row filters by an array of names"
+                 (herd/validate-checkout-row
+                   {:from "a.json" :filter ["active" "platform"]}
+                   ":checkouts row 0"))
+(assert-no-error "a row can filter by nothing at all"
+                 (herd/validate-checkout-row {:from "a.json" :filter []}
+                                             ":checkouts row 0"))
+(assert-error "a default filter must be an array too"
+              (herd/validate-checkout-defaults {:filter "active"}))
+(assert-no-error "the defaults settle filters"
+                 (herd/validate-checkout-defaults {:filter ["active"]}))
+
+(assert-error "the filter registry must be a dictionary"
+              (herd/validate-filters []))
+(assert-error "a filter needs an expression"
+              (herd/validate-filters {"active" 1}))
+(assert-error "a filter expression must not be empty"
+              (herd/validate-filters {"active" ""}))
+(assert-no-error "a filter names an expression"
+                 (herd/validate-filters {"active" "[?schedules]"}))
+
+(assert-error "a row cannot name a filter that is not configured"
+              (herd/configured-repository-settings
+                {:checkouts [{:from "work.json" :filter ["absent"]}]}))
+(assert-error "the defaults cannot name a filter that is not configured"
+              (herd/configured-repository-settings {:defaults {:filter ["absent"]}}))
+(let [message (error-message
+                |(herd/configured-repository-settings
+                   {:filters {"active" "[?a]"}
+                    :checkouts [{:from "work.json" :filter ["typo"]}]}))]
+  (assert (and message (string/find `"typo"` message))
+          "an unknown filter is named rather than the whole row"))
+
+(let [settings (herd/configured-repository-settings
+                 {:filters {"active" "[?a]" "platform" "[?b]"}
+                  :defaults {:filter ["active"]}
+                  :checkouts [{:from "work.json"}
+                              {:from "work.json" :filter ["platform"]}
+                              {:from "work.json" :filter []}]})
+      rows (herd/rows-for-file settings "work.json")]
+  (assert (deep= {"active" "[?a]" "platform" "[?b]"} (settings :filters))
+          "the registry is carried with the settings")
+  (assert (deep= ["active"] ((rows 0) :filter))
+          "a row that names no filter inherits the default one")
+  (assert (deep= ["platform"] ((rows 1) :filter))
+          "a row that names filters replaces the default ones")
+  (assert (empty? ((rows 2) :filter))
+          "and an empty array drops them without naming another"))
 # --- rows-for-file --------------------------------------------------------
 
 (let [settings (herd/configured-repository-settings

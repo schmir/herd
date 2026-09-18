@@ -156,6 +156,92 @@
   [source]
   (json/decode source true))
 
+(def filter-executable
+  "Program that evaluates a filter expression."
+  "jp")
+
+(defn- filter-where
+  "Name a filter in an error message."
+  [name]
+  (string "filter " (describe name)))
+
+(def command-filter-hint
+  ``Said when a filter named on the command line fails. A row aims its own
+  filters at one file; -f meets every list, including those written without
+  that filter in mind.``
+  (string "a filter named with -f is applied to every configured list, and a "
+          "field a list does not carry reads as null, which most JMESPath "
+          "functions reject rather than treat as no match; naming it as "
+          "`field || ''` gives them a string to work with"))
+
+(defn apply-filter
+  ``Return the JSON `source` narrowed by the JMESPath `expression` that `name`
+  stands for, as the JSON the filter answered with. Bytes go in and bytes come
+  back, never Janet values: decoding and re-encoding would round numbers to
+  what a double can hold and reorder every object key, so an expression would
+  no longer see the list as it is written on disk. A `hint` is added to the
+  failure when the filter was named somewhere the list itself never asked
+  for.``
+  [source name expression &opt hint]
+  (def executable
+    (or (find-executable filter-executable)
+        (error (string (filter-where name) " needs " filter-executable
+                       " on PATH"))))
+  # The list reaches the filter as its standard input, held in a file with no
+  # name: nothing another user on this machine can find, open or replace, and
+  # nothing left behind if herd is killed. A regular file rather than a pipe
+  # is what matters here. A filter that rejects its expression never reads its
+  # input, and a pipe nobody is draining would kill herd with SIGPIPE before it
+  # could report what the filter said.
+  (with [input (file/temp)]
+    (file/write input source)
+    # The child reads through the same file description, so it starts where
+    # this leaves off unless the offset goes back to the beginning. Buffered
+    # bytes are still ours until they are flushed.
+    (file/flush input)
+    (file/seek input :set 0)
+    # "--" keeps an expression that starts with a dash from reading as an
+    # option.
+    (with [process (os/spawn [executable "--" expression]
+                             : {:in input :out :pipe :err :pipe})]
+      (def stdout @"")
+      (def stderr @"")
+      (ev/gather
+        (:read (process :out) :all stdout)
+        (:read (process :err) :all stderr)
+        (:wait process))
+      (unless (zero? (process :return-code))
+        (error (string (filter-where name) " failed: "
+                       (string/trimr (if (empty? stderr) stdout stderr))
+                       (if hint (string "\n" hint) ""))))
+      # Decoded only to be looked at: an expression that is not a filter answers
+      # with null rather than failing, which would otherwise select nothing
+      # without saying why. What travels on is what the filter wrote.
+      (def answered
+        (try
+          (parse-config stdout)
+          ([err] (error (string (filter-where name)
+                                " produced unreadable output: " err)))))
+      (unless (indexed? answered)
+        (error (string (filter-where name)
+                       " did not select an array of repositories")))
+      # A string rather than the buffer that was read into: what comes back
+      # travels on to the next filter and must not be quietly mutable.
+      (string stdout))))
+
+(defn filter-entries
+  ``Return the JSON `source` narrowed by each filter in `names`, in order.
+  They run as a pipeline, each reading what the one before it answered with,
+  the way piping one filter program into another does. Several `[?…]`
+  expressions therefore intersect and commute; anything else, a slice or a
+  projection, depends on its place in the order. Naming none hands back the
+  source untouched, and the `hint` is carried to whichever of them fails.``
+  [source names filters &opt hint]
+  (var narrowed source)
+  (each name names
+    (set narrowed (apply-filter narrowed name (get filters name) hint)))
+  narrowed)
+
 (defn config-directory
   ``Directory holding the JSON configuration files, or nil when neither
   XDG_CONFIG_HOME nor HOME is set.``
@@ -180,7 +266,7 @@
 
 (def checkout-row-keys
   "Non-option keys that a checkout row can contain."
-  [:from :anchor])
+  [:from :anchor :filter])
 
 (defn- reject-unknown-setting
   "Raise for a setting that is not configurable."
@@ -197,6 +283,22 @@
       (error (string where " needs a non-empty :anchor"))))
   settings)
 
+(defn- validate-filter-setting
+  ``Validate an optional `:filter` as an array of filter names. It is always
+  an array, even for a single name, so there is one shape to write and one to
+  read. An empty array filters nothing, which is how a row drops the filters
+  it would otherwise inherit from `:defaults`.``
+  [settings where]
+  (def names (get settings :filter :unset))
+  (unless (= :unset names)
+    (unless (indexed? names)
+      (error (string where " needs an array of filter names in :filter")))
+    (each name names
+      (unless (and (string? name) (not (empty? name)))
+        (error (string where " names an invalid filter " (describe name)
+                       "; expected a non-empty string")))))
+  settings)
+
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
   configuration file.``
@@ -209,6 +311,7 @@
   (unless (and (string? from) (not (empty? from)))
     (error (string where " needs a :from naming a configuration file")))
   (validate-anchor-setting row where)
+  (validate-filter-setting row where)
   (validate-checkout-options row where)
   row)
 
@@ -218,14 +321,39 @@
   (unless (dictionary? defaults)
     (error ":defaults must be a dictionary"))
   (eachk key defaults
-    (reject-unknown-setting ":defaults" key [:anchor ;checkout-keys]))
+    (reject-unknown-setting ":defaults" key [:anchor :filter ;checkout-keys]))
   (validate-anchor-setting defaults ":defaults")
+  (validate-filter-setting defaults ":defaults")
   (validate-checkout-options defaults ":defaults")
   defaults)
 
+(defn validate-filters
+  ``Validate the `:filters` registry and return it. It maps a filter name to
+  the JMESPath expression it stands for; every reference elsewhere names one
+  of these, so a mistyped name is caught rather than silently selecting
+  nothing.``
+  [filters]
+  (unless (dictionary? filters)
+    (error ":filters must be a dictionary of names to expressions"))
+  (eachp [name expression] filters
+    (unless (and (string? name) (not (empty? name)))
+      (error "filter names must be non-empty strings"))
+    (unless (and (string? expression) (not (empty? expression)))
+      (error (string "filter " (describe name)
+                     " needs a non-empty expression"))))
+  filters)
+
+(defn- reject-unknown-filters
+  "Raise for a `:filter` that names a filter the registry does not define."
+  [settings where filters]
+  (each name (get settings :filter [])
+    (unless (get filters name)
+      (error (string where " names an unknown filter " (describe name)))))
+  settings)
+
 (def default-repository-settings
   "Repository settings used when config.jdn is absent."
-  {:defaults {} :rows {}})
+  {:defaults {} :rows {} :filters {}})
 
 (defn configured-repository-settings
   ``Validate repository settings and group checkout rows by source.
@@ -243,8 +371,17 @@
     (if-let [written (get rows (row :from))]
       (array/push written row)
       (put rows (row :from) @[row])))
-  {:defaults (validate-checkout-defaults (get config :defaults {}))
-   :rows rows})
+  (def filters (validate-filters (get config :filters {})))
+  (def defaults (validate-checkout-defaults (get config :defaults {})))
+  (reject-unknown-filters defaults ":defaults" filters)
+  (eachp [from written] rows
+    (for index 0 (length written)
+      (reject-unknown-filters (written index)
+                              (string ":checkouts row for " (describe from))
+                              filters)))
+  {:defaults defaults
+   :rows rows
+   :filters filters})
 
 (defn rows-for-file
   ``Merge each row for `name` with the defaults. Return the defaults alone
@@ -266,10 +403,10 @@
   options)
 
 (defn config-anchors
-  ``Resolve one anchor for each checkout row and retain its options. Relative
-  anchors use HOME. A missing anchor uses HOME for configured files and the
-  file's parent otherwise. Keep configured paths because selection resolves
-  symbolic links.``
+  ``Resolve one anchor for each checkout row and retain its options and its
+  filter names. Relative anchors use HOME. A missing anchor uses HOME for
+  configured files and the file's parent otherwise. Keep configured paths
+  because selection resolves symbolic links.``
   [config-path directory rows]
   (def parent (path/abspath (path/parent config-path)))
   (def name (path/basename config-path))
@@ -290,7 +427,8 @@
             (path/abspath anchor))
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
-    (merge (checkout-options row) {:path resolved})))
+    (merge (checkout-options row)
+           {:path resolved :filter (get row :filter [])})))
 
 (defn resolve-repository-paths
   ``Resolve each entry once per anchor and apply its checkout options. Entries
@@ -310,11 +448,40 @@
   resolved)
 
 (defn read-config
-  "Read one configuration file, resolving each repository into checkouts."
-  [config-path directory rows]
-  (resolve-repository-paths
-    (validate-config (parse-config (slurp config-path)))
-    (config-anchors config-path directory rows)))
+  ``Read one configuration file, resolving each repository into checkouts.
+  A row filters before its anchor is applied, so each row can describe a
+  different part of the same list, and `names` narrows every row further.
+  Only the entries a filter kept are validated: a list may carry entries herd
+  could not use, which is the point of filtering it. The file is decoded once,
+  after the filters have had it, so what they see is the file itself.``
+  [config-path directory rows &opt filters names]
+  (default filters {})
+  (default names [])
+  (def source (slurp config-path))
+  (def anchors (config-anchors config-path directory rows))
+  (def resolved @[])
+  # Rows sharing a chain are the common case, so filter once for each distinct
+  # chain rather than once for every anchor. The chain itself is the key: a
+  # filter name is an arbitrary string, so joining names into one would let
+  # two different chains spell the same key and hand a row the repositories
+  # another row had selected.
+  (def selected @{})
+  (each anchor anchors
+    (def chain [;(anchor :filter) ;names])
+    (def kept
+      (if (has-key? selected chain)
+        (get selected chain)
+        # A row aimed its own filters at this file; the command line aimed
+        # its filters at every file, so only those need to explain themselves.
+        (let [computed (validate-config
+                         (parse-config
+                           (filter-entries
+                             (filter-entries source (anchor :filter) filters)
+                             names filters command-filter-hint)))]
+          (put selected chain computed)
+          computed)))
+    (array/concat resolved (resolve-repository-paths kept [anchor])))
+  resolved)
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
@@ -363,7 +530,7 @@
   ``Read every configuration file and merge them into one repository list.
   Errors name the file they came from, since a bad entry is otherwise hard to
   place once several files are in play.``
-  [config-paths directory &opt settings]
+  [config-paths directory &opt settings names]
   (default settings default-repository-settings)
   (reject-unknown-sources settings config-paths)
   (merge-configs
@@ -371,7 +538,9 @@
       [config-path
        (try
          (read-config config-path directory
-                      (rows-for-file settings (path/basename config-path)))
+                      (rows-for-file settings (path/basename config-path))
+                      (get settings :filters {})
+                      names)
          ([err] (error (string config-path ": " err))))])))
 
 (defn- bare-path
@@ -458,10 +627,47 @@
   (or (argparse/argparse ;spec :args args)
       (os/exit (if (help-requested? args) 0 1))))
 
+(defn- filters-in-play?
+  ``Whether any filter narrows this run, named on the command line or by a
+  checkout row. An empty result is worth explaining only when something could
+  have removed the repositories.``
+  [names settings]
+  (or (not (empty? names))
+      (not (empty? (get-in settings [:defaults :filter] [])))
+      (true? (some (fn [rows]
+                     (some |(not (empty? (get $ :filter []))) rows))
+                   (values (get settings :rows {}))))))
+
+(defn- describe-filters
+  "Name the filters in play, for a message about an empty selection."
+  [names]
+  (string (if (= 1 (length names)) "filter " "filters ")
+          (string/join (map describe names) " and ")))
+
+(defn- require-known-filters
+  ``Report and exit when `names` holds a filter `settings` does not define.
+  Checked before anything is read, so a typo does not look like a list that
+  simply matched nothing.``
+  [names settings]
+  (def filters (get settings :filters {}))
+  (each name names
+    (unless (get filters name)
+      (eprint "Unknown filter " (describe name)
+              (if (empty? filters)
+                "; no filters are configured"
+                (string "; configured filters are "
+                        (string/join (map describe (sort (keys filters)))
+                                     ", "))))
+      (os/exit 1))))
+
 (defn- configured-repositories
-  "Load the configured repositories and select the ones at a path."
-  [at all-anchors &opt settings]
+  ``Load the configured repositories and select the ones at a path. The
+  filters named in `names` narrow every configuration file further, on top of
+  whatever its checkout rows already filter.``
+  [at all-anchors &opt settings names]
   (default settings default-repository-settings)
+  (default names [])
+  (require-known-filters names settings)
   (def directory (config-directory))
   (when (nil? directory)
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
@@ -476,7 +682,7 @@
   # Validate checkout sources even when no repository lists exist.
   (def config
     (try
-      (load-config config-paths directory settings)
+      (load-config config-paths directory settings names)
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
@@ -491,8 +697,18 @@
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
-  (when (and (empty? selected) (not (empty? config)))
+  (when (empty? selected)
     (cond
+      # Filtering can empty the configuration itself, before the location is
+      # ever weighed, so say that rather than blaming the location.
+      (and (empty? config) (filters-in-play? names settings))
+      (eprint "No configured repository is left by "
+              (if (empty? names)
+                "the filters in config.jdn"
+                (describe-filters names)))
+
+      (empty? config) nil
+
       all-anchors
       (eprint "None of the " (length config) " configured repositories are beneath " at
               " or hold it")
@@ -522,6 +738,15 @@
   {:kind :flag
    :short "a"
    :help "Consider repositories from every configuration anchor."})
+
+(defn- filter-option
+  ``The --filter specification, shared by every selecting command. Repeating
+  it pipes one filter into the next, after whatever the checkout rows filter.``
+  []
+  {:kind :accumulate
+   :short "f"
+   :value-name "NAME"
+   :help "Select only repositories kept by the named filter."})
 
 (defn- show-output-option
   "Return the --show-output specification with default."
@@ -565,6 +790,7 @@
   (parse-args args description
               "at" (at-option)
               "all-anchors" (all-anchors-option)
+              "filter" (filter-option)
               ;spec))
 
 (defn- parsed-jobs
@@ -582,7 +808,8 @@
   (def parsed (parse-selection args description))
   (configured-repositories (parsed "at")
                            (parsed "all-anchors")
-                           settings))
+                           settings
+                           (or (parsed "filter") [])))
 
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
@@ -593,7 +820,8 @@
                      "jobs" (jobs-option jobs)))
   (def jobs (parsed-jobs parsed))
   (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors") settings))
+    (configured-repositories (parsed "at") (parsed "all-anchors") settings
+                             (or (parsed "filter") [])))
   (def counts (clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
@@ -747,7 +975,8 @@
         (os/exit 1))))
   (def jobs (parsed-jobs parsed))
   (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors") settings))
+    (configured-repositories (parsed "at") (parsed "all-anchors") settings
+                             (or (parsed "filter") [])))
   (def counts (run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "

@@ -32,7 +32,9 @@
       (assert (string/find "-C, --at" (result :output))
               (string command " supports working-location selection"))
       (assert (string/find "-a, --all-anchors" (result :output))
-              (string command " supports all-anchor selection")))
+              (string command " supports all-anchor selection"))
+      (assert (string/find "-f, --filter NAME" (result :output))
+              (string command " supports selection by named filter")))
 
     (each command ["clone" "fetch" "run"]
       (assert (string/find "-j, --jobs N=6" ((invoke [command "--help"]) :output))

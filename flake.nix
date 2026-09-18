@@ -44,6 +44,7 @@
               janet
               janet-format
               janet-lsp
+              jp
               jpm
               jujutsu
               just
