@@ -266,7 +266,7 @@
 
 (def checkout-row-keys
   "Non-option keys that a checkout row can contain."
-  [:from :anchor :filter])
+  [:from :anchor :filter :strip-components])
 
 (defn- reject-unknown-setting
   "Raise for a setting that is not configurable."
@@ -299,6 +299,16 @@
                        "; expected a non-empty string")))))
   settings)
 
+(defn- validate-strip-components-setting
+  "Validate an optional component count as a non-negative integer."
+  [settings where]
+  (when (has-key? settings :strip-components)
+    (def strip-count (settings :strip-components))
+    (unless (and (int? strip-count) (not (neg? strip-count)))
+      (error (string where
+                     " needs a non-negative integer in :strip-components"))))
+  settings)
+
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
   configuration file.``
@@ -312,6 +322,7 @@
     (error (string where " needs a :from naming a configuration file")))
   (validate-anchor-setting row where)
   (validate-filter-setting row where)
+  (validate-strip-components-setting row where)
   (validate-checkout-options row where)
   row)
 
@@ -404,9 +415,9 @@
 
 (defn config-anchors
   ``Resolve one anchor for each checkout row and retain its options and its
-  filter names. Relative anchors use HOME. A missing anchor uses HOME for
-  configured files and the file's parent otherwise. Keep configured paths
-  because selection resolves symbolic links.``
+  filter and path settings. Relative anchors use HOME. A missing anchor uses
+  HOME for configured files and the file's parent otherwise. Keep configured
+  paths because selection resolves symbolic links.``
   [config-path directory rows]
   (def parent (path/abspath (path/parent config-path)))
   (def name (path/basename config-path))
@@ -428,22 +439,44 @@
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
     (merge (checkout-options row)
-           {:path resolved :filter (get row :filter [])})))
+           {:path resolved
+            :filter (get row :filter [])
+            :strip-components (get row :strip-components 0)})))
+
+(defn- strip-path-components
+  ``Remove `strip-count` leading components and return a relative path. The
+  `anchor` only names the row in the error, since a file read under several
+  anchors strips a different number of components under each.``
+  [repository-path strip-count anchor]
+  (if (zero? strip-count)
+    repository-path
+    (let [components (filter |(not (empty? $))
+                             (path/parts (path/normalize repository-path)))]
+      (when (>= strip-count (length components))
+        (error (string "the row anchored at " (describe anchor)
+                       " cannot strip " strip-count " components from path "
+                       (describe repository-path) "; no components remain")))
+      (string/join (drop strip-count components) path/sep))))
 
 (defn resolve-repository-paths
-  ``Resolve each entry once per anchor and apply its checkout options. Entries
-  without anchors produce no checkouts. Absolute paths remain the same under
-  all anchors so `merge-configs` can combine them.``
+  ``Resolve each entry once per anchor, stripping its leading components and
+  applying its checkout options. Entries without anchors produce no
+  checkouts. Unstripped absolute paths remain the same under all anchors so
+  `merge-configs` can combine them.``
   [entries anchors]
   (def resolved @[])
   (each anchor anchors
     (def options (checkout-options anchor))
     (with-dyns [:path-cwd (anchor :path)]
       (each entry entries
+        (def repository-path
+          (strip-path-components (entry :path)
+                                 (get anchor :strip-components 0)
+                                 (anchor :path)))
         # Apply options from least to most specific: defaults, anchor, entry.
         (array/push resolved
                     (merge default-checkout-options options entry
-                           {:path (path/abspath (entry :path))
+                           {:path (path/abspath repository-path)
                             :anchors @[(anchor :path)]})))))
   resolved)
 

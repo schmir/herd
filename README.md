@@ -102,7 +102,8 @@ settings:
  :checkouts
  [{:from "work.json"   :anchor "work"}
   {:from "work.json"   :anchor "/srv/review" :vcs "git"}
-  {:from "vendor.json" :anchor "/opt/vendor" :vcs "git"}]
+  {:from "vendor.json" :anchor "/opt/vendor"
+   :strip-components 1 :vcs "git"}]
 
  :filters
  {"active" "[?schedules[?starts_with(name, 'nightly-')]]"}
@@ -146,6 +147,15 @@ checked out under each of their anchors. `team/api` above names both
 the repository out at each. An entry with an absolute path resolves the same
 way under every anchor, so it stays a single repository, reachable from all
 of them.
+
+A row's `:strip-components` removes that many leading components from every
+repository path before resolving it against the anchor. For example,
+`vendor/acme/lib` with `:strip-components 1` becomes `acme/lib`. The value
+is valid only on a `:checkouts` row and must be a non-negative integer. Zero
+keeps the path unchanged. A positive value also makes an absolute path
+relative: `/srv/team/repo` stripped by one component becomes `team/repo`
+beneath the row's anchor. Removing the complete path, or more components
+than it contains, is an error.
 
 A configuration file may itself be a symlink. It is still anchored by its
 visible location in the configuration directory, which is also the name

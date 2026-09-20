@@ -297,6 +297,17 @@
                                           answers)))
             "a row's filter narrows what its file contributes")
 
+    (assert (deep= @[(path/join src "a")]
+                   (map |($ :path)
+                        (herd/read-config
+                          config nil
+                          @[{:anchor src
+                             :filter ["prefixed"]
+                             :strip-components 1}]
+                          {"prefixed"
+                           `[{"path": "org/a", "ssh_url": "u"}]`})))
+            "a row strips paths produced by its filter")
+
     # Reading the same file unfiltered fails on the third entry, so only
     # what a filter kept can have been validated above.
     (assert (string/find "needs a string"

@@ -197,7 +197,7 @@
 (let [entries (herd/resolve-repository-paths
                 [{:path "rel" :ssh_url "u"}
                  {:path "/already/absolute" :ssh_url "u"}]
-                @[{:path "/anchor"}])]
+                @[{:path "/anchor" :strip-components 0}])]
   (assert (= "/anchor/rel" ((entries 0) :path)) "a relative path joins the anchor")
   (assert (= "/already/absolute" ((entries 1) :path)) "an absolute path is left alone")
   (assert (deep= @["/anchor"] ((entries 0) :anchors))
@@ -205,6 +205,30 @@
   (assert (= "u" ((entries 0) :ssh_url)) "the rest of the entry survives")
   (assert (= "jj" ((entries 0) :vcs))
           "a checkout no level settles is a jj checkout"))
+
+(let [entries (herd/resolve-repository-paths
+                [{:path "org/team/repo" :ssh_url "relative"}
+                 {:path "/srv/other/repo" :ssh_url "absolute"}]
+                @[{:path "/anchor" :strip-components 1}])]
+  (assert (deep= @["/anchor/team/repo" "/anchor/other/repo"]
+                 (map |($ :path) entries))
+          "stripping makes relative and absolute paths relative to the anchor"))
+
+(let [message
+      (error-message
+        |(herd/resolve-repository-paths
+           [{:path "team/repo" :ssh_url "u"}]
+           @[{:path "/anchor" :strip-components 2}]))]
+  (assert (and message
+               (string/find "2" message)
+               (string/find `"team/repo"` message)
+               (string/find `"/anchor"` message))
+          "stripping a complete path names its row, count and path in the error"))
+
+(assert-error "stripping more components than a path has fails"
+              (herd/resolve-repository-paths
+                [{:path "team/repo" :ssh_url "u"}]
+                @[{:path "/anchor" :strip-components 3}]))
 
 (let [entries (herd/resolve-repository-paths
                 [{:path "plain" :ssh_url "u"}
@@ -284,9 +308,29 @@
 (assert-error "a row VCS must be git or jj"
               (herd/validate-checkout-row {:from "a.json" :vcs "svn"}
                                           ":checkouts row 0"))
+(assert-error "a row strip count must be an integer"
+              (herd/validate-checkout-row
+                {:from "a.json" :strip-components 1.5}
+                ":checkouts row 0"))
+(assert-error "a row strip count must not be a string"
+              (herd/validate-checkout-row
+                {:from "a.json" :strip-components "1"}
+                ":checkouts row 0"))
+(assert-error "a row strip count must not be negative"
+              (herd/validate-checkout-row
+                {:from "a.json" :strip-components -1}
+                ":checkouts row 0"))
 (assert-no-error "a source alone is a valid row"
                  (herd/validate-checkout-row {:from "a.json"}
                                              ":checkouts row 0"))
+(assert-no-error "a row can strip no path components"
+                 (herd/validate-checkout-row
+                   {:from "a.json" :strip-components 0}
+                   ":checkouts row 0"))
+(assert-no-error "a row can strip path components"
+                 (herd/validate-checkout-row
+                   {:from "a.json" :strip-components 2}
+                   ":checkouts row 0"))
 (assert-no-error "a row settles an anchor and a VCS"
                  (herd/validate-checkout-row
                    {:from "a.json" :anchor "/srv" :vcs "git"}
@@ -304,6 +348,8 @@
               (herd/validate-checkout-defaults {:from "a.json"}))
 (assert-error "the defaults reject settings they cannot carry"
               (herd/validate-checkout-defaults {:jobs 2}))
+(assert-error "the defaults cannot strip path components"
+              (herd/validate-checkout-defaults {:strip-components 1}))
 (assert-error "a default anchor must not be empty"
               (herd/validate-checkout-defaults {:anchor ""}))
 (assert-error "a default VCS must be git or jj"
@@ -567,6 +613,27 @@
 
 (let [dir (fixture)
       configuration (string dir "/config/herd")
+      config (string configuration "/repos.json")
+      home (os/getenv "HOME")]
+  (sh/create-dirs configuration)
+  (write-config config [{:path "org/team/repo" :ssh_url "url"}])
+  (os/setenv "HOME" dir)
+  (let [loaded (herd/load-config
+                 [config] configuration
+                 (herd/configured-repository-settings
+                   {:checkouts
+                    [{:from "repos.json" :anchor "one" :strip-components 1}
+                     {:from "repos.json" :anchor "two" :strip-components 2}]}))
+        root (path/abspath dir)]
+    (assert (deep= @[(string root "/one/team/repo")
+                     (string root "/two/repo")]
+                   (map |($ :path) loaded))
+            "each row strips its own number of path components"))
+  (os/setenv "HOME" home)
+  (sh/rm dir))
+
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
       unread (string configuration "/first.json")
       read-by-a-row (string configuration "/second.json")
       home (os/getenv "HOME")]
@@ -675,6 +742,26 @@
   (assert-error "an unreadable file is refused"
                 (herd/load-config [(string dir "/absent.json")] configuration))
   (os/setenv "HOME" home)
+  (sh/rm dir))
+
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
+      config (string configuration "/repos.json")
+      settings (herd/configured-repository-settings
+                 {:checkouts [{:from "repos.json"
+                               :anchor "root"
+                               :strip-components 1}]})]
+  (sh/create-dirs configuration)
+  (write-config config
+                [{:path "one/repo" :ssh_url "shared-url"}
+                 {:path "two/repo" :ssh_url "shared-url"}])
+  (assert (= 1 (length (herd/load-config [config] configuration settings)))
+          "agreeing paths merged by stripping remain one repository")
+  (write-config config
+                [{:path "one/repo" :ssh_url "first-url"}
+                 {:path "two/repo" :ssh_url "second-url"}])
+  (assert-error "stripped paths with different URLs are refused"
+                (herd/load-config [config] configuration settings))
   (sh/rm dir))
 
 (let [dir (fixture)
