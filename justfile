@@ -7,9 +7,38 @@ export HERD_VERSION := env_var_or_default("HERD_VERSION", `git describe --tags -
 default:
     @just --list
 
-# Install project dependencies in the local JPM tree.
-deps:
-    jpm --local deps
+# Install the locked dependencies in the local JPM tree.
+deps: check-lock
+    jpm --local load-lockfile
+
+# Fail when project.janet declares a dependency lockfile.jdn does not record.
+# Nothing else notices the drift: load-lockfile never reads project.janet, and
+# a missing dependency only surfaces as a failing import much later.
+check-lock:
+    #!/usr/bin/env janet
+    (def declared
+      (mapcat |(get (struct ;(slice $ 1)) :dependencies [])
+              (filter |(and (tuple? $) (= 'declare-project (first $)))
+                      (parse-all (slurp "project.janet")))))
+    (def locked (map |(get $ :url) (parse (slurp "lockfile.jdn"))))
+    (def missing (filter |(nil? (index-of $ locked)) declared))
+    (unless (empty? missing)
+      (eprint "lockfile.jdn does not record: " (string/join missing ", "))
+      (eprint "Run `just lock` to regenerate it.")
+      (os/exit 1))
+
+# Regenerate lockfile.jdn from the dependencies declared in project.janet.
+lock:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Resolve into a throwaway tree: make-lockfile records whatever the tree
+    # happens to contain, so anything installed into jpm_tree by hand would
+    # otherwise end up in the lockfile too.
+    tree="$(mktemp -d)"
+    trap 'rm -rf "$tree"' EXIT
+    jpm --tree="$tree" deps
+    jpm --tree="$tree" make-lockfile lockfile.jdn
+    treefmt lockfile.jdn
 
 # Run the program
 run *args: deps

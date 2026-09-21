@@ -12,7 +12,7 @@
 #
 # The steps are ordered so the expensive ones cache: the toolchain is rebuilt
 # only when its pinned versions change, the dependency tree only when
-# project.janet does, and a source edit reaches no further back than the build
+# lockfile.jdn does, and a source edit reaches no further back than the build
 # itself.
 
 FROM docker.io/library/alpine:3.21 AS build
@@ -36,10 +36,12 @@ RUN git clone --depth 1 --branch "$JPM_VERSION" https://github.com/janet-lang/jp
 
 WORKDIR /src
 
-# Resolving the dependencies needs nothing but their declaration, so editing a
-# source file does not send jpm back to the network.
-COPY project.janet ./
-RUN jpm --local deps
+# Installing the dependencies needs nothing but the lockfile, so editing a
+# source file does not send jpm back to the network. The lockfile also pins
+# every dependency to a commit, so a release built today and the same tag
+# rebuilt later compile the same sources.
+COPY lockfile.jdn ./
+RUN jpm --local load-lockfile
 
 COPY . .
 

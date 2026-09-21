@@ -28,6 +28,6 @@ cd jpm
 sudo janet bootstrap.janet
 
 cd "$REPO"
-jpm --local deps
+jpm --local load-lockfile
 jpm --local build
 strip build/herd

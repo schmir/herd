@@ -433,6 +433,11 @@ just test
 `git describe` unless `HERD_VERSION` names one; release builds pass their
 tag.
 
+`lockfile.jdn` pins every JPM dependency to a commit, so every build
+compiles the same sources. Run `just lock` after changing the dependencies
+in `project.janet` and commit the result; `just deps` refuses to install
+until the lockfile records everything `project.janet` declares.
+
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
 artifacts and locally installed JPM dependencies are stored in `build/` and
