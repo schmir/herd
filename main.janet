@@ -36,6 +36,23 @@
       (set found true)))
   found)
 
+(defn- version-requested?
+  ``Whether `args` asks for the version. Only the very first argument can: the
+  flag carries no value, and whatever follows it is either a command name,
+  which owns its own options, or a mistake. Everything else is left to
+  argparse, which owns the usage errors and the help text.``
+  [args]
+  (def arg (get args 1))
+  (cond
+    (nil? arg) false
+    (string/has-prefix? "--" arg)
+    (= "version" (first (string/split "=" (string/slice arg 2))))
+    # A cluster of short flags asks for the version only when that is all it
+    # asks for: -hV wants the help argparse prints, and -Vx is a mistake.
+    (and (string/has-prefix? "-" arg) (> (length arg) 1))
+    (all |(= $ (chr "V")) (string/slice arg 1))
+    false))
+
 (defn- parse-args
   ``Parse `args` against an argparse specification, exiting on a mistake.
   Asking for help is not a mistake, so it leaves through the successful door.``
@@ -464,6 +481,10 @@
 
 (defn main
   [& args]
+  # Answered before the configuration is read, so a broken one cannot stop it.
+  (when (version-requested? args)
+    (print "herd " version)
+    (os/exit 0))
   (def commands
     (try
       (available-commands)
@@ -480,9 +501,6 @@
                :short-circuit true
                :help "Command to run."}])
   (def parsed (parse-args args ;spec))
-  (when (parsed "version")
-    (print "herd " version)
-    (os/exit 0))
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
   (def rest (or (parsed :rest) @[]))

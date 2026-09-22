@@ -266,6 +266,18 @@
           "an empty configuration directory on its own is not an error")
   (assert (string/find "No configuration files" (nothing-configured :output))
           "and says so")
+  # A binary has to be able to say which release it is even when the
+  # configuration it would otherwise read cannot be loaded.
+  (spit command-config "{:checkouts")
+  (def broken (invoke ["list" "--at" anchor]))
+  (assert (not= 0 (broken :status)) "a malformed configuration fails")
+  (each flag ["--version" "-V"]
+    (def result (invoke [flag]))
+    (assert (= 0 (result :status))
+            (string flag " succeeds with a malformed configuration"))
+    (assert (string/has-prefix? "herd " (string/trimr (result :output)))
+            (string flag " reports the version rather than the configuration "
+                    "mistake: " (result :output))))
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm directory))
