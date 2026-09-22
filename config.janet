@@ -308,20 +308,28 @@
 
 (defn merge-configs
   ``Concatenate `[config-path entries]` pairs into one repository list. Two
-  files may name the same checkout only when they agree on the URL and VCS;
-  letting them disagree would make the result depend on the reading order.``
+  files may name the same checkout only when they agree on the URL and on
+  every checkout option; letting them disagree would make the result depend
+  on the reading order.``
   [loaded]
   (def seen @{})
   (def merged @[])
   (each [config-path entries] loaded
     (each entry entries
       (def previous (get seen (entry :path)))
+      # Weigh whichever options there are rather than naming one of them, so
+      # that a checkout option added later is compared without this having to
+      # be remembered and revisited.
+      (def disagreement
+        (when previous
+          (find |(not= (get-in previous [:options $]) (get entry $))
+                checkout/checkout-keys)))
       (cond
         (nil? previous)
         (do
           (put seen (entry :path) {:source config-path
                                    :ssh_url (entry :ssh_url)
-                                   :vcs (get entry :vcs)
+                                   :options (checkout-options entry)
                                    :anchors (entry :anchors)})
           (array/push merged entry))
 
@@ -329,9 +337,10 @@
         (error (string/format "%s and %s disagree on the URL for %s"
                               (previous :source) config-path (entry :path)))
 
-        (not= (get previous :vcs) (get entry :vcs))
-        (error (string/format "%s and %s disagree on the VCS for %s"
-                              (previous :source) config-path (entry :path)))
+        disagreement
+        (error (string/format "%s and %s disagree on the %s for %s"
+                              (previous :source) config-path disagreement
+                              (entry :path)))
 
         true
         (each anchor (entry :anchors)

@@ -31,8 +31,11 @@
         (string "["
                 (string/join
                   (seq [entry :in entries]
-                    (string/format `{"path": %j, "ssh_url": %j}`
-                                   (entry :path) (entry :ssh_url)))
+                    (string/format `{"path": %j, "ssh_url": %j%s}`
+                                   (entry :path) (entry :ssh_url)
+                                   (if-let [vcs (entry :vcs)]
+                                     (string/format `, "vcs": %j` vcs)
+                                     "")))
                   ",\n")
                 "]")))
 
@@ -811,6 +814,21 @@
                 [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
   (assert-error "a disagreeing duplicate is refused"
                 (config/load-config (config/discover-config-files configuration) configuration))
+
+  # Two files may name one checkout only while they agree on every checkout
+  # option, not merely on the URL. src/alpha carries no vcs of its own above,
+  # so it is checked out with the default jj.
+  (write-config (string configuration "/agrees.json")
+                [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
+                  :vcs "git"}])
+  (assert-error "a duplicate disagreeing about the vcs is refused"
+                (config/load-config (config/discover-config-files configuration) configuration))
+
+  (write-config (string configuration "/agrees.json")
+                [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
+                  :vcs "jj"}])
+  (assert (= 3 (length (config/load-config (config/discover-config-files configuration) configuration)))
+          "a duplicate naming the vcs it already has is dropped")
 
   (assert-error "an unreadable file is refused"
                 (config/load-config [(string dir "/absent.json")] configuration))
