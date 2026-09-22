@@ -34,6 +34,23 @@
     (error "jobs must be a positive integer"))
   jobs)
 
+(def interrupt-exit-code
+  ``Status a run interrupted from the terminal exits with, as a shell reports
+  a process SIGINT ended: 128 plus the signal.``
+  130)
+
+(var- interrupted
+  "Whether the run in progress has been asked to stop."
+  false)
+
+(defn interrupted?
+  ``Whether the run that just finished stopped early because the terminal
+  asked it to. The counts alone cannot say: a run that reached half its
+  repositories reports the same tally of what it did reach as one that
+  reached all of them.``
+  []
+  interrupted)
+
 (defn make-progress
   "Create the state for one parallel repository run."
   [total outcomes &opt jobs live]
@@ -128,6 +145,24 @@
           (update progress :frame inc)
           (draw progress))))))
 
+(defn- watch-for-interrupt
+  ``Take over SIGINT for the duration of a run, so an interrupt winds the run
+  down rather than being ignored: a standalone binary built by jpm installs
+  none of the handling the interpreter does, and removing a handler again
+  leaves the signal ignored rather than restoring the default. During a run
+  the first interrupt stops it claiming repositories; asked a second time, or
+  asked once the run is over, there is nothing left to wind down and this
+  exits.``
+  [progress]
+  (set interrupted false)
+  (os/sigaction :int
+                (fn []
+                  (when (or interrupted (not (progress :running)))
+                    (erase progress)
+                    (file/flush stderr)
+                    (os/exit interrupt-exit-code))
+                  (set interrupted true))))
+
 (defn run-repositories
   ``Run `operation` for each repository with at most `jobs` active callbacks.
   The callback receives the repository and a reporter, and returns an outcome
@@ -143,8 +178,11 @@
   (def workers (max 1 (min jobs total)))
   (def progress (make-progress total outcomes workers))
   (def cursor @[0])
+  (watch-for-interrupt progress)
   (defn worker [slot]
-    (while (< (cursor 0) total)
+    # An interrupted run finishes what is in flight and claims nothing more.
+    # A clone killed halfway leaves a checkout worse than a slow exit does.
+    (while (and (not interrupted) (< (cursor 0) total))
       # Claiming an index does not yield, so workers cannot claim it twice.
       (def index (cursor 0))
       (put cursor 0 (inc index))
@@ -170,4 +208,7 @@
       (erase progress)
       (file/flush stderr))
     (ev/go-gather (seq [slot :range [0 workers]] |(worker slot))))
+  (when interrupted
+    (def reached (reduce + 0 (values (progress :counts))))
+    (eprint "Interrupted after " reached " of " total " repositories"))
   (progress :counts))

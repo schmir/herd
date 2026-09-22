@@ -118,4 +118,8 @@
   (assert (not (parallel/jobs? count))
           (string (describe count) " is not a usable count")))
 
+# A run nobody interrupted says so, whatever its outcomes were.
+(assert (not (parallel/interrupted?))
+        "a completed run reports no interruption")
+
 (end-suite)

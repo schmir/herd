@@ -328,4 +328,54 @@
             (string "capture-process leaks no descriptors: " before " open "
                     "before 40 processes, " after " after"))))
 
+# An interrupt has to reach the built binary, not just the interpreter: the
+# standalone jpm builds installs none of the interpreter's signal handling,
+# which is how SIGINT came to be ignored outright.
+(let [dir (fixture)
+      config (string dir "/repos.json")
+      root (string dir "/root")
+      home (os/getenv "HOME")
+      xdg (os/getenv "XDG_CONFIG_HOME")]
+  (defer (do (os/setenv "HOME" home) (os/setenv "XDG_CONFIG_HOME" xdg))
+    (sh/create-dirs (string dir "/config/herd"))
+    (os/setenv "XDG_CONFIG_HOME" (string dir "/config"))
+    (os/setenv "HOME" dir)
+    (def names ["a" "b" "c" "d" "e" "f"])
+    (each name names
+      (sh/create-dirs (string root "/" name "/.git")))
+    (spit (string dir "/config/herd/repos.json")
+          (string "[" (string/join
+                        (seq [name :in names]
+                          (string/format `{"path":"root/%s","ssh_url":"u"}` name))
+                        ",") "]"))
+    (with [process
+           (os/spawn [(path/join (os/cwd) "build/herd")
+                      "run" "--at" root "--jobs" "1"
+                      "--" "sh" "-c" "sleep 1"]
+                     :p {:out :pipe :err :pipe})]
+      (def output @"")
+      (def errors @"")
+      # Long enough that a repository is under way and the run cannot have
+      # reached the last of them.
+      (ev/sleep 0.6)
+      (os/proc-kill process false :int)
+      (ev/gather
+        (:read (process :out) :all output)
+        (:read (process :err) :all errors)
+        (:wait process))
+      (assert (= 130 (process :return-code))
+              (string "an interrupted run exits 130, not "
+                      (process :return-code)))
+      (assert (string/find "Interrupted after" (string errors))
+              (string "an interrupted run says how far it got: " errors))
+      # The point of winding down rather than stopping dead: whatever was in
+      # flight is finished and counted, and the rest is never begun.
+      (assert (string/find "succeeded" (string output))
+              (string "an interrupted run still reports its counts: " output))
+      (assert (not (string/find (string (length names) " succeeded")
+                                (string output)))
+              (string "an interrupted run does not reach every repository: "
+                      output))))
+  (sh/rm dir))
+
 (end-suite)

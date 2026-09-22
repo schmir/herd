@@ -236,6 +236,10 @@
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :failed) " failed")
+  # An interrupted run reached only part of the list, so it cannot report
+  # success however well the part it reached went.
+  (when (parallel/interrupted?)
+    (os/exit parallel/interrupt-exit-code))
   (when (pos? (counts :failed))
     (os/exit 1)))
 
@@ -266,6 +270,10 @@
          (counts :failed) " failed, "
          (counts :skipped) " skipped, "
          (counts :not-checked-out) " not checked out")
+  # An interrupted run reached only part of the list, so it cannot report
+  # success however well the part it reached went.
+  (when (parallel/interrupted?)
+    (os/exit parallel/interrupt-exit-code))
   (when (pos? (counts :failed))
     (os/exit 1)))
 
