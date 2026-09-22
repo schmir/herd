@@ -26,6 +26,39 @@ FROM docker.io/library/alpine:3.21 AS build
 
 RUN apk add --no-cache build-base git
 
+# Janet stores pointers in double mantissas, so nanboxing supports only
+# 47-bit pointers. Real x86-64 Linux meets this limit. QEMU amd64 on arm64
+# and native arm64 can return 0x0000ffff........ addresses, so bit 47 is lost.
+# This causes Janet's boot test to fail before herd is compiled. arm64 already
+# disables nanboxing in janet.h.
+#
+# Probe the address space, not the architecture. Emulated amd64 and native
+# arm64 need nanboxing disabled. Real x86-64 keeps it enabled.
+#
+# Release builds are unchanged: x86-64 runs on x86-64 and arm64 runs on arm64.
+# The probe also lets amd64 builds run on arm64 hosts.
+#
+# Run the probe before cloning Janet. It needs only the compiler and writes its
+# result to /tmp/use-nanbox. Bind the source for this step so it does not add a
+# layer; COPY . . runs later and would be too late.
+RUN --mount=type=bind,source=nanbox-probe.c,target=/tmp/nanbox-probe.c <<'EOF'
+set -eu
+cc -O0 -o /tmp/nanbox-probe /tmp/nanbox-probe.c
+# Print the result clearly because the compiler output is long.
+rule='!!=================================================================!!'
+banner() { printf '\n%s\n!! %-63s !!\n%s\n\n' "$rule" "$1" "$rule"; }
+# uname reports the emulated architecture, which matches the probe's target.
+arch=$(uname -m)
+if /tmp/nanbox-probe; then
+    banner "$arch: nanboxing OFF -- an allocation reached past 2^47"
+    echo no > /tmp/use-nanbox
+else
+    banner "$arch: nanboxing ON -- every allocation stayed under 2^47"
+    echo yes > /tmp/use-nanbox
+fi
+rm -f /tmp/nanbox-probe
+EOF
+
 # Alpine packages neither janet nor jpm, so build both from source. They are
 # plain C and a bootstrap script; this takes about a minute, once.
 # Both are fetched by asking for one commit, rather than for a tag or for an
@@ -41,6 +74,15 @@ git init -q /tmp/janet
 git -C /tmp/janet remote add origin https://github.com/janet-lang/janet.git
 git -C /tmp/janet fetch -q --depth 1 origin "$JANET_COMMIT"
 git -C /tmp/janet checkout -q FETCH_HEAD
+# janetconf.h already contains the nanboxing switch. make install copies it
+# into janet.h, so the interpreter and native module use the same setting.
+if [ "$(cat /tmp/use-nanbox)" = no ]; then
+    sed -i 's|/\* #define JANET_NO_NANBOX \*/|#define JANET_NO_NANBOX|' \
+        /tmp/janet/src/conf/janetconf.h
+    # If janetconf.h changes, nanboxing stays enabled and the boot test fails
+    # without explaining why. Check that sed changed the expected line.
+    grep -qx '#define JANET_NO_NANBOX' /tmp/janet/src/conf/janetconf.h
+fi
 make -C /tmp/janet -j"$(nproc)"
 make -C /tmp/janet install
 rm -rf /tmp/janet
