@@ -15,6 +15,11 @@ env:
   HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
 jobs:
+  # A build that compiles is not a build that works. Publishing waits on the
+  # same suite every push runs, rather than on the builds alone.
+  test:
+    uses: ./.github/workflows/test.yml
+
   linux:
     name: linux-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -77,7 +82,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [linux, macos]
+    needs: [test, linux, macos]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     permissions:
@@ -105,7 +110,7 @@ jobs:
           rm -rf stage
           # Include the tag in the checksum file name. This gives each release
           # a different checksum file name.
-          (cd dist && sha256sum *.tar.gz > "herd-${GITHUB_REF_NAME}-SHA256SUMS")
+          (cd dist && sha256sum -- *.tar.gz > "herd-${GITHUB_REF_NAME}-SHA256SUMS")
           ls -l dist
 
       - name: Publish release

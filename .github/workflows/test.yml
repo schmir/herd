@@ -2,15 +2,31 @@ name: test
 
 on:
   push:
+  # A pull request from a fork is not a push to this repository, so without
+  # this nothing would run on one.
+  pull_request:
+  # Called by the release workflow, so a tag is tested before it is published.
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    name: test-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is a release target, and it resolves symbolic links and temp
+        # directories differently from Linux, which is what selection is built
+        # on. It also compiles access.c, the one piece of C.
+        os: [ubuntu-24.04, macos-15]
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
+      # The ci shell rather than the default one: the editor and container
+      # tooling in that shell is built from source, and none of it is needed
+      # to run the tests.
       - name: Run tests
-        run: nix develop --command just test
+        run: nix develop .#ci --command just test
