@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # Build a fully static herd binary against musl, inside an Alpine container.
 #
 # Reproduce a release build locally from the repo root:
@@ -28,23 +30,29 @@ RUN apk add --no-cache build-base git
 #
 # Janet 1.41.2.
 ARG JANET_COMMIT=0fea20c82182fe661f75b00a8889d801fe2d79b6
-RUN git init -q /tmp/janet \
-    && git -C /tmp/janet remote add origin https://github.com/janet-lang/janet.git \
-    && git -C /tmp/janet fetch -q --depth 1 origin "$JANET_COMMIT" \
-    && git -C /tmp/janet checkout -q FETCH_HEAD \
-    && make -C /tmp/janet -j"$(nproc)" \
-    && make -C /tmp/janet install \
-    && rm -rf /tmp/janet
+RUN <<'EOF'
+set -eu
+git init -q /tmp/janet
+git -C /tmp/janet remote add origin https://github.com/janet-lang/janet.git
+git -C /tmp/janet fetch -q --depth 1 origin "$JANET_COMMIT"
+git -C /tmp/janet checkout -q FETCH_HEAD
+make -C /tmp/janet -j"$(nproc)"
+make -C /tmp/janet install
+rm -rf /tmp/janet
+EOF
 
 # jpm 1.2.0.
 ARG JPM_COMMIT=907daf191ad3f1cf7e5190ec4f44eb29cd54ba21
-RUN git init -q /tmp/jpm \
-    && git -C /tmp/jpm remote add origin https://github.com/janet-lang/jpm.git \
-    && git -C /tmp/jpm fetch -q --depth 1 origin "$JPM_COMMIT" \
-    && git -C /tmp/jpm checkout -q FETCH_HEAD \
-    && cd /tmp/jpm \
-    && janet bootstrap.janet \
-    && rm -rf /tmp/jpm
+RUN <<'EOF'
+set -eu
+git init -q /tmp/jpm
+git -C /tmp/jpm remote add origin https://github.com/janet-lang/jpm.git
+git -C /tmp/jpm fetch -q --depth 1 origin "$JPM_COMMIT"
+git -C /tmp/jpm checkout -q FETCH_HEAD
+cd /tmp/jpm
+janet bootstrap.janet
+rm -rf /tmp/jpm
+EOF
 
 WORKDIR /src
 
@@ -61,8 +69,11 @@ COPY . .
 # every layer after an ARG is invalidated when its value does.
 ARG HERD_VERSION=dev
 # jpm's default :lflags is empty, so this only adds -static to the final link.
-RUN HERD_VERSION="$HERD_VERSION" jpm --local build --lflags=-static \
-    && strip build/herd
+RUN <<'EOF'
+set -eu
+HERD_VERSION="$HERD_VERSION" jpm --local build --lflags=-static
+strip build/herd
+EOF
 
 # The tests run from a stage of their own, so the build a release is cut from
 # carries nothing only they need. jp is the program a filter runs, and the
