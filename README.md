@@ -438,6 +438,15 @@ compiles the same sources. Run `just lock` after changing the dependencies
 in `project.janet` and commit the result; `just deps` refuses to install
 until the lockfile records everything `project.janet` declares.
 
+The sources are layered, each file importing only the ones beneath it.
+`process.janet` runs a subprocess and collects what it printed,
+`checkout.janet` says what a checkout is and `entries.janet` reads the
+entries of a repository list, `filter.janet` narrows one, `config.janet`
+turns the configuration directory into repositories, `select.janet` picks
+the ones a command acts on, and `clone.janet` and `run.janet` do the work in
+parallel through `parallel.janet`. `main.janet` is the command line over the
+top of them, and the only file that ends the process.
+
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
 artifacts and locally installed JPM dependencies are stored in `build/` and

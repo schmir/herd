@@ -2,6 +2,10 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
+(import ../config)
+(import ../process)
+(import ../run)
+(import ../select)
 (import ../main :as herd)
 
 (start-suite "run")
@@ -33,9 +37,9 @@
   (sh/create-dirs second)
   (spit (string first "/present") "")
   (spit (string second "/present") "")
-  (def counts (herd/run-in-repositories ["touch" "command ran"]
-                                        [(repository first)
-                                         (repository second)]))
+  (def counts (run/run-in-repositories ["touch" "command ran"]
+                                       [(repository first)
+                                        (repository second)]))
   (assert (= 2 (counts :succeeded))
           "successful commands report no failures")
   (assert (= 0 (counts :failed)))
@@ -53,7 +57,7 @@
   (sh/create-dirs (string git-repository "/.git"))
   (sh/create-dirs (string jj-repository "/.jj"))
   (def counts
-    (herd/run-in-repositories
+    (run/run-in-repositories
       {:command-git "touch selected-git"
        :command-jj "touch selected-jj"}
       [(repository git-repository) (repository jj-repository)]))
@@ -69,7 +73,7 @@
   (sh/create-dirs (string dir "/.git"))
   (sh/create-dirs (string dir "/.jj"))
   (def counts
-    (herd/run-in-repositories
+    (run/run-in-repositories
       {:command-git "touch selected-git"
        :command-jj "touch selected-jj"}
       [(repository dir)]))
@@ -84,7 +88,7 @@
 (let [dir (fixture)]
   (sh/create-dirs (string dir "/.jj"))
   (def counts
-    (herd/run-in-repositories
+    (run/run-in-repositories
       {:command-git "touch selected-git"}
       [(repository dir)]))
   (assert (= 1 (counts :skipped))
@@ -103,10 +107,10 @@
   (sh/create-dirs last)
   (spit (string first "/present") "")
   (spit (string last "/present") "")
-  (def counts (herd/run-in-repositories ["touch" "ran"]
-                                        [(repository first)
-                                         (repository missing)
-                                         (repository last)]))
+  (def counts (run/run-in-repositories ["touch" "ran"]
+                                       [(repository first)
+                                        (repository missing)
+                                        (repository last)]))
   (assert (= 0 (counts :failed)))
   (assert (= 1 (counts :not-checked-out))
           "an unavailable repository is not checked out")
@@ -124,7 +128,7 @@
   (spit (string first "/present") "")
   (spit (string second "/present") "")
   (def counts
-    (herd/run-in-repositories
+    (run/run-in-repositories
       ["sh" "-c" "touch ran-before-failure; exit 7"]
       [(repository first) (repository second)]))
   (assert (= 2 (counts :failed))
@@ -141,12 +145,12 @@
   (with [devnull (file/open "/dev/null" :r)]
     (def env {:in devnull :out :pipe :err :pipe})
     (assert (= :succeeded
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
                  env repo |(array/push messages (string ;$&)))))
     (assert (empty? messages) "successful command output stays hidden")
     (assert (= :succeeded
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
                  env repo |(array/push messages (string ;$&)) "always")))
     (assert (= 1 (length messages)) "requested successful output is one block")
@@ -155,19 +159,19 @@
     (assert (string/find "| stderr\n|   note" (messages 0)))
     (array/clear messages)
     (assert (= :succeeded
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["true"] env repo |(array/push messages (string ;$&))
                  "always")))
     (assert (empty? messages)
             "always stays quiet about a successful command without output")
     (array/clear messages)
     (assert (= :succeeded
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["printf" "suppressed"] env repo
                  |(array/push messages (string ;$&)) "never")))
     (assert (empty? messages) "never hides successful command results")
     (assert (= :failed
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
                  env repo |(array/push messages (string ;$&)))))
     (assert (= 1 (length messages)) "failure output is one buffered block")
@@ -176,12 +180,12 @@
     (assert (string/find "| stderr\n|   problem" (messages 0)))
     (array/clear messages)
     (assert (= :failed
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["false"] env repo |(array/push messages (string ;$&)) "never")))
     (assert (empty? messages) "never hides failed command results")
     (array/clear messages)
     (assert (= :failed
-               (herd/run-in-repository
+               (run/run-in-repository
                  ["false"] env repo |(array/push messages (string ;$&)))))
     (assert (and (= 1 (length messages))
                  (= (string "✗ " dir " (exit 1)") (messages 0)))
@@ -191,8 +195,8 @@
 (let [messages @[]
       state @{:reported false}
       report |(array/push messages (string ;$&))]
-  (herd/report-command-result state report "first result")
-  (herd/report-command-result state report "second result")
+  (run/report-command-result state report "first result")
+  (run/report-command-result state report "second result")
   (assert (deep= messages @["first result" "" "second result"])
           "result blocks have one empty line between them"))
 
@@ -213,12 +217,12 @@
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
-  (def loaded (herd/read-config config (herd/config-directory) @[{}]))
+  (def loaded (config/read-config config (config/config-directory) @[{}]))
   (assert (deep= (map |($ :path) loaded)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
-  (assert (= 2 (length (herd/select-repositories-with-anchors
-                         root loaded false (herd/containing-anchors root loaded))))
+  (assert (= 2 (length (select/select-repositories-with-anchors
+                         root loaded false (select/containing-anchors root loaded))))
           "the fixture root selects both repositories")
   ((herd/make-run-command "touch fixed-command"
                           "Run the fixed test command.")
@@ -278,7 +282,7 @@
   (sh/rm dir))
 
 # Tests for capture-process, which every command runs its subprocesses through.
-(let [result (herd/capture-process
+(let [result (process/capture-process
                ["sh" "-c" "echo to stdout; echo to stderr >&2; exit 3"] :p)]
   (assert (= 3 (result :status)) "capture-process reports the exit status")
   (assert (= "to stdout\n" (string (result :out)))
@@ -286,8 +290,8 @@
   (assert (= "to stderr\n" (string (result :err)))
           "capture-process captures stderr"))
 
-(let [result (herd/capture-process ["sh" "-c" "exec cat"] :p
-                                   {:in (file/open "/dev/null" :r)})]
+(let [result (process/capture-process ["sh" "-c" "exec cat"] :p
+                                      {:in (file/open "/dev/null" :r)})]
   (assert (zero? (result :status)) "capture-process passes a redirected stdin")
   (assert (empty? (string (result :out)))
           "a command reading from /dev/null sees no input"))
@@ -296,7 +300,7 @@
 # pipe buffer holds would block forever on one that is only read afterwards,
 # so this hangs rather than fails if the draining ever regresses.
 (let [size 300000
-      result (herd/capture-process
+      result (process/capture-process
                ["sh" "-c" (string "yes 0123456789 | head -c " size "; "
                                   "yes 9876543210 | head -c " size " >&2")]
                :p)]
@@ -318,7 +322,7 @@
     (gcsetinterval 0x7FFFFFFF)
     (gccollect)
     (def before (open-descriptors))
-    (for _ 0 40 (herd/capture-process ["true"] :p))
+    (for _ 0 40 (process/capture-process ["true"] :p))
     (def after (open-descriptors))
     (assert (<= after (+ before 2))
             (string "capture-process leaks no descriptors: " before " open "

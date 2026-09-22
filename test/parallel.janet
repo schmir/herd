@@ -108,4 +108,14 @@
            (parallel/fit-path "/a/long/common/path/first" 20))
         "long paths keep their distinguishing tail")
 
+# The rule every job count is weighed against, and the bound the messages
+# naming it promise.
+(each count [1 6 parallel/max-jobs]
+  (assert (parallel/jobs? count)
+          (string "a count of " count " is usable")))
+
+(each count [0 -1 6.5 (+ parallel/max-jobs 1) "6" nil]
+  (assert (not (parallel/jobs? count))
+          (string (describe count) " is not a usable count")))
+
 (end-suite)

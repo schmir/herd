@@ -14,12 +14,23 @@
   (def [_ columns] (try (rawterm/size) ([_] [0 0])))
   (if (< 20 columns 1000) columns 80))
 
-(defn- require-jobs
-  ``Return `jobs` unchanged, or raise when it is not a positive integer.
+(def max-jobs
+  ``The largest usable job count. `jobs?` accepts what `int?` does, which is
+  what fits in an int32, so this is where a count stops being one.``
+  2147483647)
+
+(defn jobs?
+  ``Whether `count` is a usable number of operations to run at the same time.
   The count bounds the slot loop in progress-lines, where a non-integer never
-  ends it, so this runs before any clamping that could hide a bad value.``
+  ends it, so every caller weighs a count against this before any clamping
+  could hide a bad one.``
+  [count]
+  (and (int? count) (pos? count)))
+
+(defn- require-jobs
+  "Return `jobs` unchanged, or raise when it is not a usable count."
   [jobs]
-  (unless (and (int? jobs) (pos? jobs))
+  (unless (jobs? jobs)
     (error "jobs must be a positive integer"))
   jobs)
 

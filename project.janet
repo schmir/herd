@@ -7,4 +7,12 @@
 (declare-executable
   :name "herd"
   :entry "main.janet"
-  :deps ["parallel.janet"])
+  :deps ["checkout.janet"
+         "clone.janet"
+         "config.janet"
+         "entries.janet"
+         "filter.janet"
+         "parallel.janet"
+         "process.janet"
+         "run.janet"
+         "select.janet"])

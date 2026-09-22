@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../main :as herd)
+(import ../select)
 
 (start-suite "selection")
 
@@ -16,7 +16,7 @@
   "Return selected paths so assertions read as plain lists."
   [path anchors &opt all-anchors]
   (map |($ :path)
-       (herd/select-repositories-with-anchors
+       (select/select-repositories-with-anchors
          path repositories all-anchors anchors)))
 
 # A directory selects everything checked out below it.
@@ -49,14 +49,14 @@
 
 # A relative path is read from the current directory.
 (assert (deep= (map |($ :path)
-                    (herd/select-repositories-with-anchors
+                    (select/select-repositories-with-anchors
                       "below" [{:path (string (os/cwd) "/below/repo")
                                 :ssh_url "u"
                                 :anchors @[(os/cwd)]}]
                       false @[(os/cwd)]))
                @[(string (os/cwd) "/below/repo")]))
 
-(assert (empty? (herd/select-repositories-with-anchors "/srv" [] false @["/srv"])))
+(assert (empty? (select/select-repositories-with-anchors "/srv" [] false @["/srv"])))
 (assert (empty? (selected "/elsewhere" @[])))
 
 (def nested
@@ -71,13 +71,13 @@
   "Return paths selected from repositories with nested anchors."
   [path anchors &opt all-anchors]
   (map |($ :path)
-       (herd/select-repositories-with-anchors
+       (select/select-repositories-with-anchors
          path nested all-anchors anchors)))
 
 (assert (deep= @["/work" "/work/team"]
-               (herd/containing-anchors "/work/team/inside" nested))
+               (select/containing-anchors "/work/team/inside" nested))
         "all containing anchors are selected")
-(assert (empty? (herd/containing-anchors "/elsewhere" nested))
+(assert (empty? (select/containing-anchors "/elsewhere" nested))
         "an unrelated path has no anchor")
 (assert (deep= (selected-nested "/work/team" @["/work" "/work/team"])
                @["/work/team/two" "/work/team/parent" "/work/team/shared"])
@@ -111,8 +111,8 @@
     (def repositories [{:path repository-path :ssh_url "u"
                         :anchors @[anchor]}])
     (map |($ :path)
-         (herd/select-repositories-with-anchors
-           at repositories false (herd/containing-anchors at repositories))))
+         (select/select-repositories-with-anchors
+           at repositories false (select/containing-anchors at repositories))))
 
   (assert (deep= (linked real (string alias "/repo") alias) @[(string alias "/repo")])
           "a working location selects a repository configured through a link")

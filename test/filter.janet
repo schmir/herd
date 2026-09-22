@@ -2,7 +2,10 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../main :as herd)
+(import ../config)
+(import ../filter)
+(import ../process)
+(import ../entries)
 
 (start-suite "filter")
 
@@ -37,7 +40,7 @@
   (default status 0)
   (def bin (path/join dir "bin"))
   (sh/create-dirs bin)
-  (def script (path/join bin herd/filter-executable))
+  (def script (path/join bin filter/filter-executable))
   (spit script (string "#!/bin/sh\n" body "\nexit " status "\n"))
   (os/chmod script 8r755)
   bin)
@@ -89,13 +92,13 @@
 (defn- paths
   "The paths in a filter's answer, so assertions read as plain lists."
   [answer]
-  (map |($ :path) (herd/parse-config answer)))
+  (map |($ :path) (entries/parse-config answer)))
 
 # --- apply-filter ---------------------------------------------------------
 
 (with-fixture dir
   (with-stub (stub-filter dir `echo '[{"path":"a","ssh_url":"git@example.com:a.git"}]'`)
-    (def kept (herd/apply-filter entries "keep-a" "[?path=='a']"))
+    (def kept (filter/apply-filter entries "keep-a" "[?path=='a']"))
     (assert (string? kept) "a filter answers with the JSON it wrote")
     (assert (deep= (paths kept) @["a"])
             "a filter narrows the list to what it selected")))
@@ -104,7 +107,7 @@
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
-    (herd/apply-filter entries "any" "@")
+    (filter/apply-filter entries "any" "@")
     # Byte for byte, not merely the same values once decoded: decoding and
     # re-encoding rounds numbers to what a double can hold and reorders
     # every object key, behind the expression's back.
@@ -116,12 +119,12 @@
     # An expression that is not a filter succeeds and answers null, which
     # would otherwise select nothing without saying why.
     (assert (string/find "did not select an array of repositories"
-                         (error-message |(herd/apply-filter entries "bare" "path")))
+                         (error-message |(filter/apply-filter entries "bare" "path")))
             "null output is refused rather than read as an empty selection")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
-    (def message (error-message |(herd/apply-filter entries "broken" "[?")))
+    (def message (error-message |(filter/apply-filter entries "broken" "[?")))
     (assert (string/find `filter "broken" failed` message)
             "a failing filter is named in the error")
     (assert (string/find "SyntaxError" message)
@@ -130,7 +133,7 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'not json'")
     (assert (string/find "produced unreadable output"
-                         (error-message |(herd/apply-filter entries "odd" "@")))
+                         (error-message |(filter/apply-filter entries "odd" "@")))
             "output that is not JSON is refused with the filter named")))
 
 # A filter that rejects its expression answers at once without reading the
@@ -140,18 +143,18 @@
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
     (assert (string/find "SyntaxError"
                          (error-message
-                           |(herd/apply-filter (large-entries) "broken" "[?")))
+                           |(filter/apply-filter (large-entries) "broken" "[?")))
             "a filter that never reads a large list still reports why")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo '[]'")
-    (assert (empty? (paths (herd/apply-filter (large-entries) "big" "[?false]")))
+    (assert (empty? (paths (filter/apply-filter (large-entries) "big" "[?false]")))
             "a list too large for a pipe buffer is filtered all the same")))
 
 (with-fixture dir
   (without-filter-program dir
-                          (assert (string/find (string "needs " herd/filter-executable " on PATH")
-                                               (error-message |(herd/apply-filter entries "any" "@")))
+                          (assert (string/find (string "needs " filter/filter-executable " on PATH")
+                                               (error-message |(filter/apply-filter entries "any" "@")))
                                   "a missing filter program is reported against the filter")))
 
 # The list is held in a file with no name, handed over as standard input.
@@ -163,7 +166,7 @@
                           (string `if [ -p /dev/stdin ]; then echo pipe > ` kind
                                   `; else echo file > ` kind "; fi\n"
                                   "echo '[]'"))
-    (herd/apply-filter entries "any" "@")
+    (filter/apply-filter entries "any" "@")
     (assert (= "file" (string/trimr (slurp kind)))
             "the filter reads a regular file, never a pipe")))
 
@@ -173,8 +176,8 @@
 # which the fixture directories above deliberately do not match.
 (with-fixture dir
   (with-stub (stub-filter dir "echo '[]'")
-    (herd/apply-filter entries "any" "@")
-    (herd/apply-filter (large-entries) "any" "@")
+    (filter/apply-filter entries "any" "@")
+    (filter/apply-filter (large-entries) "any" "@")
     (each place (distinct ["/tmp" (os/getenv "TMPDIR" "/tmp")])
       (assert (empty? (filter |(and (string/has-prefix? "herd-filter-" $)
                                     (string/has-suffix? ".json" $))
@@ -192,7 +195,7 @@
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
-    (herd/apply-filter awkward "any" "@")
+    (filter/apply-filter awkward "any" "@")
     (assert (= awkward (string (slurp copy)))
             "numbers and key order reach the filter untouched")))
 
@@ -202,14 +205,14 @@
   (without-filter-program dir
                           # Naming no filter must not reach for the program at all, so an
                           # unfiltered herd needs nothing installed.
-                          (assert (= entries (herd/filter-entries entries [] {}))
+                          (assert (= entries (filter/filter-entries entries [] {}))
                                   "naming no filter hands the source back untouched")))
 
 (with-fixture dir
   (def log (path/join dir "expressions"))
   (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
-    (herd/filter-entries entries ["first" "second"]
-                         {"first" "[?a]" "second" "[?b]"})
+    (filter/filter-entries entries ["first" "second"]
+                           {"first" "[?a]" "second" "[?b]"})
     (assert (deep= @["[?a]" "[?b]"]
                    (string/split "\n" (string/trimr (slurp log))))
             "each named filter runs in turn, in the order named")))
@@ -222,8 +225,8 @@
   (with-stub (stub-filter dir
                           (string `wc -c >> ` sizes "\n"
                                   `echo '[{"path":"a","ssh_url":"u"}]'`))
-    (def kept (herd/filter-entries entries ["first" "second"]
-                                   {"first" "@" "second" "@"}))
+    (def kept (filter/filter-entries entries ["first" "second"]
+                                     {"first" "@" "second" "@"}))
     (def logged (map scan-number
                      (string/split "\n" (string/trimr (slurp sizes)))))
     (assert (= 2 (length logged)) "both filters ran")
@@ -238,12 +241,12 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'Invalid type for: <nil>' >&2" 1)
     (def named (error-message
-                 |(herd/apply-filter entries "cli" "@" herd/command-filter-hint)))
+                 |(filter/apply-filter entries "cli" "@" filter/command-filter-hint)))
     (assert (string/find "applied to every configured list" named)
             "a filter named on the command line explains itself")
     (assert (string/find "Invalid type" named)
             "and still carries what the filter reported")
-    (def own (error-message |(herd/apply-filter entries "row" "@")))
+    (def own (error-message |(filter/apply-filter entries "row" "@")))
     (assert (string/find "Invalid type" own)
             "a row's own filter reports what the filter said")
     (assert (not (string/find "applied to every configured list" own))
@@ -254,9 +257,9 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def message (error-message
-                   |(herd/filter-entries entries ["first" "second"]
-                                         {"first" "ok" "second" "no"}
-                                         herd/command-filter-hint)))
+                   |(filter/filter-entries entries ["first" "second"]
+                                           {"first" "ok" "second" "no"}
+                                           filter/command-filter-hint)))
     (assert (string/find `filter "second" failed` message)
             "the failing filter in the chain is the one named")
     (assert (string/find "applied to every configured list" message)
@@ -292,14 +295,14 @@
   (with-stub (answering-stub dir)
     (assert (deep= @[(path/join src "a")]
                    (map |($ :path)
-                        (herd/read-config config nil
-                                          @[{:anchor src :filter ["first"]}]
-                                          answers)))
+                        (config/read-config config nil
+                                            @[{:anchor src :filter ["first"]}]
+                                            answers)))
             "a row's filter narrows what its file contributes")
 
     (assert (deep= @[(path/join src "a")]
                    (map |($ :path)
-                        (herd/read-config
+                        (config/read-config
                           config nil
                           @[{:anchor src
                              :filter ["prefixed"]
@@ -312,21 +315,21 @@
     # what a filter kept can have been validated above.
     (assert (string/find "needs a string"
                          (error-message
-                           |(herd/read-config config nil @[{:anchor src}] answers)))
+                           |(config/read-config config nil @[{:anchor src}] answers)))
             "an entry no filter removed still has to be a repository")
 
     (assert (deep= @[(path/join src "a") (path/join vendor "b")]
                    (map |($ :path)
-                        (herd/read-config config nil
-                                          @[{:anchor src :filter ["first"]}
-                                            {:anchor vendor :filter ["second"]}]
-                                          answers)))
+                        (config/read-config config nil
+                                            @[{:anchor src :filter ["first"]}
+                                              {:anchor vendor :filter ["second"]}]
+                                            answers)))
             "two rows take different parts of one file")
 
-    (assert (empty? (herd/read-config config nil
-                                      @[{:anchor src :filter ["first"]}]
-                                      answers
-                                      ["none"]))
+    (assert (empty? (config/read-config config nil
+                                        @[{:anchor src :filter ["first"]}]
+                                        answers
+                                        ["none"]))
             "a command-line filter narrows what the row already kept")))
 
 # Which filter a name came from decides whether the failure explains itself,
@@ -341,13 +344,13 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def from-command
-      (error-message |(herd/read-config config nil @[{:anchor src}] answers ["bad"])))
+      (error-message |(config/read-config config nil @[{:anchor src}] answers ["bad"])))
     (assert (string/find "applied to every configured list" from-command)
             "a filter named with -f explains why it reached this list")
 
     (def from-row
       (error-message
-        |(herd/read-config config nil @[{:anchor src :filter ["bad"]}] answers)))
+        |(config/read-config config nil @[{:anchor src :filter ["bad"]}] answers)))
     (assert (string/find "boom" from-row)
             "a row's own filter still reports what the filter said")
     (assert (not (string/find "applied to every configured list" from-row))
@@ -357,8 +360,8 @@
     # fails is reported even when a command-line filter is also named.
     (def both
       (error-message
-        |(herd/read-config config nil @[{:anchor src :filter ["bad"]}]
-                           answers ["good"])))
+        |(config/read-config config nil @[{:anchor src :filter ["bad"]}]
+                             answers ["good"])))
     (assert (not (string/find "applied to every configured list" both))
             "the row's filter fails first, and speaks for itself")))
 
@@ -376,10 +379,10 @@
                 "b" `[{"path": "y", "ssh_url": "git@example.com:y.git"}]`})
   (spit config `[{"path": "x", "ssh_url": "git@example.com:x.git"}]`)
   (with-stub (answering-stub dir)
-    (def loaded (herd/read-config config nil
-                                  @[{:anchor one :filter ["a\0b"]}
-                                    {:anchor two :filter ["a" "b"]}]
-                                  answers))
+    (def loaded (config/read-config config nil
+                                    @[{:anchor one :filter ["a\0b"]}
+                                      {:anchor two :filter ["a" "b"]}]
+                                    answers))
     (assert (deep= @[(path/join one "x") (path/join two "y")]
                    (map |($ :path) loaded))
             "chains that merely spell alike are kept apart")))
@@ -397,11 +400,11 @@
                           (string `printf 'x' >> ` runs "\n"
                                   `printf '%s' "$2"`))
     (def answer `[{"path": "r", "ssh_url": "git@example.com:r.git"}]`)
-    (def loaded (herd/read-config config nil
-                                  @[{:anchor one :filter ["same"]}
-                                    {:anchor two :filter ["same"]}
-                                    {:anchor three :filter ["other"]}]
-                                  {"same" answer "other" answer}))
+    (def loaded (config/read-config config nil
+                                    @[{:anchor one :filter ["same"]}
+                                      {:anchor two :filter ["same"]}
+                                      {:anchor three :filter ["other"]}]
+                                    {"same" answer "other" answer}))
     (assert (= 3 (length loaded)) "every row still contributes its checkout")
     (assert (= 2 (length (slurp runs)))
             "the shared chain is filtered once, the distinct one again")))
@@ -410,12 +413,12 @@
 # intersection. Two filter expressions commute, so naming them either way
 # round selects the same repositories. A slice does not: taking the first
 # entry of the active ones is not taking the active ones of the first entry.
-(when (herd/find-executable herd/filter-executable)
+(when (process/find-executable filter/filter-executable)
   (let [listing
         (string `[{"path": "one", "ssh_url": "u", "active": false, "tier": 1},`
                 ` {"path": "two", "ssh_url": "u", "active": true, "tier": 1}]`)
         filters {"active" "[?active]" "tier" "[?tier == `1`]" "first" "[0:1]"}
-        selected (fn [& names] (paths (herd/filter-entries listing names filters)))]
+        selected (fn [& names] (paths (filter/filter-entries listing names filters)))]
     (assert (deep= (selected "active" "tier") (selected "tier" "active"))
             "filter expressions commute, so naming them either way round agrees")
     (assert (deep= @["two"] (selected "active" "first"))
@@ -426,7 +429,7 @@
 # --- against the real filter program --------------------------------------
 
 # Guarded, so the suite does not require the program to be installed.
-(when (herd/find-executable herd/filter-executable)
+(when (process/find-executable filter/filter-executable)
   (with-fixture dir
     (def config (path/join dir "repos.json"))
     (def src (path/join dir "src"))
@@ -440,11 +443,11 @@
        "none" "[?path=='absent']"})
     (assert (deep= @[(path/join src "a")]
                    (map |($ :path)
-                        (herd/read-config config nil
-                                          @[{:anchor src :filter ["active"]}]
-                                          filters)))
+                        (config/read-config config nil
+                                            @[{:anchor src :filter ["active"]}]
+                                            filters)))
             "a real JMESPath expression selects by a field herd knows nothing of")
-    (assert (empty? (herd/read-config config nil @[{:anchor src}] filters ["none"]))
+    (assert (empty? (config/read-config config nil @[{:anchor src}] filters ["none"]))
             "and an expression matching nothing selects nothing")))
 
 (end-suite)
