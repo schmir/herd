@@ -194,6 +194,38 @@
           "the default VCS is loaded from config.jdn")
   (sh/rm dir))
 
+# --- parse-settings -------------------------------------------------------
+
+(assert (deep= {:jobs 3} (config/parse-settings `{:jobs 3}`))
+        "one dictionary is the settings it holds")
+(assert (deep= {} (config/parse-settings ""))
+        "an empty file holds no settings")
+
+# A second dictionary appended rather than merged used to be read as far as
+# the first and the rest dropped in silence.
+(let [dir (fixture)
+      config-path (path/join dir "config.jdn")]
+  (spit config-path
+        (string `{:jobs 3}` "\n\n"
+                `{:commands {"hi" {:command "echo hi" :description "say hi"}}}`))
+  (def message
+    (try
+      (do (herd/load-command-config config-path) nil)
+      ([err] (string err))))
+  (assert (and message (string/find "2 top-level values" message))
+          "settings split across two dictionaries are refused, not truncated")
+  (sh/rm dir))
+
+(let [dir (fixture)
+      config-path (path/join dir "config.jdn")]
+  (spit config-path "# nothing configured yet\n")
+  (def settings (get (herd/load-command-config config-path) :settings))
+  (assert (and (empty? (settings :defaults))
+               (empty? (settings :rows))
+               (empty? (settings :filters)))
+          "a file with no settings in it reads as no settings")
+  (sh/rm dir))
+
 # --- resolve-repository-paths ---------------------------------------------
 
 (let [entries (config/resolve-repository-paths

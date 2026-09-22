@@ -125,6 +125,19 @@
       (error (string where " names an unknown filter " (describe name)))))
   settings)
 
+(defn parse-settings
+  ``Return the one settings value `source` holds, or an empty one when it
+  holds none. Holding several is a mistake rather than a file to read the
+  first of: settings appended as a second dictionary, rather than merged into
+  the one already there, would otherwise be dropped without a word.``
+  [source]
+  (def values (parse-all source))
+  (case (length values)
+    0 {}
+    1 (values 0)
+    (error (string "expected one dictionary of settings, but the file holds "
+                   (length values) " top-level values"))))
+
 (def default-repository-settings
   "Repository settings used when config.jdn is absent."
   {:defaults {} :rows {} :filters {}})

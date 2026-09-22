@@ -428,7 +428,7 @@
       (unless (= :file (os/stat config-path :mode))
         (error (string config-path " is not a file")))
       (try
-        (prepare-command-config (parse (slurp config-path)))
+        (prepare-command-config (config/parse-settings (slurp config-path)))
         ([err] (error (string config-path ": " err)))))))
 
 (defn commands-for-config
