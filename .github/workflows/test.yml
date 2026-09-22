@@ -23,7 +23,7 @@ jobs:
         # on. It also compiles access.c, the one piece of C.
         os: [ubuntu-24.04, macos-15]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
       # The ci shell rather than the default one: the editor and container
       # tooling in that shell is built from source, and none of it is needed
