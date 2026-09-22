@@ -66,6 +66,11 @@ build *args: deps
 test: deps
     jpm --local test
 
+# Run the test suite in the Podman test container.
+test-podman:
+    podman build --target test --tag herd-test .
+    podman run --rm herd-test jpm --local test
+
 # Format the tree and run the test suite.
 ci: && test
     treefmt

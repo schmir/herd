@@ -64,6 +64,14 @@ ARG HERD_VERSION=dev
 RUN HERD_VERSION="$HERD_VERSION" jpm --local build --lflags=-static \
     && strip build/herd
 
+# The tests run from a stage of their own, so the build a release is cut from
+# carries nothing only they need. jp is the program a filter runs, and the
+# filter tests skip themselves when it is absent rather than fail, which is
+# how they went quietly unrun here. Podman builds this stage only when it is
+# asked for by name, so a release build never installs it.
+FROM build AS test
+RUN apk add --no-cache jp
+
 # The export stage. `-o type=local,dest=build-musl` writes this filesystem and
 # nothing else, so build-musl/herd is the only artifact that reaches the host.
 FROM scratch

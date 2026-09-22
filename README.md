@@ -429,6 +429,8 @@ nix develop
 just test
 ```
 
+Run the same suite in a Podman container with `just test-podman`.
+
 `just build` records the version `herd --version` reports, taking it from
 `git describe` unless `HERD_VERSION` names one; release builds pass their
 tag.
