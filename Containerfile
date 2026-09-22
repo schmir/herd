@@ -17,19 +17,31 @@
 
 FROM docker.io/library/alpine:3.21 AS build
 
-RUN apk add --no-cache build-base git curl
+RUN apk add --no-cache build-base git
 
 # Alpine packages neither janet nor jpm, so build both from source. They are
 # plain C and a bootstrap script; this takes about a minute, once.
-ARG JANET_VERSION=1.41.2
-RUN curl -fsSL "https://github.com/janet-lang/janet/archive/refs/tags/v${JANET_VERSION}.tar.gz" \
-      | tar xz -C /tmp \
-    && make -C "/tmp/janet-${JANET_VERSION}" -j"$(nproc)" \
-    && make -C "/tmp/janet-${JANET_VERSION}" install \
-    && rm -rf "/tmp/janet-${JANET_VERSION}"
+# Both are fetched by asking for one commit, rather than for a tag or for an
+# archive GitHub generates on request. A commit id is a hash of the tree it
+# names, so the server has no say in what a build compiles: this is the same
+# source every time, whatever later becomes of the tag it came from.
+#
+# Janet 1.41.2.
+ARG JANET_COMMIT=0fea20c82182fe661f75b00a8889d801fe2d79b6
+RUN git init -q /tmp/janet \
+    && git -C /tmp/janet remote add origin https://github.com/janet-lang/janet.git \
+    && git -C /tmp/janet fetch -q --depth 1 origin "$JANET_COMMIT" \
+    && git -C /tmp/janet checkout -q FETCH_HEAD \
+    && make -C /tmp/janet -j"$(nproc)" \
+    && make -C /tmp/janet install \
+    && rm -rf /tmp/janet
 
-ARG JPM_VERSION=v1.2.0
-RUN git clone --depth 1 --branch "$JPM_VERSION" https://github.com/janet-lang/jpm.git /tmp/jpm \
+# jpm 1.2.0.
+ARG JPM_COMMIT=907daf191ad3f1cf7e5190ec4f44eb29cd54ba21
+RUN git init -q /tmp/jpm \
+    && git -C /tmp/jpm remote add origin https://github.com/janet-lang/jpm.git \
+    && git -C /tmp/jpm fetch -q --depth 1 origin "$JPM_COMMIT" \
+    && git -C /tmp/jpm checkout -q FETCH_HEAD \
     && cd /tmp/jpm \
     && janet bootstrap.janet \
     && rm -rf /tmp/jpm
