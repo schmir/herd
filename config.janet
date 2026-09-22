@@ -18,9 +18,23 @@
 
 (defn discover-config-files
   ``Configuration files in `directory`, sorted so the merge order is stable.
-  A missing directory yields none: having no configuration yet is normal.``
+  A directory that is not there yields none: having no configuration yet is
+  normal. One that cannot be listed for any other reason raises instead of
+  passing for empty, since a directory herd cannot read holds every
+  repository it would otherwise report as gone.``
   [directory]
-  (def names (if directory (try (os/dir directory) ([_] @[])) @[]))
+  # Only an absent directory is quiet, and nothing but the listing can say
+  # that it is absent: os/stat cannot reach a directory under a closed
+  # parent either, and reports that as nil with no reason attached, exactly
+  # as it reports one that was never created.
+  (def names
+    (if directory
+      (try (os/dir directory)
+        ([err] (if (string/has-suffix? "No such file or directory"
+                                       (string err))
+                 @[]
+                 (error err))))
+      @[]))
   (sort (seq [name :in names
               :when (string/has-suffix? config-suffix name)
               :let [file (path/join directory name)]

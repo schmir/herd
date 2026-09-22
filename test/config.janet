@@ -317,6 +317,45 @@
           "repository JSON files are sorted without directories")
   (sh/rm dir))
 
+# A directory herd cannot read holds every repository it would otherwise
+# report as gone, so it has to say so rather than pass for an empty one.
+(let [dir (fixture)
+      closed (string dir "/closed")]
+  (sh/create-dirs closed)
+  (spit (string closed "/a.json") "[]")
+  (os/chmod closed 8r000)
+  # A user who can read it anyway, root among them, has nothing to check.
+  (when (try (do (os/dir closed) false) ([_] true))
+    (def message
+      (try
+        (do (config/discover-config-files closed) nil)
+        ([err] (string err))))
+    (assert (and message (string/find closed message))
+            "an unreadable directory raises and names itself"))
+  (os/chmod closed 8r755)
+  (sh/rm dir))
+
+# A closed parent hides the directory the same way, and os/stat cannot tell
+# that apart from a directory nobody has created yet.
+(let [dir (fixture)
+      outer (string dir "/outer")
+      inner (string outer "/herd")]
+  (sh/create-dirs inner)
+  (spit (string inner "/a.json") "[]")
+  (os/chmod outer 8r000)
+  (when (try (do (os/dir inner) false) ([_] true))
+    (assert-error "a directory under a closed parent raises"
+                  (config/discover-config-files inner)))
+  (os/chmod outer 8r755)
+  (sh/rm dir))
+
+(let [dir (fixture)
+      afile (string dir "/a-file")]
+  (spit afile "not a directory")
+  (assert-error "a file where the configuration directory belongs raises"
+                (config/discover-config-files afile))
+  (sh/rm dir))
+
 # --- checkout rows --------------------------------------------------------
 
 (assert-error "a row must be a dictionary"
