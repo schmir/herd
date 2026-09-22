@@ -75,7 +75,24 @@ test: deps
 # Run the test suite in the Podman test container.
 test-podman:
     podman build --target test --tag herd-test .
-    podman run --rm herd-test jpm --local test
+    podman run --rm herd-test
+
+# Run the test suite in Podman test containers for amd64 and arm64.
+test-podman-multi:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    platforms=linux/amd64,linux/arm64
+    manifest=localhost/herd-test-multi
+    # --manifest amends an existing manifest. Remove it so each run tests only
+    # freshly built images.
+    podman manifest rm -i "$manifest"
+    podman build --platform "$platforms" --target test --manifest "$manifest" .
+    for platform in ${platforms//,/ }; do
+        echo "==> $platform"
+        # Prevent Podman from searching registries for a platform image that
+        # exists only in the local manifest.
+        podman run --rm --pull=never --platform "$platform" "$manifest"
+    done
 
 # Format the tree and run the test suite.
 ci: && test

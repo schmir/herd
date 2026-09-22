@@ -89,6 +89,7 @@ EOF
 # asked for by name, so a release build never installs it.
 FROM build AS test
 RUN apk add --no-cache jp
+CMD ["jpm", "--local", "test"]
 
 # The export stage. `-o type=local,dest=build-musl` writes this filesystem and
 # nothing else, so build-musl/herd is the only artifact that reaches the host.
