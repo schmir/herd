@@ -277,4 +277,51 @@
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm dir))
 
+# Tests for capture-process, which every command runs its subprocesses through.
+(let [result (herd/capture-process
+               ["sh" "-c" "echo to stdout; echo to stderr >&2; exit 3"] :p)]
+  (assert (= 3 (result :status)) "capture-process reports the exit status")
+  (assert (= "to stdout\n" (string (result :out)))
+          "capture-process captures stdout")
+  (assert (= "to stderr\n" (string (result :err)))
+          "capture-process captures stderr"))
+
+(let [result (herd/capture-process ["sh" "-c" "exec cat"] :p
+                                   {:in (file/open "/dev/null" :r)})]
+  (assert (zero? (result :status)) "capture-process passes a redirected stdin")
+  (assert (empty? (string (result :out)))
+          "a command reading from /dev/null sees no input"))
+
+# Both pipes are drained while the process runs. A command writing more than a
+# pipe buffer holds would block forever on one that is only read afterwards,
+# so this hangs rather than fails if the draining ever regresses.
+(let [size 300000
+      result (herd/capture-process
+               ["sh" "-c" (string "yes 0123456789 | head -c " size "; "
+                                  "yes 9876543210 | head -c " size " >&2")]
+               :p)]
+  (assert (= size (length (result :out)))
+          "capture-process reads stdout past the pipe buffer")
+  (assert (= size (length (result :err)))
+          "capture-process reads stderr past the pipe buffer"))
+
+# Each captured process closes its pipes when it is done with them. Left to the
+# garbage collector, a run over a few hundred repositories exhausts the
+# descriptors the process is allowed long before it finishes.
+#
+# The collector is held off for the count, since it closes what it reclaims:
+# under the allocation the rest of the suite does it reclaims a leaked process
+# quickly enough to hide the leak, which is not a guarantee a long run has.
+(let [open-descriptors (fn [] (length (os/dir "/dev/fd")))
+      interval (gcinterval)]
+  (defer (do (gcsetinterval interval) (gccollect))
+    (gcsetinterval 0x7FFFFFFF)
+    (gccollect)
+    (def before (open-descriptors))
+    (for _ 0 40 (herd/capture-process ["true"] :p))
+    (def after (open-descriptors))
+    (assert (<= after (+ before 2))
+            (string "capture-process leaks no descriptors: " before " open "
+                    "before 40 processes, " after " after"))))
+
 (end-suite)

@@ -62,6 +62,26 @@
               candidate)))
         (string/split ":" (os/getenv "PATH" ""))))
 
+(defn capture-process
+  ``Run `args` to completion and return what it did as `{:status :out :err}`.
+  `flags` and `env` are os/spawn's, except that stdout and stderr are always
+  pipes this reads: a child writing more than a pipe buffer holds would block
+  forever on one nobody drains, so both are drained while it runs rather than
+  after it exits. The process is closed on the way out, which closes those
+  pipes; left to the garbage collector instead, a run over a few hundred
+  repositories can hold open more descriptors than the process is allowed.``
+  [args &opt flags env]
+  (default flags :)
+  (default env {})
+  (with [process (os/spawn args flags (merge env {:out :pipe :err :pipe}))]
+    (def stdout @"")
+    (def stderr @"")
+    (ev/gather
+      (:read (process :out) :all stdout)
+      (:read (process :err) :all stderr)
+      (:wait process))
+    {:status (process :return-code) :out stdout :err stderr}))
+
 (defn checked-out?
   "Check whether path already holds a checkout."
   [path]
@@ -86,21 +106,15 @@
       (do
         (def command (clone-process-command (or vcs default-vcs)
                                             executable url path))
-        (def process (os/spawn command : env))
-        (def stdout @"")
-        (def stderr @"")
-        (ev/gather
-          (:read (process :out) :all stdout)
-          (:read (process :err) :all stderr)
-          (:wait process))
-        (if (zero? (process :return-code))
+        (def result (capture-process command : env))
+        (if (zero? (result :status))
           (do
             (report "Clone complete: " path)
             :cloned)
           (do
             (report "Clone failed: " path)
-            (when (> (length stderr) 0) (report stderr))
-            (when (> (length stdout) 0) (report stdout))
+            (when (pos? (length (result :err))) (report (result :err)))
+            (when (pos? (length (result :out))) (report (result :out)))
             :failed)))
       ([err]
         (report "Clone failed: " path ": " err)
@@ -115,7 +129,7 @@
   # Clones must never inherit the terminal: several run at once, and a VCS
   # or SSH prompt on a shared stdin would interleave or hang the whole run.
   (with [devnull (file/open "/dev/null" :r)]
-    (def env {:in devnull :out :pipe :err :pipe})
+    (def env {:in devnull})
     (parallel/run-repositories
       repositories
       [[:cloned "cloned"]
@@ -202,15 +216,10 @@
     (file/seek input :set 0)
     # "--" keeps an expression that starts with a dash from reading as an
     # option.
-    (with [process (os/spawn [executable "--" expression]
-                             : {:in input :out :pipe :err :pipe})]
-      (def stdout @"")
-      (def stderr @"")
-      (ev/gather
-        (:read (process :out) :all stdout)
-        (:read (process :err) :all stderr)
-        (:wait process))
-      (unless (zero? (process :return-code))
+    (let [result (capture-process [executable "--" expression] : {:in input})
+          stdout (result :out)
+          stderr (result :err)]
+      (unless (zero? (result :status))
         (error (string (filter-where name) " failed: "
                        (string/trimr (if (empty? stderr) stdout stderr))
                        (if hint (string "\n" hint) ""))))
@@ -935,17 +944,13 @@
   (try
     (if (checked-out? (repository :path))
       (if-let [selected (command-for-repository command repository)]
-        (with [process
-               (os/spawn ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                          "herd" (repository :path) ;selected]
-                         :p env)]
-          (def stdout @"")
-          (def stderr @"")
-          (ev/gather
-            (:read (process :out) :all stdout)
-            (:read (process :err) :all stderr)
-            (:wait process))
-          (def status (process :return-code))
+        (let [result (capture-process
+                       ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                        "herd" (repository :path) ;selected]
+                       :p env)
+              stdout (result :out)
+              stderr (result :err)
+              status (result :status)]
           (def succeeded (zero? status))
           # A successful command that printed nothing has nothing to report:
           # its heading alone would only add noise. A failing one still needs
@@ -983,7 +988,7 @@
   # Parallel commands must not share a terminal for input or output. Capture
   # output per process so each visible result is one coherent block.
   (with [devnull (file/open "/dev/null" :r)]
-    (def env {:in devnull :out :pipe :err :pipe})
+    (def env {:in devnull})
     (def report-state @{:reported false})
     (parallel/run-repositories
       repositories
