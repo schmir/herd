@@ -378,4 +378,66 @@
                       output))))
   (sh/rm dir))
 
+# find-executable answers for the user herd runs as, which the permission
+# bits alone cannot: they say whether the owner, its group or everyone else
+# may run a file, never which of those we are.
+(let [dir (fixture)
+      path (os/getenv "PATH")]
+  (defer (os/setenv "PATH" path)
+    (os/setenv "PATH" dir)
+    (def tool (string dir "/herd-test-tool"))
+    (spit tool "#!/bin/sh\nexit 0\n")
+
+    (os/chmod tool 8r755)
+    (assert (= tool (process/find-executable "herd-test-tool"))
+            "a file this user may execute is found")
+
+    (os/chmod tool 8r644)
+    (assert (nil? (process/find-executable "herd-test-tool"))
+            "a file nobody may execute is passed over")
+
+    # The bug this replaced: every one of these carries an x, so searching
+    # the permission string for one accepted them all, and the spawn that
+    # followed failed with a permission error instead.
+    (each mode [8r611 8r601 8r610]
+      (os/chmod tool mode)
+      # Root may execute a file with any x bit set, whoever it belongs to.
+      (when (try (do (os/execute [tool] :p) false) ([_] true))
+        (assert (nil? (process/find-executable "herd-test-tool"))
+                (string "mode " (string/format "%o" mode)
+                        " carries an x this user cannot use"))))
+
+    (os/chmod tool 8r755)
+    (sh/rm dir))
+
+  # A directory can carry x too, meaning it can be entered rather than run.
+  (def dir2 (fixture))
+  (defer (sh/rm dir2)
+    (os/setenv "PATH" dir2)
+    (sh/create-dirs (string dir2 "/herd-test-dir"))
+    (os/chmod (string dir2 "/herd-test-dir") 8r755)
+    (assert (nil? (process/find-executable "herd-test-dir"))
+            "a directory is not an executable, whatever its bits")))
+
+# The search goes on past a file it cannot run, the way execvp does, rather
+# than settling for the first name that matches.
+(let [early (fixture)
+      late (fixture)
+      path (os/getenv "PATH")]
+  (defer (do (os/setenv "PATH" path) (sh/rm early) (sh/rm late))
+    # The shadowing file carries an x for its group and for everyone else,
+    # so the permission string alone says yes to it, and the search used to
+    # stop here and hand back something that could not be run.
+    (spit (string early "/herd-test-shadow") "#!/bin/sh\nexit 0\n")
+    (os/chmod (string early "/herd-test-shadow") 8r611)
+    (spit (string late "/herd-test-shadow") "#!/bin/sh\nexit 0\n")
+    (os/chmod (string late "/herd-test-shadow") 8r755)
+    (os/setenv "PATH" (string early ":" late))
+    # Root may run the first one, and stopping there is then correct.
+    (when (try (do (os/execute [(string early "/herd-test-shadow")] :p) false)
+            ([_] true))
+      (assert (= (string late "/herd-test-shadow")
+                 (process/find-executable "herd-test-shadow"))
+              "a file that cannot be run does not shadow one that can"))))
+
 (end-suite)

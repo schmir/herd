@@ -447,7 +447,9 @@ entries of a repository list, `filter.janet` narrows one, `config.janet`
 turns the configuration directory into repositories, `select.janet` picks
 the ones a command acts on, and `clone.janet` and `run.janet` do the work in
 parallel through `parallel.janet`. `main.janet` is the command line over the
-top of them, and the only file that ends the process.
+top of them, and the only file that ends the process. `access.c` is the one
+piece of C: Janet binds no `access(2)`, and the permission bits alone cannot
+say whether this process may run a file.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build

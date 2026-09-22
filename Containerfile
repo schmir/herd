@@ -68,7 +68,9 @@ COPY . .
 # Declared here rather than at the top: the version changes on every tag, and
 # every layer after an ARG is invalidated when its value does.
 ARG HERD_VERSION=dev
-# jpm's default :lflags is empty, so this only adds -static to the final link.
+# jpm passes --lflags to every link it drives, the native module included, so
+# project.janet gives that one an empty set to keep -static off a shared
+# object. Here it reaches the executable, which is what wants it.
 RUN <<'EOF'
 set -eu
 HERD_VERSION="$HERD_VERSION" jpm --local build --lflags=-static

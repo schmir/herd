@@ -1,5 +1,9 @@
 # Running a subprocess and collecting what it did.
 
+# By bare name, not `./access`: jpm puts the build directory on the native
+# module path only for names that are neither relative nor absolute.
+(import access)
+
 (defn find-executable
   "Find an executable file by searching the process PATH."
   [name]
@@ -7,9 +11,11 @@
           (unless (empty? directory)
             (def candidate (string directory "/" name))
             (def info (os/stat candidate))
+            # A directory carrying x is one that can be entered, and access
+            # says as much, so being a file is still asked separately.
             (when (and info
                        (= :file (info :mode))
-                       (string/find "x" (info :permissions)))
+                       (access/executable? candidate))
               candidate)))
         (string/split ":" (os/getenv "PATH" ""))))
 

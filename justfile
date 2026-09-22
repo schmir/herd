@@ -40,13 +40,19 @@ lock:
     jpm --tree="$tree" make-lockfile lockfile.jdn
     treefmt lockfile.jdn
 
+# Janet looks for a native module by bare name on the module path, and jpm
+# adds build/ to it only for the builds and test runs it drives itself. These
+# two recipes run the interpreter directly, so they say where to look, and
+# they build first so there is something there to find.
+native_path := '(array/insert module/paths 1 ["build/:all:.so" :native])'
+
 # Run the program
-run *args: deps
-    jpm --local janet main.janet {{ args }}
+run *args: build
+    jpm --local janet -e '{{ native_path }}' -- main.janet {{ args }}
 
 # Start a REPL inside a source file, private bindings included.
-repl file="main.janet": deps
-    jpm --local janet -e '(repl nil nil (dofile "{{ file }}"))'
+repl file="main.janet": build
+    jpm --local janet -e '{{ native_path }}' -e '(repl nil nil (dofile "{{ file }}"))'
 
 # Build the standalone executable in build/.
 build *args: deps
