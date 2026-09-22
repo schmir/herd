@@ -5,6 +5,11 @@
 # Reproduce a release build locally from the repo root:
 #   podman build -o type=local,dest=build-musl .
 #
+# This needs a podman whose parser understands heredocs: podman 5 does, and
+# the 4.9.3 that Ubuntu 24.04 packages does not. Without one, every line of a
+# heredoc is read as an instruction of its own, and the build stops at the
+# first of them.
+#
 # Only the binary leaves the container. Nothing of the host tree is shared with
 # the build, so there is no way for jpm to mistake a glibc artifact for an
 # up-to-date musl one and leave a binary for the wrong platform behind.

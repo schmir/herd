@@ -21,7 +21,7 @@ jobs:
         # macOS is a release target, and it resolves symbolic links and temp
         # directories differently from Linux, which is what selection is built
         # on. It also compiles access.c, the one piece of C.
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-26.04, macos-15]
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
