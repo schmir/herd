@@ -60,7 +60,36 @@
     (assert (= reported (string/trimr ((invoke ["-V"]) :output)))
             "-V is the short form of --version")
     (assert (string/find "-V, --version" ((invoke ["--help"]) :output))
-            "help documents the version flag")))
+            "help documents the version flag")
+
+    # A flag's name is only looked for where argparse reads options: an
+    # option's value and the command herd runs are passed on untouched.
+    (each args [["list" "--at" "--all-anchors=no"] ["run" "true" "--help=x"]
+                ["run" "-j" "1" "--" "true" "--version=x"]]
+      (def result (invoke args))
+      (assert (not (string/find "takes no value" (result :output)))
+              (string (string/join args " ") " leaves the value alone: "
+                      (result :output))))
+
+    # A cluster asks for help only when every flag in it is one the command
+    # knows; anything wrong in it, before or after the h, is a usage error.
+    (each args [["list" "-h"] ["list" "-ah"] ["list" "-ha"] ["-h"]]
+      (def result (invoke args))
+      (assert (= 0 (result :status))
+              (string (string/join args " ") " asks for help"))
+      (assert (not (string/find "usage error" (result :output)))
+              (string (string/join args " ") " reports no mistake")))
+    (each args [["list" "-hx"] ["list" "-xh"] ["fetch" "-jh"]
+                ["list" "-h" "--bogus"] ["-x" "list" "-h"]
+                ["--version=oops"] ["--version="] ["--help=x"]
+                ["list" "--all-anchors=no"] ["list" "-C" "/" "--help=x"]]
+      (def result (invoke args))
+      (assert (= 1 (result :status))
+              (string (string/join args " ") " is a usage error: "
+                      (result :status)))
+      (assert (string/find "usage error" (result :output))
+              (string (string/join args " ") " names the mistake: "
+                      (result :output))))))
 
 # The version is baked in while this file is compiled, so an unset
 # HERD_VERSION has to leave something usable behind rather than nil.

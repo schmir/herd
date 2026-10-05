@@ -19,23 +19,6 @@
   "Version this build was compiled for."
   (baked-version))
 
-(defn- help-requested?
-  ``Whether `args` asks for help. argparse prints usage and returns nil for
-  both `--help` and a genuine mistake, so the two are told apart here.``
-  [args]
-  (var found false)
-  (var options true)
-  (each arg args
-    (cond
-      (= "--" arg) (set options false)
-      (not options) nil
-      (= "--help" arg) (set found true)
-      (and (string/has-prefix? "-" arg)
-           (not (string/has-prefix? "--" arg))
-           (string/find "h" arg))
-      (set found true)))
-  found)
-
 (defn- version-requested?
   ``Whether `args` asks for the version. Only the very first argument can: the
   flag carries no value, and whatever follows it is either a command name,
@@ -45,20 +28,70 @@
   (def arg (get args 1))
   (cond
     (nil? arg) false
-    (string/has-prefix? "--" arg)
-    (= "version" (first (string/split "=" (string/slice arg 2))))
+    # --version=VALUE is left to argparse, so that it rejects the value.
+    (string/has-prefix? "--" arg) (= "--version" arg)
     # A cluster of short flags asks for the version only when that is all it
     # asks for: -hV wants the help argparse prints, and -Vx is a mistake.
     (and (string/has-prefix? "-" arg) (> (length arg) 1))
     (all |(= $ (chr "V")) (string/slice arg 1))
     false))
 
+(def- help-option
+  ``A plain flag standing in for the help option argparse adds itself. Its
+  own stops parsing at the first h, and reports any mistake after it as help
+  or not at all, so -hx would succeed. As a plain flag it lets every other
+  option be checked first, and a mistake anywhere wins over the help.``
+  {:kind :flag
+   :short "h"
+   :help "Show this help message."})
+
+(defn- flag-given-value
+  ``The name of the first flag `args` hands a value with --name=VALUE, or nil.
+  argparse accepts the form for a flag and then drops the value, so
+  --all-anchors=no would turn the flag on. The scan follows argparse through
+  `args`: an option given as --name or in a cluster of short flags takes the
+  next argument as its value, and options end at `--` or, where the
+  positional arguments stop parsing, at the first of those.``
+  [args options]
+  (def shorts (tabseq [[name handler] :pairs options
+                       :when (handler :short)]
+                ((handler :short) 0) name))
+  (defn takes-value? [name]
+    (index-of (get-in options [name :kind]) [:option :accumulate]))
+  (var i 1)
+  (var found nil)
+  (while (and (nil? found) (< i (length args)))
+    (def arg (args i))
+    (++ i)
+    (cond
+      (= "--" arg) (break)
+      (string/has-prefix? "--" arg)
+      (let [[name & value] (string/split "=" (string/slice arg 2))]
+        (cond
+          (empty? value) (when (takes-value? name) (++ i))
+          (= :flag (get-in options [name :kind])) (set found name)))
+      (string/has-prefix? "-" arg)
+      (each flag (string/slice arg 1)
+        (when (takes-value? (shorts flag)) (++ i)))
+      (get-in options [:default :short-circuit]) (break)))
+  found)
+
 (defn- parse-args
   ``Parse `args` against an argparse specification, exiting on a mistake.
   Asking for help is not a mistake, so it leaves through the successful door.``
   [args & spec]
-  (or (argparse/argparse ;spec :args args)
-      (os/exit (if (help-requested? args) 0 1))))
+  (def parsed (or (argparse/argparse ;spec "help" help-option :args args)
+                  (os/exit 1)))
+  (when-let [name (flag-given-value args
+                                    (struct ;(slice spec 1)
+                                            "help" help-option))]
+    (eprint "usage error: --" name " is a flag and takes no value")
+    (os/exit 1))
+  (when (parsed "help")
+    # Only argparse's own help option prints the text, so ask it for that.
+    (argparse/argparse ;spec :args [(get args 0) "--help"])
+    (os/exit 0))
+  parsed)
 
 (defn- filters-in-play?
   ``Whether any filter narrows this run, named on the command line or by a
