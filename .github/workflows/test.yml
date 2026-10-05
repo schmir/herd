@@ -7,6 +7,11 @@ on:
   pull_request:
   # Called by the release workflow, so a tag is tested before it is published.
   workflow_call:
+    inputs:
+      skip-cross:
+        description: Leave out the cross build, for a caller that runs its own.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,3 +35,17 @@ jobs:
       # to run the tests.
       - name: Run tests
         run: nix develop .#ci --command just test
+
+  # The release build, run on every push so that a change to jpm, spork, the
+  # pinned Janet or zig breaks here rather than while a tag is being cut. The
+  # release workflow asks for it to be left out: it builds the binaries it
+  # publishes itself, with the tag baked in. On a push there are no inputs,
+  # and the job runs.
+  cross:
+    if: ${{ !inputs.skip-cross }}
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - name: Cross-compile
+        run: nix develop .#ci --command just dist

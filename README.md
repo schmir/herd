@@ -9,7 +9,7 @@ repositories, with a configurable number of operations running in parallel
 ## Install
 
 Prebuilt binaries are available for Linux (x86-64 and ARM64) and macOS
-(ARM64) on the
+(ARM64 and x86-64) on the
 [releases page](https://github.com/schmir/herd/releases/latest). Every
 release ships one `herd-<version>-<platform>.tar.gz` per platform, each
 holding a single executable named `herd`, so unpacking it leaves the binary
@@ -38,13 +38,18 @@ To build from source with Nix:
 
 ```sh
 nix develop
-just build
-install -m 755 build/herd ~/.local/bin/herd
+just install
 ```
+
+`just install` compiles the binary a release would ship for this machine and
+installs it as `~/.local/bin/herd`.
 
 Without Nix, install [Janet](https://janet-lang.org/),
 [JPM](https://github.com/janet-lang/jpm), `just`, and `jj`, then run
-`just build`.
+`just build` and copy `build/herd` onto your `PATH`. `just install` and
+`just dist` also need [Zig](https://ziglang.org/): they compile with
+`zig cc`, against a Janet they build from source, which takes `git`, `make`
+and a C compiler as well.
 
 ## Configure
 
@@ -454,7 +459,9 @@ say whether this process may run a file.
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
 artifacts and locally installed JPM dependencies are stored in `build/` and
-`jpm_tree/`.
+`jpm_tree/`. `just dist` compiles the release binaries for every platform
+with `zig cc` into `dist/`, and `just install` installs the one for this
+machine.
 
 ## License
 

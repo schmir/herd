@@ -19,74 +19,82 @@ jobs:
   # same suite every push runs, rather than on the builds alone.
   test:
     uses: ./.github/workflows/test.yml
+    with:
+      skip-cross: true
 
-  linux:
-    name: linux-${{ matrix.arch }}
+  # One job builds every platform: zig cc cross-compiles the image jpm writes
+  # into build/herd.c, so no build has to run on the machine it targets.
+  build:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - name: Cross-compile
+        run: nix develop .#ci --command just cross
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-linux-x86_64
+          path: build-cross/linux-x86_64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-linux-aarch64
+          path: build-cross/linux-aarch64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-macos-arm64
+          path: build-cross/macos-arm64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-macos-x86_64
+          path: build-cross/macos-x86_64/herd
+          if-no-files-found: error
+
+  # A cross-compiled binary has run nowhere yet, so each one is run on the
+  # platform it is for before it is published.
+  check:
+    name: check-${{ matrix.platform }}
+    needs: build
     runs-on: ${{ matrix.runner }}
-    # 26.04 rather than 24.04 for the podman it ships. The Containerfile
-    # builds with heredocs, and the podman 4.9.3 on the 24.04 image parses
-    # none of them: it reads every line of a heredoc as an instruction of its
-    # own and stops at the first, with `Unknown instruction: "SET"`.
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-26.04
-            arch: x86_64
+            platform: linux-x86_64
           - runner: ubuntu-26.04-arm
-            arch: aarch64
+            platform: linux-aarch64
+          - runner: macos-15
+            platform: macos-arm64
+          - runner: macos-15-intel
+            platform: macos-x86_64
     steps:
-      - uses: actions/checkout@v7
-
-      # The build happens in a container build rather than in a `container:`
-      # job on purpose: GitHub injects its own glibc-linked node to run actions
-      # like checkout, and that node cannot execute inside an Alpine container.
-      #
-      # podman, so a release build is the same command as a local `just
-      # build-musl`. Runners start with an empty layer cache, so unlike the
-      # local build this rebuilds the toolchain every time.
-      - name: Build static binary
-        run: |
-          podman build --build-arg HERD_VERSION \
-            --output type=local,dest=build-musl .
-
-      - name: Check the binary is static and runs
-        run: |
-          file build-musl/herd
-          file build-musl/herd | grep -q 'statically linked'
-          # The runner is glibc; an Alpine-built binary running here is the
-          # portability claim under test. Asking for the version also proves
-          # the build baked one in.
-          test "$(./build-musl/herd --version)" = "herd $HERD_VERSION"
-
-      - uses: actions/upload-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
-          name: herd-linux-${{ matrix.arch }}
-          path: build-musl/herd
-          if-no-files-found: error
-
-  macos:
-    name: macos-arm64
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build binary
-        run: ./.github/scripts/build-macos.sh
+          name: herd-${{ matrix.platform }}
+          path: bin
 
       - name: Check the binary runs
         run: |
-          file build/herd
-          test "$(./build/herd --version)" = "herd $HERD_VERSION"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: herd-macos-arm64
-          path: build/herd
-          if-no-files-found: error
+          # Artifacts do not keep the executable bit.
+          chmod +x bin/herd
+          file bin/herd
+          case "${{ matrix.platform }}" in
+            # The runner is glibc; a musl binary running here is the
+            # portability claim under test.
+            linux-*) file bin/herd | grep -q 'statically linked' ;;
+            # Apple silicon runs nothing unsigned, so zig signs ad hoc for
+            # arm64. An Intel Mac runs unsigned code, and zig leaves it so.
+            macos-arm64) codesign --verify bin/herd ;;
+          esac
+          # Asking for the version also proves the build baked one in.
+          test "$(./bin/herd --version)" = "herd $HERD_VERSION"
 
   release:
-    needs: [test, linux, macos]
+    needs: [test, check]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-26.04
     permissions:

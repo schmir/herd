@@ -6,15 +6,9 @@
 
 # Janet binds no access(2), and the permission bits alone cannot say whether
 # this process may execute a file. See access.c.
-#
-# The musl build links the executable against nothing at all, and jpm hands
-# the link flags it is given to every link it drives. A shared object cannot
-# be linked against a static libc, so this one names an empty set of its own
-# and leaves -static to the executable.
 (declare-native
   :name "access"
-  :source ["access.c"]
-  :lflags [])
+  :source ["access.c"])
 
 (declare-executable
   :name "herd"

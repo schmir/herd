@@ -37,15 +37,17 @@
           janet-lsp = pkgs.callPackage janet-lsp-nix { };
         in
         {
-          # What the test suite reaches for and nothing else. CI uses this
-          # rather than the shell below, whose editor and container tooling is
-          # built from source and would be rebuilt on every run.
+          # What the test suite and the release build reach for and nothing
+          # else. CI uses this rather than the shell below, whose editor and
+          # container tooling is built from source and would be rebuilt on
+          # every run.
           ci = pkgs.mkShell {
             packages = with pkgs; [
               janet
               jp
               jpm
               just
+              zig
             ];
           };
 
@@ -62,6 +64,7 @@
               podman
               prettier
               treefmt
+              zig
             ];
           };
         }
