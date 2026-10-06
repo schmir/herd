@@ -9,99 +9,24 @@ on:
 permissions:
   contents: read
 
-env:
-  # A tag build bakes its own tag into the binary. Anything else is not a
-  # release, and says so when asked for its version.
-  HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
-
 jobs:
-  # A build that compiles is not a build that works. Publishing waits on the
-  # same suite every push runs, rather than on the builds alone.
+  # Builds the binaries on one machine and runs each on the platform it is
+  # for, so publishing waits on the same checks every push runs.
   test:
     uses: ./.github/workflows/test.yml
-    with:
-      skip-cross: true
-
-  # One job builds every platform: zig cc cross-compiles the image jpm writes
-  # into build/herd.c, so no build has to run on the machine it targets.
-  build:
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
-      - name: Cross-compile
-        run: nix develop .#ci --command just cross
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: herd-linux-x86_64
-          path: build-cross/linux-x86_64/herd
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        with:
-          name: herd-linux-aarch64
-          path: build-cross/linux-aarch64/herd
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        with:
-          name: herd-macos-arm64
-          path: build-cross/macos-arm64/herd
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        with:
-          name: herd-macos-x86_64
-          path: build-cross/macos-x86_64/herd
-          if-no-files-found: error
-
-  # A cross-compiled binary has run nowhere yet, so each one is run on the
-  # platform it is for before it is published.
-  check:
-    name: check-${{ matrix.platform }}
-    needs: build
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-26.04
-            platform: linux-x86_64
-          - runner: ubuntu-26.04-arm
-            platform: linux-aarch64
-          - runner: macos-15
-            platform: macos-arm64
-          - runner: macos-15-intel
-            platform: macos-x86_64
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: herd-${{ matrix.platform }}
-          path: bin
-
-      - name: Check the binary runs
-        run: |
-          # Artifacts do not keep the executable bit.
-          chmod +x bin/herd
-          file bin/herd
-          case "${{ matrix.platform }}" in
-            # The runner is glibc; a musl binary running here is the
-            # portability claim under test.
-            linux-*) file bin/herd | grep -q 'statically linked' ;;
-            # Apple silicon runs nothing unsigned, so zig signs ad hoc for
-            # arm64. An Intel Mac runs unsigned code, and zig leaves it so.
-            macos-arm64) codesign --verify bin/herd ;;
-          esac
-          # Asking for the version also proves the build baked one in.
-          test "$(./bin/herd --version)" = "herd $HERD_VERSION"
 
   release:
-    needs: [test, check]
+    needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
+      # The binaries the test workflow built and checked, one artifact per
+      # platform.
       - uses: actions/download-artifact@v8
         with:
+          pattern: herd-*
           path: artifacts
 
       # All artifact files have the name `herd`. Use the artifact directory

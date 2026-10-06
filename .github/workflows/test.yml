@@ -2,50 +2,133 @@ name: test
 
 on:
   push:
+    # A tag is tested by the release workflow, which calls this one.
+    branches: ["**"]
   # A pull request from a fork is not a push to this repository, so without
   # this nothing would run on one.
   pull_request:
-  # Called by the release workflow, so a tag is tested before it is published.
+  # Called by the release workflow, which publishes the binaries built here.
   workflow_call:
-    inputs:
-      skip-cross:
-        description: Leave out the cross build, for a caller that runs its own.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
+env:
+  # A tag build bakes its own tag into the binary. Anything else is not a
+  # release, and says so when asked for its version.
+  HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+
 jobs:
+  # The suites in test/ load herd's modules into Janet, so they test the
+  # sources rather than a binary, and one platform is enough.
   test:
-    name: test-${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # macOS is a release target, and it resolves symbolic links and temp
-        # directories differently from Linux, which is what selection is built
-        # on. It also compiles access.c, the one piece of C.
-        os: [ubuntu-26.04, ubuntu-26.04-arm, macos-15]
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      # The ci shell rather than the default one: the editor and container
-      # tooling in that shell is built from source, and none of it is needed
-      # to run the tests.
+      # The ci shell rather than the default one: the editor tooling in that
+      # shell is built from source, and none of it is needed to run the
+      # tests.
       - name: Run tests
         run: nix develop .#ci --command just test
 
-  # The release build, run on every push so that a change to jpm, spork, the
-  # pinned Janet or zig breaks here rather than while a tag is being cut. The
-  # release workflow asks for it to be left out: it builds the binaries it
-  # publishes itself, with the tag baked in. On a push there are no inputs,
-  # and the job runs.
-  cross:
-    if: ${{ !inputs.skip-cross }}
+  # One job builds every platform: zig cc cross-compiles the image jpm writes
+  # into build/herd.c, so no build has to run on the machine it targets.
+  # Running on every push means a change to jpm, spork, the pinned Janet or
+  # zig breaks here rather than while a tag is being cut.
+  build:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
       - name: Cross-compile
         run: nix develop .#ci --command just dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-linux-x86_64
+          path: dist/linux-x86_64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-linux-aarch64
+          path: dist/linux-aarch64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-macos-arm64
+          path: dist/macos-arm64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-macos-x86_64
+          path: dist/macos-x86_64/herd
+          if-no-files-found: error
+
+  # A cross-compiled binary has run nowhere yet, so each one runs the
+  # command-line tests on the platform it is for. This is what tests herd on
+  # macOS, on ARM64 and on musl.
+  check:
+    name: check-${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # jp is the release binary of jp 0.2.1, the version the dev shells
+        # use, pinned by the hash jp-checksums.sha256.asc gives for it.
+        include:
+          - runner: ubuntu-26.04
+            platform: linux-x86_64
+            jp: jp-linux-amd64
+            jp-sha256: f3c5d4cd38a971d9c1666555deb208f080b62708b89d0f5f615e4ae605a0cb8e
+          - runner: ubuntu-26.04-arm
+            platform: linux-aarch64
+            jp: jp-linux-arm64
+            jp-sha256: eba658170bfbcad1b5a49c0b087ce153544575e082f77b049de3563f0c5dd536
+          - runner: macos-15
+            platform: macos-arm64
+            jp: jp-darwin-arm64
+            jp-sha256: 2c11cb17f376273cb0066d0f27533c1bdc4f4b64891205b826f3bf0a6a4d3324
+          - runner: macos-15-intel
+            platform: macos-x86_64
+            jp: jp-darwin-amd64
+            jp-sha256: ca1ec721273a578f2747e413342b26cc01656648fafc1f6436d935043b4d2cbe
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: herd-${{ matrix.platform }}
+          path: bin
+
+      - name: Check the binary runs
+        run: |
+          # Artifacts do not keep the executable bit.
+          chmod +x bin/herd
+          file bin/herd
+          case "${{ matrix.platform }}" in
+            # The runner is glibc; a musl binary running here is the
+            # portability claim under test.
+            linux-*) file bin/herd | grep -q 'statically linked' ;;
+            # Apple silicon runs nothing unsigned, so zig signs ad hoc for
+            # arm64. An Intel Mac runs unsigned code, and zig leaves it so.
+            macos-arm64) codesign --verify bin/herd ;;
+          esac
+          # Asking for the version also proves the build baked one in.
+          test "$(./bin/herd --version)" = "herd $HERD_VERSION"
+
+      # The filter tests skip themselves without jp, which the runner lacks.
+      - name: Install jp
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          jp="$RUNNER_TEMP/bin/jp"
+          curl -fsSL -o "$jp" \
+            "https://github.com/jmespath/jp/releases/download/0.2.1/${{ matrix.jp }}"
+          echo "${{ matrix.jp-sha256 }}  $jp" | shasum -a 256 -c -
+          chmod +x "$jp"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The prysk version just test-cli names.
+      - name: Run the command-line tests
+        run: HERD="$PWD/bin/herd" uvx prysk==0.20.0 test/cli/

@@ -3,8 +3,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # Export the build version so all recipes that invoke jpm use the same value.
 export HERD_VERSION := env_var_or_default("HERD_VERSION", `git describe --tags --always --dirty 2>/dev/null || echo dev`)
 
-# Janet 1.41.2. The release binaries are cross-compiled from it, and the
-# container tests build it, so this is the one place it is pinned.
+# Janet 1.41.2, which the release binaries are cross-compiled from.
 janet_commit := "0fea20c82182fe661f75b00a8889d801fe2d79b6"
 
 # Show the available project commands.
@@ -76,31 +75,25 @@ build *args: deps
 test: deps
     jpm --local test
 
-# Run the test suite in the Podman test container.
-test-podman:
-    podman build --build-arg JANET_COMMIT={{ janet_commit }} --tag herd-test .
-    podman run --rm herd-test
+# The prysk the command-line tests run with. The release workflow's check job
+# names the same version.
+prysk := "prysk==0.20.0"
 
-# Run the test suite in Podman test containers for amd64 and arm64.
-test-podman-multi:
+# Name a release binary to test what ships.
+[doc('Run the command-line tests in test/cli/ against build/herd or the binary named.')]
+test-cli herd="":
     #!/usr/bin/env bash
     set -euo pipefail
-    platforms=linux/amd64,linux/arm64
-    manifest=localhost/herd-test-multi
-    # --manifest amends an existing manifest. Remove it so each run tests only
-    # freshly built images.
-    podman manifest rm -i "$manifest"
-    podman build --build-arg JANET_COMMIT={{ janet_commit }} \
-        --platform "$platforms" --manifest "$manifest" .
-    for platform in ${platforms//,/ }; do
-        echo "==> $platform"
-        # Prevent Podman from searching registries for a platform image that
-        # exists only in the local manifest.
-        podman run --rm --pull=never --platform "$platform" "$manifest"
-    done
+    herd="{{ herd }}"
+    if [[ -z "$herd" ]]; then
+        just build
+        herd=build/herd
+    fi
+    [[ "$herd" == /* ]] || herd="$PWD/$herd"
+    HERD="$herd" uvx {{ prysk }} test/cli/
 
-# Format the tree and run the test suite.
-ci: && test
+# Format the tree and run both test suites.
+ci: && test test-cli
     treefmt
 
 # The platforms are linux-x86_64, linux-aarch64, macos-arm64 and macos-x86_64.

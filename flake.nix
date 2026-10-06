@@ -38,9 +38,8 @@
         in
         {
           # What the test suite and the release build reach for and nothing
-          # else. CI uses this rather than the shell below, whose editor and
-          # container tooling is built from source and would be rebuilt on
-          # every run.
+          # else. CI uses this rather than the shell below, whose editor
+          # tooling is built from source and would be rebuilt on every run.
           ci = pkgs.mkShell {
             packages = with pkgs; [
               janet
@@ -61,9 +60,9 @@
               jpm
               jujutsu
               just
-              podman
               prettier
               treefmt
+              uv
               zig
             ];
           };

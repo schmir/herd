@@ -1,7 +1,0 @@
-**
-
-!*.janet
-!*.c
-!/test/
-!/test/*.janet
-!lockfile.jdn

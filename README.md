@@ -434,7 +434,9 @@ nix develop
 just test
 ```
 
-Run the same suite in a Podman container with `just test-podman`.
+`just test-cli` runs the command-line tests in `test/cli/` with
+[prysk](https://www.prysk.net/) against `build/herd`, or against the binary
+it is given, such as a release binary: `just test-cli path/to/herd`.
 
 `just build` records the version `herd --version` reports, taking it from
 `git describe` unless `HERD_VERSION` names one; release builds pass their
