@@ -1,25 +1,9 @@
 # Comparing the configured repositories with the ones on disk.
 
 (import spork/path)
-(import ./checkout)
 (import ./discover)
 (import ./process)
 (import ./select)
-
-(defn checkout-status
-  ``Say what is on disk at a configured repository's path: "ok" for a git or
-  jj repository, "missing" for nothing or an empty directory, which is what
-  clone would fill, and "blocked" for anything else, which clone leaves
-  alone.``
-  [repository]
-  (def root (repository :path))
-  (cond
-    (discover/repository? root) "ok"
-    (or (nil? (os/stat root :mode))
-        (and (= :directory (os/stat root :mode))
-             (not (checkout/checked-out? root))))
-    "missing"
-    "blocked"))
 
 (defn scan-root
   ``Return the directory a scan from `at` starts at: the innermost repository

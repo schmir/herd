@@ -13,10 +13,21 @@
 (sh/create-dirs dir)
 
 (def existing (path/join dir "existing"))
-(sh/create-dirs existing)
-(spit (path/join existing "file") "present")
+(sh/create-dirs (path/join existing ".git"))
 (assert (= :skipped (clone/clone-repository nil nil nil existing "unused"))
         "an existing checkout does not start a process")
+
+(def occupied (path/join dir "occupied"))
+(sh/create-dirs occupied)
+(spit (path/join occupied "file") "present")
+(var blocked-messages @[])
+(assert (= :blocked (clone/clone-repository nil nil
+                                            |(array/push blocked-messages (string ;$&))
+                                            occupied "unused"))
+        "something that is not a repository blocks the clone")
+(assert (deep= @[(string "Clone blocked: " occupied
+                         " holds something that is not a repository")]
+               blocked-messages))
 
 (assert (deep= ["git-bin" "clone" "--" "url" "checkout"]
                (clone/clone-process-command "git" "git-bin" "url" "checkout"))
@@ -41,8 +52,10 @@
   (assert (= 1 (length messages)) "a failed clone reports its path"))
 
 (def counts
-  (clone/clone-repositories [{:path existing :ssh_url "unused"}]))
+  (clone/clone-repositories [{:path existing :ssh_url "unused"}
+                             {:path occupied :ssh_url "unused"}]))
 (assert (= 1 (counts :skipped)) "clone-repositories keeps outcome counts")
+(assert (= 1 (counts :blocked)))
 (assert (= 0 (counts :failed)))
 
 (sh/rm dir)

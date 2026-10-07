@@ -13,11 +13,17 @@
     (error (string "unsupported VCS " vcs))))
 
 (defn clone-repository
-  "Clone a repository with vcs unless it is already checked out.
-  Return :skipped, :cloned, or :failed."
+  ``Clone a repository with vcs unless it is already checked out, or
+  something that is not a repository stands in its way.
+  Return :skipped, :blocked, :cloned, or :failed.``
   [executable env report path url &opt vcs]
-  (if (checkout/checked-out? path)
-    :skipped
+  (case (checkout/checkout-status {:path path})
+    "ok" :skipped
+    "blocked"
+    (do
+      (report "Clone blocked: " path
+              " holds something that is not a repository")
+      :blocked)
     (try
       (do
         (def command (clone-process-command (or vcs checkout/default-vcs)
@@ -38,7 +44,7 @@
 
 (defn clone-repositories
   "Clone repositories with their selected VCS and limit concurrent processes.
-  Return the cloned, skipped, and failed counts."
+  Return the cloned, skipped, blocked, and failed counts."
   [repositories &opt jobs]
   (def executables {"git" (process/find-executable "git")
                     "jj" (process/find-executable "jj")})
@@ -50,12 +56,16 @@
       repositories
       [[:cloned "cloned"]
        [:skipped "already checked out"]
+       [:blocked "blocked"]
        [:failed "failed"]]
       (fn [repository report]
         # Each checkout has its final VCS after loading.
         (def selected-vcs (get repository :vcs checkout/default-vcs))
         (def executable (get executables selected-vcs))
-        (if (or executable (checkout/checked-out? (repository :path)))
+        # Only a clone needs the VCS, so a repository that will not be
+        # cloned is reported as what it is rather than as a missing VCS.
+        (if (or executable
+                (not= "missing" (checkout/checkout-status repository)))
           (clone-repository executable env report
                             (repository :path)
                             (repository :ssh_url)

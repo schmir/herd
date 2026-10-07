@@ -3,40 +3,33 @@
 Behaviour `herd` gets wrong today, and knows it does. Each one is written so
 it can be reproduced as it stands, and says what to do in the meantime.
 
-## A directory holding anything at all passes for a checkout
+## A half-written clone passes for a checkout
 
-`herd clone` decides a repository is already checked out by looking for a
-directory that is not empty, and never asks what is in it. A single stray
-file is enough:
+`herd` takes a directory holding `.git` or `.jj` to be a checkout, and never
+asks whether the repository in it is complete. A clone writes that marker
+first, so a clone the VCS was killed in the middle of, without the chance to
+clean up after itself, leaves a directory that looks checked out:
 
 ```sh
-$ mkdir -p ~/src/acme/api && touch ~/src/acme/api/.DS_Store
+$ herd clone        # the machine loses power while src/acme/api is cloning
 $ herd clone
-0 cloned, 1 already checked out, 0 failed
+0 cloned, 1 already checked out, 0 blocked, 0 failed
 ```
 
-The repository is never cloned, and `clone` goes on reporting that it has
-nothing to do for as long as the directory stays that way. The other
-commands do not agree with it, or with each other: `herd run` runs the
-command there, in a directory holding no working copy at all, while
-`herd fetch` counts it a failure for having no `.git` or `.jj` to fetch
-into.
+The repository is never cloned again, `herd list --status` reports it as
+`ok`, and `herd run` and `herd fetch` work in it as if it were whole, where
+the VCS will fail or find nothing.
 
-An interrupted clone arrives at the same state by an ordinary route.
 `herd clone` stopped from the terminal lets what is in flight finish rather
-than killing it, but a clone the VCS itself left half written is a directory
-with something in it like any other, and the next `herd clone` will pass
-over it.
+than killing it, and Git and Jujutsu remove a clone that fails, so this
+takes a crash or a `kill -9`.
 
-Until this is fixed, a repository that `herd clone` insists is already
-checked out, and that `herd fetch` fails, is one to look at and remove by
-hand before cloning again. `herd list` names every configured repository
-whether or not it is checked out, so it is the list to check against.
+Until this is fixed, a repository that `herd fetch` fails in right after a
+clone is one to look at and remove by hand before cloning again.
 
-The fix is for the test to be the one `repository-vcs` already applies
-elsewhere: a checkout is a directory holding `.git` or `.jj`, and a
-directory holding neither is occupied rather than checked out, which is a
-third answer none of the commands can give yet.
+The fix is for the clone to write somewhere beside the target and move the
+result into place once the VCS succeeds, so the target only ever holds a
+finished clone.
 
 ## An anchor beginning with `~` is taken literally
 

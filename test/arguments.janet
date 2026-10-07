@@ -123,7 +123,7 @@
                   "\n " body "}")))
   (sh/create-dirs-to configuration)
   (sh/create-dirs repository)
-  (spit (path/join repository "present") "")
+  (sh/create-dirs (path/join repository ".git"))
   (spit configuration `[{"path": "repo", "ssh_url": "unused"}]`)
   (write-command-config)
   (os/setenv "HOME" root)

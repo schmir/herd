@@ -32,7 +32,7 @@ A row's :filter applies to its own list.
   $ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd clone -j 1
   Clone complete: $ROOT/home/src/api
-  1 cloned, 0 already checked out, 0 failed
+  1 cloned, 0 already checked out, 0 blocked, 0 failed
 
 A filter has to select an array; an expression that is not a filter
 answers null, which is refused rather than read as selecting nothing.

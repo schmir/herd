@@ -27,12 +27,6 @@
                      "; expected \"git\" or \"jj\""))))
   options)
 
-(defn checked-out?
-  "Check whether path already holds a checkout."
-  [path]
-  (and (= :directory (os/stat path :mode))
-       (not (empty? (os/dir path)))))
-
 (defn repository-vcs
   "Return the VCS identified by repository metadata, or nil."
   [repository]
@@ -40,3 +34,25 @@
   (cond
     (os/lstat (path/join root ".jj") :mode) :jj
     (os/lstat (path/join root ".git") :mode) :git))
+
+(defn- vacant?
+  "Whether nothing, or an empty directory, is at `path`."
+  [path]
+  (cond
+    # lstat, since stat reads a dangling link as nothing at all, though the
+    # link itself is in the way.
+    (nil? (os/lstat path :mode)) true
+    # stat, so a link to an empty directory is one clone can fill.
+    (= :directory (os/stat path :mode)) (empty? (os/dir path))
+    false))
+
+(defn checkout-status
+  ``Say what is on disk at a repository's path: "ok" for a git or jj
+  repository, "missing" for nothing or an empty directory, which is what
+  clone fills, and "blocked" for anything else, which clone cannot check out
+  over and the other commands must not mistake for a checkout.``
+  [repository]
+  (cond
+    (repository-vcs repository) "ok"
+    (vacant? (repository :path)) "missing"
+    "blocked"))

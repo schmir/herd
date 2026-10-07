@@ -86,3 +86,17 @@ A Git checkout has no command in jj-only, so it is skipped.
 
   $ herd jj-only
   0 succeeded, 0 failed, 2 skipped, 0 not checked out
+
+A directory holding something that is not a repository is not a checkout,
+so nothing runs or fetches there.
+
+  $ cat >"$CONFIG/more.json" <<'JSON'
+  > [{"path": "src/docs", "ssh_url": "unused", "vcs": "git"}]
+  > JSON
+  $ mkdir -p src/docs && touch src/docs/notes
+  $ herd run -C src/docs touch ran
+  0 succeeded, 0 failed, 0 skipped, 1 not checked out
+  $ ls src/docs
+  notes
+  $ herd fetch -C src/docs
+  0 succeeded, 0 failed, 0 skipped, 1 not checked out

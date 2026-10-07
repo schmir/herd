@@ -1,5 +1,6 @@
 (import spork/argparse)
 (import spork/path)
+(import ./checkout)
 (import ./clone)
 (import ./config)
 (import ./discover)
@@ -293,12 +294,14 @@
   (def counts (clone/clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
+         (counts :blocked) " blocked, "
          (counts :failed) " failed")
   # An interrupted run reached only part of the list, so it cannot report
   # success however well the part it reached went.
   (when (parallel/interrupted?)
     (os/exit parallel/interrupt-exit-code))
-  (when (pos? (counts :failed))
+  # A blocked repository was asked for and is still not checked out.
+  (when (pos? (+ (counts :failed) (counts :blocked)))
     (os/exit 1)))
 
 (def- discovery-options
@@ -331,15 +334,16 @@
     (if (empty? names)
       configured
       ((read-configuration settings []) :repositories)))
+  (def root (survey/scan-root (parsed "at")))
+  # Selection accepts a path that is not a directory, such as a repository
+  # not cloned yet, and there is nothing beneath it to scan.
   (def discovered
-    (try
-      (discover/find-repositories (survey/scan-root (parsed "at"))
+    (if (= :directory (os/stat root :mode))
+      (discover/find-repositories root
                                   :max-depth max-depth
                                   :hidden (parsed "hidden")
                                   :follow-links (parsed "follow-links"))
-      ([err]
-        (eprint "Cannot scan " (parsed "at") ": " err)
-        (os/exit 1))))
+      @[]))
   (survey/extra-repositories discovered everything))
 
 (defn list-command
@@ -401,7 +405,7 @@
   (each entry selected
     (def state (if (and want-ok want-missing (not status))
                  "ok"
-                 (survey/checkout-status entry)))
+                 (checkout/checkout-status entry)))
     (when (if (= "ok" state) want-ok want-missing)
       (emit state (entry :path) (entry :ssh_url))))
   (when scan

@@ -1,10 +1,9 @@
 How run reports what a command printed. The repositories are plain
-directories, since run needs nothing more than one that is not empty.
+directories, since run needs nothing more than one holding a .git.
 
   $ . "$TESTDIR/setup.sh"
   $ cd "$HOME"
-  $ mkdir -p first second
-  $ touch first/present second/present
+  $ mkdir -p first/.git second/.git
   $ echo '[{"path": "first", "ssh_url": "u"}, {"path": "second", "ssh_url": "u"}]' \
   >   >"$CONFIG/repos.json"
 
@@ -75,11 +74,9 @@ The command's own options need no separator.
   $ ls first second
   first:
   -command-argument
-  present
   
   second:
   -command-argument
-  present
 
 A repository that is not there is counted, and does not stop the others.
 

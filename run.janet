@@ -75,7 +75,9 @@
   [command env repository report &opt show-output]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
-    (if (checkout/checked-out? (repository :path))
+    # A blocked path holds no working copy to run in, so it counts as not
+    # checked out rather than as a place to run the command.
+    (if (= "ok" (checkout/checkout-status repository))
       (if-let [selected (command-for-repository command repository)]
         (let [result (process/capture-process
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`

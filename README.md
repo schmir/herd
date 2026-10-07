@@ -340,12 +340,15 @@ plain Git ones, following the checkout options in force for each:
 herd clone
 ```
 
-An existing non-empty target directory is treated as already checked out and
-is left unchanged. `clone` finishes with a summary and exits non-zero if any
-clone failed:
+A target holding a Git or Jujutsu repository is already checked out, and an
+empty directory is cloned into. Anything else at the target blocks the
+clone: `clone` names it and leaves it unchanged, since it cannot tell what
+is there. `herd list --status` reports such a path as `blocked`. `clone`
+finishes with a summary and exits non-zero if any clone failed or was
+blocked:
 
 ```
-2 cloned, 1 already checked out, 0 failed
+2 cloned, 1 already checked out, 0 blocked, 0 failed
 ```
 
 Fetch the Git remotes of every checked-out repository:
@@ -387,7 +390,8 @@ if any command failed:
 ```
 
 Repositories that are not checked out are skipped rather than counted as
-failures, so `herd run` is safe to use before everything has been cloned.
+failures, so `herd run` is safe to use before everything has been cloned. A
+blocked path holds no repository, so it counts as not checked out too.
 
 `clone`, `fetch`, `run`, and custom commands take `-j N` (or `--jobs N`) to
 override how many repositories are worked on at the same time:

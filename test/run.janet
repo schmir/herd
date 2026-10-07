@@ -35,8 +35,8 @@
       previous (os/cwd)]
   (sh/create-dirs first)
   (sh/create-dirs second)
-  (spit (string first "/present") "")
-  (spit (string second "/present") "")
+  (sh/create-dirs (string first "/.git"))
+  (sh/create-dirs (string second "/.git"))
   (def counts (run/run-in-repositories ["touch" "command ran"]
                                        [(repository first)
                                         (repository second)]))
@@ -105,8 +105,8 @@
       last (string dir "/last")]
   (sh/create-dirs first)
   (sh/create-dirs last)
-  (spit (string first "/present") "")
-  (spit (string last "/present") "")
+  (sh/create-dirs (string first "/.git"))
+  (sh/create-dirs (string last "/.git"))
   (def counts (run/run-in-repositories ["touch" "ran"]
                                        [(repository first)
                                         (repository missing)
@@ -121,12 +121,23 @@
   (sh/rm dir))
 
 (let [dir (fixture)
+      blocked (string dir "/blocked")]
+  (sh/create-dirs blocked)
+  (spit (string blocked "/notes") "")
+  (def counts (run/run-in-repositories ["touch" "ran"] [(repository blocked)]))
+  (assert (= 1 (counts :not-checked-out))
+          "a directory holding no repository is not checked out")
+  (assert (nil? (os/stat (string blocked "/ran")))
+          "the command does not run where no repository is")
+  (sh/rm dir))
+
+(let [dir (fixture)
       first (string dir "/first")
       second (string dir "/second")]
   (sh/create-dirs first)
   (sh/create-dirs second)
-  (spit (string first "/present") "")
-  (spit (string second "/present") "")
+  (sh/create-dirs (string first "/.git"))
+  (sh/create-dirs (string second "/.git"))
   (def counts
     (run/run-in-repositories
       ["sh" "-c" "touch ran-before-failure; exit 7"]
@@ -141,7 +152,7 @@
 (let [dir (fixture)
       repo (repository dir)
       messages @[]]
-  (spit (string dir "/present") "")
+  (sh/create-dirs (string dir "/.git"))
   (with [devnull (file/open "/dev/null" :r)]
     (def env {:in devnull :out :pipe :err :pipe})
     (assert (= :succeeded
@@ -210,8 +221,8 @@
   (sh/create-dirs first)
   (sh/create-dirs second)
   (sh/create-dirs-to config)
-  (spit (string first "/present") "")
-  (spit (string second "/present") "")
+  (sh/create-dirs (string first "/.git"))
+  (sh/create-dirs (string second "/.git"))
   (os/setenv "HOME" root)
   (os/setenv "XDG_CONFIG_HOME" nil)
   (spit config

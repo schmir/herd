@@ -111,8 +111,9 @@ The scan options mean nothing without a scan.
   usage error: --max-depth applies only when extra repositories are listed, by --extra or a plain --status
   [1]
 
-A path that is not a directory cannot be scanned.
+A path that is not a directory has nothing beneath it to scan, so only
+the configured side is reported there.
 
   $ herd list --extra -C nowhere
-  Cannot scan nowhere: $ROOT/home/nowhere is not a directory
-  [1]
+  $ herd list --status -a -C src/web
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
