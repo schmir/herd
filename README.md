@@ -303,6 +303,36 @@ the output is a stable input for scripts:
 /home/you/src/acme/web	git@github.com:acme/web.git
 ```
 
+Compare the configuration with what is on disk by adding `--status`, which
+prints what differs, the status of each repository first:
+
+```sh
+herd list --status
+```
+
+```
+missing	/home/you/src/acme/web	git@github.com:acme/web.git
+blocked	/home/you/src/acme/docs	git@github.com:acme/docs.git
+extra	/home/you/src/scratch	git@github.com:you/scratch.git
+```
+
+`missing` means nothing, or an empty directory, is at the configured path,
+and `blocked` means something else stands there, which `clone` leaves alone.
+`extra` lists the Git and Jujutsu repositories found by scanning the
+location that no configuration file defines, whatever their anchor; their
+URL is the `origin` remote, empty when there is none. A repository a `-f`
+filter leaves out is still configured, but one a checkout row's own
+`:filter` leaves out is reported as `extra`, since it is not meant to be
+there.
+
+`--ok`, `--missing` and `--extra` pick what to print instead: the configured
+repositories that are on disk, the ones that are not, and the `extra` ones.
+`herd list --status --ok --missing --extra` prints them all. Without
+`--status` they print the usual path and URL. The scan starts at the
+repository holding the location, or the location itself; it does not enter
+repositories or hidden directories, and does not follow symbolic links.
+`--max-depth N`, `--hidden` and `--follow-links` change that.
+
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
 plain Git ones, following the checkout options in force for each:
 
@@ -450,13 +480,15 @@ until the lockfile records everything `project.janet` declares.
 The sources are layered, each file importing only the ones beneath it.
 `process.janet` runs a subprocess and collects what it printed,
 `checkout.janet` says what a checkout is and `entries.janet` reads the
-entries of a repository list, `filter.janet` narrows one, `config.janet`
-turns the configuration directory into repositories, `select.janet` picks
-the ones a command acts on, and `clone.janet` and `run.janet` do the work in
-parallel through `parallel.janet`. `main.janet` is the command line over the
-top of them, and the only file that ends the process. `access.c` is the one
-piece of C: Janet binds no `access(2)`, and the permission bits alone cannot
-say whether this process may run a file.
+entries of a repository list, `discover.janet` finds the repositories under
+a directory, `filter.janet` narrows one, `config.janet` turns the
+configuration directory into repositories, `select.janet` picks the ones a
+command acts on, `survey.janet` compares them with what is on disk, and
+`clone.janet` and `run.janet` do the work in parallel through
+`parallel.janet`. `main.janet` is the command line over the top of them, and
+the only file that ends the process. `access.c` is the one piece of C: Janet
+binds no `access(2)`, and the permission bits alone cannot say whether this
+process may run a file.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build

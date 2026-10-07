@@ -8,7 +8,7 @@
   (def trimmed (string/trimr path "/"))
   (if (empty? trimmed) "/" trimmed))
 
-(defn- comparable-path
+(defn comparable-path
   ``Absolute `path` with the symlinks resolved in as much of it as exists.
   Selection weighs configured paths against a working directory, which the
   system already gave us resolved, so both sides have to name the same

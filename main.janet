@@ -2,9 +2,11 @@
 (import spork/path)
 (import ./clone)
 (import ./config)
+(import ./discover)
 (import ./parallel)
 (import ./run)
 (import ./select)
+(import ./survey)
 
 (defmacro- baked-version
   ``The version named by HERD_VERSION, read while this file is compiled.
@@ -126,13 +128,12 @@
                                      ", "))))
       (os/exit 1))))
 
-(defn- configured-repositories
-  ``Load the configured repositories and select the ones at a path. The
+(defn- read-configuration
+  ``Load the configured repositories, exiting on a configuration error. The
   filters named in `names` narrow every configuration file further, on top of
-  whatever its checkout rows already filter.``
-  [at all-anchors &opt settings names]
-  (default settings config/default-repository-settings)
-  (default names [])
+  whatever its checkout rows already filter. Return the repositories with the
+  directory and the configuration files they were read from.``
+  [settings names]
   (require-known-filters names settings)
   (def directory (config/config-directory))
   (when (nil? directory)
@@ -146,24 +147,25 @@
         (eprint "Configuration error: " err)
         (os/exit 1))))
   # Validate checkout sources even when no repository lists exist.
-  (def config
+  (def repositories
     (try
       (config/load-config config-paths directory settings names)
       ([err]
         (eprint "Configuration error: " err)
         (os/exit 1))))
-  # Nothing configured yet is a normal state, not a failure: exiting non-zero
-  # would make `just run` print a traceback over an unremarkable message.
-  (when (empty? config-paths)
-    (eprint "No configuration files in " directory)
-    (os/exit 0))
+  {:directory directory :paths config-paths :repositories repositories})
+
+(defn- select-configured
+  ``Select the repositories in `config` at a path. Unless `quiet` is set,
+  say why the result is empty.``
+  [at all-anchors config settings names &opt quiet]
   (def anchors (unless all-anchors (select/containing-anchors at config)))
   (def selected
     (select/select-repositories-with-anchors at config all-anchors anchors))
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
-  (when (empty? selected)
+  (when (and (empty? selected) (not quiet))
     (cond
       # Filtering can empty the configuration itself, before the location is
       # ever weighed, so say that rather than blaming the location.
@@ -188,6 +190,21 @@
               "containing " at " are beneath it or hold it; use "
               "-a/--all-anchors to consider every anchor")))
   selected)
+
+(defn- configured-repositories
+  ``Load the configured repositories and select the ones at a path. The
+  filters named in `names` narrow every configuration file further, on top of
+  whatever its checkout rows already filter.``
+  [at all-anchors &opt settings names]
+  (default settings config/default-repository-settings)
+  (default names [])
+  (def loaded (read-configuration settings names))
+  # Nothing configured yet is a normal state, not a failure: exiting non-zero
+  # would make `just run` print a traceback over an unremarkable message.
+  (when (empty? (loaded :paths))
+    (eprint "No configuration files in " (loaded :directory))
+    (os/exit 0))
+  (select-configured at all-anchors (loaded :repositories) settings names))
 
 (defn- at-option
   "The --at specification, shared by every selecting command."
@@ -262,15 +279,6 @@
       (eprint "Invalid --jobs: " err)
       (os/exit 1))))
 
-(defn- selected-repositories
-  "Parse the selection arguments and load the repositories they select."
-  [args description settings]
-  (def parsed (parse-selection args description))
-  (configured-repositories (parsed "at")
-                           (parsed "all-anchors")
-                           settings
-                           (or (parsed "filter") [])))
-
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt settings jobs]
@@ -293,14 +301,113 @@
   (when (pos? (counts :failed))
     (os/exit 1)))
 
+(def- discovery-options
+  "The list options that shape the scan of the disk, by name."
+  ["max-depth" "hidden" "follow-links"])
+
+(defn- scan-max-depth
+  ``Return the depth --max-depth names, nil when it is not given, or raise a
+  descriptive error.``
+  [depth]
+  (unless (nil? depth)
+    (def parsed (scan-number depth))
+    (unless (and (int? parsed) (>= parsed 0))
+      (error "expected a non-negative integer"))
+    parsed))
+
+(defn- extra-on-disk
+  ``Scan the disk from `at` and return the repositories no configuration file
+  defines, whatever their anchor or the filters named on the command line.
+  A checkout row's own filter does count: a repository it leaves out is not
+  meant to be there.``
+  [parsed settings names configured]
+  (def max-depth
+    (try
+      (scan-max-depth (parsed "max-depth"))
+      ([err]
+        (eprint "Invalid --max-depth: " err)
+        (os/exit 1))))
+  (def everything
+    (if (empty? names)
+      configured
+      ((read-configuration settings []) :repositories)))
+  (def discovered
+    (try
+      (discover/find-repositories (survey/scan-root (parsed "at"))
+                                  :max-depth max-depth
+                                  :hidden (parsed "hidden")
+                                  :follow-links (parsed "follow-links"))
+      ([err]
+        (eprint "Cannot scan " (parsed "at") ": " err)
+        (os/exit 1))))
+  (survey/extra-repositories discovered everything))
+
 (defn list-command
   ``Run `herd list`: print the selected repositories, one tab-separated path
-  and URL per line, in the order the commands act on them.``
+  and URL per line, in the order the commands act on them. --ok, --missing
+  and --extra pick what to print by comparing them with what is on disk,
+  and print the extra ones after the configured ones. Without them, plain
+  list prints every configured repository, and --status what differs.``
   [args &opt settings]
-  (each entry (selected-repositories args
-                                     "Print the configured repositories beneath a path."
-                                     settings)
-    (print (entry :path) "\t" (entry :ssh_url))))
+  (default settings config/default-repository-settings)
+  (def parsed
+    (parse-selection args "Print the configured repositories beneath a path."
+                     "ok" {:kind :flag
+                           :help "Print configured repositories that are on disk."}
+                     "missing" {:kind :flag
+                                :help "Print configured repositories that are not on disk."}
+                     "extra" {:kind :flag
+                              :help "Print repositories on disk that no configuration defines."}
+                     "status" {:kind :flag
+                               :help (string "Print the status of each repository first: "
+                                             "ok, missing, blocked, or extra. "
+                                             "Without --ok, --missing or --extra, "
+                                             "print only what differs.")}
+                     "max-depth" {:kind :option
+                                  :value-name "N"
+                                  :help "Scan at most N directories below the path for extra repositories."}
+                     "hidden" {:kind :flag
+                               :help "Scan hidden directories for extra repositories."}
+                     "follow-links" {:kind :flag
+                                     :help "Follow symbolic links when scanning for extra repositories."}))
+  (def names (or (parsed "filter") []))
+  (def status (parsed "status"))
+  (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
+  # The ok repositories are what --status leaves out unless asked: it is
+  # there to show what differs.
+  (def want-ok (if picked (parsed "ok") (not status)))
+  (def want-missing (if picked (parsed "missing") true))
+  (def scan (if picked (parsed "extra") status))
+  (unless scan
+    (when-let [name (find |(parsed $) discovery-options)]
+      (eprint "usage error: --" name " applies only when extra "
+              "repositories are listed, by --extra or a plain --status")
+      (os/exit 1)))
+  (def show-configured (or want-ok want-missing))
+  (def loaded (read-configuration settings names))
+  (when (and (empty? (loaded :paths)) (not scan))
+    (eprint "No configuration files in " (loaded :directory))
+    (os/exit 0))
+  (def configured (loaded :repositories))
+  (def selected
+    (if show-configured
+      # Explaining an empty selection would mislead when the disk is
+      # scanned as well, since that can still turn up repositories.
+      (select-configured (parsed "at") (parsed "all-anchors") configured
+                         settings names scan)
+      @[]))
+  (defn emit [state & fields]
+    (print ;(if status [state "\t"] []) (string/join fields "\t")))
+  (each entry selected
+    (def state (if (and want-ok want-missing (not status))
+                 "ok"
+                 (survey/checkout-status entry)))
+    (when (if (= "ok" state) want-ok want-missing)
+      (emit state (entry :path) (entry :ssh_url))))
+  (when scan
+    (each repository (extra-on-disk parsed settings names configured)
+      (emit "extra" (repository :path)
+            (or (survey/remote-url repository) "")))))
 
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."

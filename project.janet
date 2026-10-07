@@ -18,9 +18,11 @@
          "checkout.janet"
          "clone.janet"
          "config.janet"
+         "discover.janet"
          "entries.janet"
          "filter.janet"
          "parallel.janet"
          "process.janet"
          "run.janet"
-         "select.janet"])
+         "select.janet"
+         "survey.janet"])
