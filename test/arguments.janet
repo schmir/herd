@@ -2,6 +2,8 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
+(import ../clone)
+(import ../discover)
 (import ../main :as herd)
 
 (start-suite "arguments")
@@ -249,9 +251,13 @@
   (def jj-repository (path/join anchor "jj-repo"))
   (sh/create-dirs bin)
   (spit fake-git
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../git-clone-arguments\"\n")
+        (string "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../git-clone-arguments\"\n"
+                # A clone writes the repository it was given the path of.
+                "for dest; do :; done; mkdir -p \"$dest/.git\"\n"))
   (spit fake-jj
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../jj-clone-arguments\"\n")
+        (string "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"${0%/*}/../jj-clone-arguments\"\n"
+                # A clone writes the repository it was given the path of.
+                "for dest; do :; done; mkdir -p \"$dest/.git\"\n"))
   (sh/exec-fail "chmod" "+x" fake-git)
   (sh/exec-fail "chmod" "+x" fake-jj)
   (write-command-config `:defaults {:vcs "git"}`)
@@ -266,16 +272,21 @@
             (string "clone supports mixed Git and jj repositories: "
                     (clone-result :output)))
     (def received-git-arguments (string (slurp git-clone-arguments)))
-    (assert (= (string "clone\n--\ngit-url\n" git-repository "\n")
+    (assert (= (string "clone\n--\ngit-url\n" (clone/staging-path git-repository)
+                       "\n")
                received-git-arguments)
-            (string "the default Git clone receives the URL and path: "
+            (string "the default Git clone receives the URL and a staging path: "
                     (string/format "%j" received-git-arguments)))
     (def received-jj-arguments (string (slurp jj-clone-arguments)))
     (assert (= (string "git\nclone\n--colocate\n--\njj-url\n"
-                       jj-repository "\n")
+                       (clone/staging-path jj-repository) "\n")
                received-jj-arguments)
-            (string "the repository jj override receives the URL and path: "
-                    (string/format "%j" received-jj-arguments))))
+            (string "the repository jj override receives the URL and a staging "
+                    "path: "
+                    (string/format "%j" received-jj-arguments)))
+    (assert (and (discover/repository? git-repository)
+                 (discover/repository? jj-repository))
+            "each clone is moved from its staging path into place"))
   (spit command-config `{:checkouts [{:from "renamed.json" :anchor "work"}]}`)
   (def renamed (invoke ["list" "--at" anchor]))
   (assert (not= 0 (renamed :status))

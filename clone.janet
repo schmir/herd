@@ -1,5 +1,7 @@
 # Checking out the repositories that are not checked out yet.
 
+(import spork/path)
+(import spork/sh)
 (import ./parallel)
 (import ./process)
 (import ./checkout)
@@ -11,6 +13,40 @@
     "git" [executable "clone" "--" url path]
     "jj" [executable "git" "clone" "--colocate" "--" url path]
     (error (string "unsupported VCS " vcs))))
+
+(defn staging-path
+  ``Return where a clone of `target` is written before it is moved into
+  place: a hidden sibling, so the move stays on one file system.``
+  [target]
+  (path/join (path/dirname target)
+             (string "." (path/basename target) ".herd-clone")))
+
+(defn- clone-into-place
+  ``Run the clone command `command-for` returns for a staging path beside
+  path, and move the result to path once the VCS succeeds, so path only ever
+  holds a finished clone. Return what capture-process did, with a failed
+  move as a nonzero status.``
+  [command-for env path]
+  # A link to an empty directory is filled through: the clone replaces the
+  # directory it leads to, and the link is kept.
+  (def target (if (= :link (os/lstat path :mode)) (os/realpath path) path))
+  (def staging (staging-path target))
+  # What a crashed clone left behind, which the VCS would refuse to clone
+  # into.
+  (sh/rm staging)
+  (def result (process/capture-process (command-for staging) : env))
+  (if (zero? (result :status))
+    (try
+      (do
+        # rename replaces an empty directory at target.
+        (os/rename staging target)
+        result)
+      ([err]
+        (sh/rm staging)
+        (merge result {:status 1 :err (string err)})))
+    (do
+      (sh/rm staging)
+      result)))
 
 (defn clone-repository
   ``Clone a repository with vcs unless it is already checked out, or
@@ -26,9 +62,11 @@
       :blocked)
     (try
       (do
-        (def command (clone-process-command (or vcs checkout/default-vcs)
-                                            executable url path))
-        (def result (process/capture-process command : env))
+        (def result
+          (clone-into-place
+            |(clone-process-command (or vcs checkout/default-vcs)
+                                    executable url $)
+            env path))
         (if (zero? (result :status))
           (do
             (report "Clone complete: " path)

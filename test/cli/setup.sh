@@ -53,11 +53,14 @@ origin() {
 }
 
 # Put a stand-in for the program $1 ahead of PATH that records its arguments,
-# one per line, in $ROOT/$1.args and succeeds without doing anything else.
+# one per line, in $ROOT/$1.args, and makes its last argument a Git
+# repository, as a clone would, and succeeds.
 fake() {
     cat >"$ROOT/bin/$1" <<EOF
 #!/bin/sh
 printf '%s\n' "\$@" >"$ROOT/$1.args"
+for dest; do :; done
+mkdir -p "\$dest/.git"
 EOF
     chmod +x "$ROOT/bin/$1"
 }

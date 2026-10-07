@@ -42,7 +42,8 @@ run there.
   $ ls */selected-git
   git/selected-git
 
-clone runs git or jj with the URL and the path, in the forms each expects.
+clone runs git or jj with the URL and a path beside the checkout, in the
+forms each expects, and moves the clone into place once it succeeds.
 
   $ fake git
   $ fake jj
@@ -57,14 +58,18 @@ clone runs git or jj with the URL and the path, in the forms each expects.
   clone
   --
   git-url
-  $ROOT/home/git-repo
+  $ROOT/home/.git-repo.herd-clone
   $ sed "s|$ROOT|\$ROOT|" "$ROOT/jj.args"
   git
   clone
   --colocate
   --
   jj-url
-  $ROOT/home/jj-repo
+  $ROOT/home/.jj-repo.herd-clone
+  $ ls -A
+  .config
+  git-repo
+  jj-repo
 
 The VCS is settled by the entry, then the :checkouts row, then :defaults,
 and a checkout none of them settles uses jj.
