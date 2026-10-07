@@ -74,8 +74,8 @@ default for --show-output.
   >              :description "Needs jj."}}}
   > EOF
   $ herd --help | grep -E '^  (branch|jj-only) '
-    branch    Print the branch.
-    jj-only   Needs jj.
+    branch      Print the branch.
+    jj-only     Needs jj.
   $ herd branch -C src/web
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
   | stdout

@@ -286,6 +286,34 @@ repository whose VCS has no command is skipped. Commands run through
 output condition; see [Use](#use). Custom names cannot shadow the built-in
 commands.
 
+## Shell completions
+
+`herd completions bash`, `zsh` or `fish` prints a completion script. The
+scripts ask `herd` for its commands each time, so the ones defined in
+`:commands` are completed too.
+
+Either load the script when the shell starts, which runs `herd` once per
+shell, or write it to a file once.
+
+```sh
+# bash: in ~/.bashrc
+source <(herd completions bash)
+
+# zsh: in ~/.zshrc, after compinit
+source <(herd completions zsh)
+
+# fish: in ~/.config/fish/config.fish
+herd completions fish | source
+```
+
+To use a file instead, write it where the shell looks for completions:
+
+```sh
+herd completions bash > ~/.local/share/bash-completion/completions/herd
+herd completions zsh > ~/.zfunc/_herd    # with ~/.zfunc in $fpath
+herd completions fish > ~/.config/fish/completions/herd.fish
+```
+
 ## Use
 
 List the selected repositories, one per line, as a path and URL separated by

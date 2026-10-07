@@ -135,14 +135,6 @@ Whether the live block is drawn is decided solely by
 `TERM=dumb` gets the escape sequences like anything else, and `NO_COLOR` —
 which the justfile honours — means nothing here.
 
-### No shell completions
-
-`herd completions zsh` and friends do not exist. This matters more than for
-most tools, because the subcommands are not fixed: `:commands` in
-`config.jdn` invents them, so a static completion file written by hand would
-be wrong for every user. Generating them from the same table `herd --help`
-prints is the natural shape.
-
 ### Cloning cannot be tuned
 
 `clone-process-command` builds one fixed argument vector per VCS. There is

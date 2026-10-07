@@ -2,6 +2,7 @@
 (import spork/path)
 (import ./checkout)
 (import ./clone)
+(import ./completions)
 (import ./config)
 (import ./discover)
 (import ./parallel)
@@ -467,10 +468,34 @@
     (os/exit 1))
   (run-configured-command command parsed settings))
 
+# Returns the commands in effect; set once available-commands exists.
+(var- command-source nil)
+
+(defn completions-command
+  ``Run `herd completions`: print the script for a shell, or, for the scripts
+  to call back, the commands in effect including any configured ones.``
+  [args]
+  (def parsed
+    (parse-args args
+                "Print a shell completion script for herd."
+                :default {:kind :accumulate
+                          :short-circuit true
+                          :help (string "Shell to write for: "
+                                        (string/join completions/shells ", ") ".")}))
+  (def rest (or (parsed :rest) @[]))
+  (cond
+    (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (command-source)))
+    (and (= 1 (length rest)) (completions/script (first rest)))
+    (prin (completions/script (first rest)))
+    (do (eprint "herd completions needs one of: "
+                (string/join completions/shells ", "))
+      (os/exit 1))))
+
 (def built-in-command-help
   "One-line summaries for the built-in subcommands, by name."
   {"clone" "Check out the configured repositories beneath a path."
    "fetch" "Fetch Git remotes in configured repositories beneath a path."
+   "completions" "Print a shell completion script for herd."
    "list" "Print the configured repositories beneath a path."
    "run" "Run a command in each configured repository beneath a path."})
 
@@ -491,6 +516,8 @@
                    jobs
                    settings)
             :help (built-in-command-help "fetch")}
+   "completions" {:run completions-command
+                  :help (built-in-command-help "completions")}
    "list" {:run (fn [args] (list-command args settings))
            :help (built-in-command-help "list")}
    "run" {:run (fn [args] (run-command args jobs settings))
@@ -613,6 +640,8 @@
     (commands-for-config (load-command-config config-path))
     (built-in-commands)))
 
+(set command-source available-commands)
+
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
   options only, never positionals, so the command list has to be carried in
@@ -620,7 +649,7 @@
   [commands]
   (string/join
     (seq [name :in (sort (keys commands))]
-      (string/format "  %-10s%s" name (get-in commands [name :help])))
+      (string/format "  %-12s%s" name (get-in commands [name :help])))
     "\n"))
 
 (defn main

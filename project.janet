@@ -17,6 +17,7 @@
          "build/access.meta.janet"
          "checkout.janet"
          "clone.janet"
+         "completions.janet"
          "config.janet"
          "discover.janet"
          "entries.janet"

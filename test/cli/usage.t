@@ -16,10 +16,11 @@ not stop it.
   usage: herd \[option\] \.\.\. ? (re)
   $ herd --help | sed -n '/Commands:/,/^ *$/p'
    Commands:
-    clone     Check out the configured repositories beneath a path.
-    fetch     Fetch Git remotes in configured repositories beneath a path.
-    list      Print the configured repositories beneath a path.
-    run       Run a command in each configured repository beneath a path.
+    clone       Check out the configured repositories beneath a path.
+    completions Print a shell completion script for herd.
+    fetch       Fetch Git remotes in configured repositories beneath a path.
+    list        Print the configured repositories beneath a path.
+    run         Run a command in each configured repository beneath a path.
   \s* (re)
 
 Naming no command shows the same help, but fails.
@@ -163,7 +164,7 @@ documented default, whatever the command line asks for.
   >                     :show-output "always"}}}
   > EOF
   $ herd --help | grep '^  mark'
-    mark      Create a marker in each repository.
+    mark        Create a marker in each repository.
   $ herd mark --help | grep -E -e '-j, |--show-output' | sed 's/  */ /g'
    -j, --jobs N=2 Run at most N repository operations at the same time.
    --show-output WHEN=always Show command output: never, on-failure, or always.
