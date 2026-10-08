@@ -97,6 +97,16 @@
     (os/exit 0))
   parsed)
 
+(defn- filter-names
+  "The filter names `parsed` was given on the command line, in order."
+  [parsed]
+  (or (parsed "filter") []))
+
+(defn- rest-arguments
+  "The positional arguments `parsed` collected, starting at the command."
+  [parsed]
+  (or (parsed :rest) @[]))
+
 (defn- filters-in-play?
   ``Whether any filter narrows this run, named on the command line or by a
   checkout row. An empty result is worth explaining only when something could
@@ -284,7 +294,7 @@
   "Load the repositories `parsed` selects: its --at, --all-anchors and --filter."
   [parsed settings]
   (configured-repositories (parsed "at") (parsed "all-anchors") settings
-                           (or (parsed "filter") [])))
+                           (filter-names parsed)))
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when the run was interrupted, and with 1
@@ -383,7 +393,7 @@
                                :help "Scan hidden directories for extra repositories."}
                      "follow-links" {:kind :flag
                                      :help "Follow symbolic links when scanning for extra repositories."}))
-  (def names (or (parsed "filter") []))
+  (def names (filter-names parsed))
   (def status (parsed "status"))
   (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
   # The ok repositories are what --status leaves out unless asked: it is
@@ -463,7 +473,7 @@
                      :default {:kind :accumulate
                                :short-circuit true
                                :help "Command and arguments to run."}))
-  (def command (or (parsed :rest) @[]))
+  (def command (rest-arguments parsed))
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
@@ -481,7 +491,7 @@
                           :short-circuit true
                           :help (string "Shell to write for: "
                                         (string/join completions/shells ", ") ".")}))
-  (def rest (or (parsed :rest) @[]))
+  (def rest (rest-arguments parsed))
   (cond
     (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (commands)))
     (and (= 1 (length rest)) (completions/script (first rest)))
@@ -658,7 +668,7 @@
   (def parsed (parse-args args ;spec))
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
-  (def rest (or (parsed :rest) @[]))
+  (def rest (rest-arguments parsed))
   (if-let [command (get commands (first rest))]
     ((command :run) rest)
     (do
