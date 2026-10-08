@@ -219,7 +219,6 @@
   whatever its checkout rows already filter.``
   [at all-anchors &opt settings names]
   (default settings config/default-repository-settings)
-  (default names [])
   (def loaded (read-configuration settings names))
   (when (empty? (loaded :paths))
     (exit-unconfigured loaded))
