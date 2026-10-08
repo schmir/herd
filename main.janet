@@ -383,7 +383,7 @@
   (def want-missing (if picked (parsed "missing") true))
   (def scan (if picked (parsed "extra") status))
   (unless scan
-    (when-let [name (find |(parsed $) discovery-options)]
+    (when-let [name (find parsed discovery-options)]
       (eprint "usage error: --" name " applies only when extra "
               "repositories are listed, by --extra or a plain --status")
       (os/exit 1)))

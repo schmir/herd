@@ -349,7 +349,7 @@
   ``Reject checkouts whose source file is missing. This prevents a
   renamed list from silently using the defaults.``
   [settings config-paths]
-  (def present (map |(path/basename $) config-paths))
+  (def present (map path/basename config-paths))
   (each name (distinct (map |($ :from) (get settings :checkouts [])))
     (unless (index-of name present)
       (error (string "config.jdn: :checkouts reads " (describe name)
