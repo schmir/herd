@@ -93,11 +93,10 @@
   ``Parse `args` against an argparse specification, exiting on a mistake.
   Asking for help is not a mistake, so it leaves through the successful door.``
   [args & spec]
-  (def parsed (or (argparse/argparse ;spec "help" help-option :args args)
+  (def with-help [;spec "help" help-option])
+  (def parsed (or (argparse/argparse ;with-help :args args)
                   (os/exit 1)))
-  (when-let [name (flag-given-value args
-                                    (struct ;(slice spec 1)
-                                            "help" help-option))]
+  (when-let [name (flag-given-value args (struct ;(slice with-help 1)))]
     (eprint "usage error: --" name " is a flag and takes no value")
     (os/exit 1))
   (when (parsed "help")
