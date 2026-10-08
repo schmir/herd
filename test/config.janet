@@ -78,25 +78,25 @@
                  (entries/validate-config [{:path "a" :ssh_url "b" :vcs "jj"}]))
 (assert-no-error "an empty configuration is valid" (entries/validate-config []))
 
-# --- custom-commands ------------------------------------------------------
+# --- custom commands ------------------------------------------------------
 
 (assert-error "custom command JDN must be a dictionary"
-              (herd/custom-commands []))
+              (herd/prepare-command-config []))
 (assert-error "the custom command collection must be a dictionary"
-              (herd/custom-commands {:commands []}))
+              (herd/prepare-command-config {:commands []}))
 (assert-error "a custom command cannot replace a built-in command"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"run" {:command "true" :description "Conflict."}}}))
 (assert (deep= (sorted herd/built-in-command-names)
                (sorted (keys (herd/built-in-commands (herd/prepare-command-config {})))))
         "the reserved names are exactly the built-in commands")
 (assert-error "a custom command needs a shell command"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check" {:description "Check repositories."}}}))
 (def missing-command-message
   (try
     (do
-      (herd/custom-commands
+      (herd/prepare-command-config
         {:commands {"check" {:description "Check repositories."}}})
       nil)
     ([err] (string err))))
@@ -104,42 +104,42 @@
                      missing-command-message)
         "a missing command lists the valid fields")
 (assert-error "a custom command needs a description"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check" {:command "true"}}}))
 (assert-no-error "a custom command can be jj-only"
-                 (herd/custom-commands
+                 (herd/prepare-command-config
                    {:commands {"check"
                                {:command-jj "jj status"
                                 :description "Check repositories."}}}))
 (assert-no-error "a custom command can be Git-only"
-                 (herd/custom-commands
+                 (herd/prepare-command-config
                    {:commands {"check"
                                {:command-git "git status"
                                 :description "Check repositories."}}}))
 (assert-error "a custom command cannot have an unknown key"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check"
                             {:command-git "git status"
                              :comand-jj "jj status"
                              :description "Check repositories."}}}))
 (each condition ["never" "on-failure" "always"]
   (assert-no-error (string "a custom command accepts show-output " condition)
-                   (herd/custom-commands
+                   (herd/prepare-command-config
                      {:commands {"check" {:command "true"
                                           :description "Check repositories."
                                           :show-output condition}}})))
 (assert-error "a custom command show-output condition must be a string"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check" {:command "true"
                                      :description "Check repositories."
                                      :show-output :always}}}))
 (assert-error "a custom command show-output condition must be known"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check" {:command "true"
                                      :description "Check repositories."
                                      :show-output "sometimes"}}}))
 (assert-error "a command cannot mix common and VCS-specific forms"
-              (herd/custom-commands
+              (herd/prepare-command-config
                 {:commands {"check"
                             {:command "status"
                              :command-git "git status"
@@ -153,22 +153,22 @@
 (assert-error "the job configuration must be a dictionary"
               (herd/configured-jobs []))
 
-(let [commands
-      (herd/custom-commands
+(let [prepared
+      (herd/prepare-command-config
         {:commands {"check" {:command "true"
                              :description "Check repositories."}}})]
-  (assert (= "Check repositories." (get-in commands ["check" :help]))
+  (assert (= "Check repositories." (get-in prepared [:commands "check" :help]))
           "a custom command retains its description")
-  (assert (function? (get-in commands ["check" :run]))
+  (assert (function? (get-in prepared [:commands "check" :run]))
           "a custom command provides a handler"))
 
-(let [commands
-      (herd/custom-commands
+(let [prepared
+      (herd/prepare-command-config
         {:commands
          {"check" {:command-git "git status"
                    :command-jj "jj status"
                    :description "Check repositories."}}})]
-  (assert (function? (get-in commands ["check" :run]))
+  (assert (function? (get-in prepared [:commands "check" :run]))
           "a VCS-specific custom command provides a handler"))
 
 (assert (deep= {:command-git "git status" :command-jj "jj status"}

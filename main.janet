@@ -583,32 +583,24 @@
       (fail (string "has an invalid :show-output; " err))))
   {:command resolved :description description :show-output show-output})
 
-(defn custom-commands
-  "Validate a JDN configuration and return its command handlers."
-  [config &opt jobs settings]
-  (default jobs parallel/default-jobs)
-  (unless (dictionary? config)
-    (error "expected a JDN dictionary with a :commands dictionary"))
-  (def configured (get config :commands {}))
-  (unless (dictionary? configured)
-    (error ":commands must be a dictionary"))
-  (def result @{})
-  (eachp [name definition] configured
-    (def {:command command :description description :show-output show-output}
-      (command-from-definition name definition))
-    (put result name
-         {:run (make-run-command command description show-output jobs settings)
-          :help description}))
-  result)
-
 (defn prepare-command-config
   "Validate raw JDN configuration and construct its command handlers."
   [config]
   (def jobs (configured-jobs config))
   (def settings (config/configured-repository-settings config))
+  (def configured (get config :commands {}))
+  (unless (dictionary? configured)
+    (error ":commands must be a dictionary"))
+  (def commands @{})
+  (eachp [name definition] configured
+    (def {:command command :description description :show-output show-output}
+      (command-from-definition name definition))
+    (put commands name
+         {:run (make-run-command command description show-output jobs settings)
+          :help description}))
   {:settings settings
    :jobs jobs
-   :commands (custom-commands config jobs settings)})
+   :commands commands})
 
 (defn load-command-config
   "Read and validate JDN configuration, or return defaults when absent."
