@@ -23,7 +23,7 @@
 (defn- paths
   "Return discovered paths relative to the test root."
   [repositories]
-  (map |(string/replace (string root "/") "" ($ :path)) repositories))
+  (map (fn [repository] (string/replace (string root "/") "" (repository :path))) repositories))
 
 (make-repository (path/join root "git-repo") ".git")
 (make-repository (path/join root "jj-repo") ".jj")
@@ -60,7 +60,7 @@
                (paths default-scan))
         "the walk finds every repository below the root, outermost first")
 (assert (deep= @[{:path (path/join root "git-repo") :vcs "git"}]
-               (filter |(= "git-repo" (path/basename ($ :path))) default-scan))
+               (filter (fn [repository] (= "git-repo" (path/basename (repository :path)))) default-scan))
         "a repository is described by an absolute path and its VCS name")
 (assert (= "jj" ((first default-scan) :vcs))
         "a colocated repository is discovered as a jj repository")

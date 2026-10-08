@@ -25,7 +25,7 @@
   "Prefix each captured output line so command text is distinct from herd."
   [output]
   (string/join
-    (map |(string "|   " $) (string/split "\n" (string/trimr output)))
+    (map (fn [line] (string "|   " line)) (string/split "\n" (string/trimr output)))
     "\n"))
 
 (defn- format-command-result
@@ -133,6 +133,6 @@
        [:not-checked-out "not checked out"]]
       (fn [repository report]
         (run-in-repository command env repository
-                           |(report-command-result report-state report ;$&)
+                           (fn [& args] (report-command-result report-state report ;args))
                            show-output))
       jobs)))

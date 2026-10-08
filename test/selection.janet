@@ -15,7 +15,7 @@
 (defn- selected
   "Return selected paths so assertions read as plain lists."
   [path anchors &opt all-anchors]
-  (map |($ :path)
+  (map (fn [repository] (repository :path))
        (select/select-repositories-with-anchors
          path repositories all-anchors anchors)))
 
@@ -24,7 +24,7 @@
 (assert (deep= (selected "/srv" @["/srv"])
                @["/srv/foo" "/srv/foo/bar" "/srv/foobar" "/srv/other"]))
 (assert (empty? (selected "/" @[])) "no configured anchor contains the filesystem root")
-(assert (deep= (selected "/" @[] true) (map |($ :path) repositories))
+(assert (deep= (selected "/" @[] true) (map (fn [repository] (repository :path)) repositories))
         "all anchors restores selection from the filesystem root")
 
 # A path inside a working copy selects that repository, however deep.
@@ -48,7 +48,7 @@
                (selected "/srv/foo" @["/srv"])))
 
 # A relative path is read from the current directory.
-(assert (deep= (map |($ :path)
+(assert (deep= (map (fn [repository] (repository :path))
                     (select/select-repositories-with-anchors
                       "below" [{:path (string (os/cwd) "/below/repo")
                                 :ssh_url "u"
@@ -70,7 +70,7 @@
 (defn- selected-nested
   "Return paths selected from repositories with nested anchors."
   [path anchors &opt all-anchors]
-  (map |($ :path)
+  (map (fn [repository] (repository :path))
        (select/select-repositories-with-anchors
          path nested all-anchors anchors)))
 
@@ -110,7 +110,7 @@
     [at repository-path anchor]
     (def repositories [{:path repository-path :ssh_url "u"
                         :anchors @[anchor]}])
-    (map |($ :path)
+    (map (fn [repository] (repository :path))
          (select/select-repositories-with-anchors
            at repositories false (select/containing-anchors at repositories))))
 

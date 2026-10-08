@@ -49,7 +49,7 @@
 (defn- anchor-paths
   "Return the paths of resolved anchors, dropping their checkout options."
   [anchors]
-  (map |($ :path) anchors))
+  (map (fn [repository] (repository :path)) anchors))
 
 (defn- error-message
   "Return the error a thunk raises as a string, or nil when it raises none."
@@ -273,14 +273,14 @@
                  {:path "/srv/other/repo" :ssh_url "absolute"}]
                 @[{:path "/anchor" :strip-components 1}])]
   (assert (deep= @["/anchor/team/repo" "/anchor/other/repo"]
-                 (map |($ :path) entries))
+                 (map (fn [repository] (repository :path)) entries))
           "stripping makes relative and absolute paths relative to the anchor"))
 
 (let [message
       (error-message
-        |(config/resolve-repository-paths
-           [{:path "team/repo" :ssh_url "u"}]
-           @[{:path "/anchor" :strip-components 2}]))]
+        (fn [] (config/resolve-repository-paths
+                 [{:path "team/repo" :ssh_url "u"}]
+                 @[{:path "/anchor" :strip-components 2}])))]
   (assert (and message
                (string/find "2" message)
                (string/find `"team/repo"` message)
@@ -309,9 +309,9 @@
                 [{:path "rel" :ssh_url "u"}]
                 @[{:path "/one"} {:path "/two"}])]
   (assert (= 2 (length entries)) "every anchor resolves the same entry once")
-  (assert (deep= @["/one/rel" "/two/rel"] (map |($ :path) entries))
+  (assert (deep= @["/one/rel" "/two/rel"] (map (fn [repository] (repository :path)) entries))
           "a relative path joins each anchor in turn")
-  (assert (deep= @[@["/one"] @["/two"]] (map |($ :anchors) entries))
+  (assert (deep= @[@["/one"] @["/two"]] (map (fn [repository] (repository :anchors)) entries))
           "each resolved entry keeps the anchor it came from"))
 
 # --- config-directory -----------------------------------------------------
@@ -438,8 +438,8 @@
                    ":checkouts row 0"))
 
 (let [message (error-message
-                |(config/validate-checkout-row {:unknown true}
-                                               ":checkouts row 2"))]
+                (fn [] (config/validate-checkout-row {:unknown true}
+                                                     ":checkouts row 2")))]
   (assert (and message (string/find ":checkouts row 2" message))
           "a row error names the row it came from"))
 
@@ -479,10 +479,10 @@
                               {:from "vendor.json" :anchor "/opt"}
                               {:from "work.json" :anchor "/srv" :vcs "git"}]})]
   (assert (deep= @["work" "/opt" "/srv"]
-                 (map |($ :anchor) (settings :checkouts)))
+                 (map (fn [checkout] (checkout :anchor)) (settings :checkouts)))
           "rows are kept in the order they were written")
   (assert (deep= @["work" "/srv"]
-                 (map |($ :anchor) (config/checkouts-for-file settings "work.json")))
+                 (map (fn [checkout] (checkout :anchor)) (config/checkouts-for-file settings "work.json")))
           "a file reads only the rows that name it"))
 
 
@@ -524,9 +524,9 @@
 (assert-error "the defaults cannot name a filter that is not configured"
               (config/configured-repository-settings {:defaults {:filter ["absent"]}}))
 (let [message (error-message
-                |(config/configured-repository-settings
-                   {:filters {"active" "[?a]"}
-                    :checkouts [{:from "work.json" :filter ["typo"]}]}))]
+                (fn [] (config/configured-repository-settings
+                         {:filters {"active" "[?a]"}
+                          :checkouts [{:from "work.json" :filter ["typo"]}]})))]
   (assert (and message (string/find `"typo"` message))
           "an unknown filter is named rather than the whole row"))
 
@@ -559,7 +559,7 @@
           "and takes its anchor from the defaults")
   (assert (= "jj" ((unmentioned 0) :vcs))
           "along with the rest of them")
-  (assert (deep= @["work" "/srv"] (map |($ :anchor) work))
+  (assert (deep= @["work" "/srv"] (map (fn [checkout] (checkout :anchor)) work))
           "a file its rows read is checked out once per row")
   (assert (= "jj" ((work 0) :vcs))
           "a row keeps the defaults it does not name")
@@ -703,7 +703,7 @@
     (assert (deep= @[(string root "/one/relative")
                      "/absolute"
                      (string root "/two/relative")]
-                   (map |($ :path) loaded))
+                   (map (fn [repository] (repository :path)) loaded))
             "each anchor contributes its own resolved paths")
     (assert (deep= @[(string root "/one")] ((loaded 0) :anchors))
             "a relative path belongs to the anchor it resolved under")
@@ -729,7 +729,7 @@
         root (path/abspath dir)]
     (assert (deep= @[(string root "/one/team/repo")
                      (string root "/two/repo")]
-                   (map |($ :path) loaded))
+                   (map (fn [repository] (repository :path)) loaded))
             "each row strips its own number of path components"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -750,7 +750,7 @@
                     :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/root/one") (string root "/elsewhere/two")]
-                   (map |($ :path) loaded))
+                   (map (fn [repository] (repository :path)) loaded))
             "a file no row reads resolves from the defaults alone"))
   (assert-error "a row reading a file that is not there is refused"
                 (config/load-config
@@ -776,7 +776,7 @@
                    {:defaults {:vcs "jj"}
                     :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
                                 {:from "repos.json" :anchor "b"}]}))]
-    (assert (deep= @["git" "jj" "jj" "jj"] (map |($ :vcs) loaded))
+    (assert (deep= @["git" "jj" "jj" "jj"] (map (fn [repository] (repository :vcs)) loaded))
             "each level overrides the one it sits inside"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -800,7 +800,7 @@
                                    configuration)]
     (assert (= 3 (length loaded)) "root companions do not affect loading")
     (assert (every?
-              (map |(string/has-prefix? (string (path/abspath dir) "/") ($ :path))
+              (map (fn [repository] (string/has-prefix? (string (path/abspath dir) "/") (repository :path)))
                    loaded))
             "every root companion form is ignored"))
   (os/setenv "HOME" home)
@@ -824,7 +824,7 @@
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
 
   (let [merged (config/load-config (config/discover-config-files configuration) configuration)]
-    (assert (deep= (map |($ :path) merged)
+    (assert (deep= (map (fn [repository] (repository :path)) merged)
                    @[(string dir "/src/alpha")
                      "/opt/beta"
                      (string dir "/gamma")])

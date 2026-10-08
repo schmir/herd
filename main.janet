@@ -37,7 +37,7 @@
     # A cluster of short flags asks for the version only when that is all it
     # asks for: -hV wants the help argparse prints, and -Vx is a mistake.
     (and (string/has-prefix? "-" arg) (> (length arg) 1))
-    (all |(= $ (chr "V")) (string/slice arg 1))
+    (all (fn [character] (= character (chr "V"))) (string/slice arg 1))
     false))
 
 (def- help-option
@@ -104,7 +104,7 @@
   [names settings]
   (or (not (empty? names))
       (not (empty? (get-in settings [:defaults :filter] [])))
-      (true? (some |(not (empty? (get $ :filter [])))
+      (true? (some (fn [checkout] (not (empty? (get checkout :filter []))))
                    (get settings :checkouts [])))))
 
 (defn- describe-filters

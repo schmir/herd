@@ -39,13 +39,13 @@
 (defn- flags-of
   "Every spelling of the options, as they are written on the command line."
   [options]
-  (mapcat |(filter truthy? [(unless (empty? ($ 0)) (string "-" ($ 0)))
-                            (string "--" ($ 1))])
+  (mapcat (fn [option] (filter truthy? [(unless (empty? (option 0)) (string "-" (option 0)))
+                                        (string "--" (option 1))]))
           options))
 
 (def- value-flags
   "Every spelling of every option that takes a value, whichever command has it."
-  (distinct (flags-of (filter |($ 2)
+  (distinct (flags-of (filter (fn [option] (option 2))
                               (mapcat command-options
                                       ["clone" "list" "run" "completions"])))))
 
@@ -146,7 +146,7 @@ complete -F _herd herd
                               (command-options "list")
                               (command-options "run")])
   (defn specs [options]
-    (string/join (map |(string "                " (zsh-spec $) " \\\n") options) ""))
+    (string/join (map (fn [option] (string "                " (zsh-spec option) " \\\n")) options) ""))
   (string
     "#compdef herd\n"
     "# zsh completion for herd: source <(herd completions zsh) after compinit, or\n# herd completions zsh > ~/.zfunc/_herd with ~/.zfunc in $fpath\n"

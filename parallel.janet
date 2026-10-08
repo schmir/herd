@@ -168,7 +168,7 @@
   The callback receives the repository and a reporter, and returns an outcome
   key. Errors and unknown outcomes count as :failed.``
   [repositories outcomes operation &opt jobs]
-  (unless (some |(= :failed ($ 0)) outcomes)
+  (unless (some (fn [outcome] (= :failed (outcome 0))) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
   # Only an absent count falls back, so a supplied bad one still raises.
@@ -191,7 +191,7 @@
       (draw progress)
       (var outcome
         (try
-          (operation repository |(report progress ;$&))
+          (operation repository (fn [& args] (report progress ;args)))
           ([err]
             (report progress (repository :path) ": " err)
             :failed)))
@@ -207,7 +207,7 @@
       (put progress :running false)
       (erase progress)
       (file/flush stderr))
-    (ev/go-gather (seq [slot :range [0 workers]] |(worker slot))))
+    (ev/go-gather (seq [slot :range [0 workers]] (fn [] (worker slot)))))
   (when interrupted
     (def reached (reduce + 0 (values (progress :counts))))
     (eprint "Interrupted after " reached " of " total " repositories"))

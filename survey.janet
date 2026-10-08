@@ -29,7 +29,7 @@
   [discovered configured]
   (def known (tabseq [repository :in configured]
                (select/comparable-path (repository :path)) true))
-  (filter |(not (get known (select/comparable-path ($ :path)))) discovered))
+  (filter (fn [repository] (not (get known (select/comparable-path (repository :path))))) discovered))
 
 (defn- origin-from-jj
   "Return the URL of the remote named origin in `jj git remote list` output."

@@ -43,7 +43,7 @@
     (each anchor (get repository :anchors [])
       (def candidate (comparable-path anchor))
       (when (and (holds-path? candidate root)
-                 (not (some |(= candidate $) found)))
+                 (not (some (fn [path] (= candidate path)) found)))
         (array/push found candidate))))
   found)
 
@@ -56,7 +56,7 @@
             (and (or all-anchors
                      (some (fn [repository-anchor]
                              (def normalized (comparable-path repository-anchor))
-                             (some |(= normalized $) anchors))
+                             (some (fn [anchor] (= normalized anchor)) anchors))
                            (get repository :anchors [])))
                  (or (holds-path? root candidate)
                      (holds-path? candidate root))))

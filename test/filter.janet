@@ -92,7 +92,7 @@
 (defn- paths
   "The paths in a filter's answer, so assertions read as plain lists."
   [answer]
-  (map |($ :path) (entries/parse-config answer)))
+  (map (fn [repository] (repository :path)) (entries/parse-config answer)))
 
 # --- apply-filter ---------------------------------------------------------
 
@@ -119,12 +119,12 @@
     # An expression that is not a filter succeeds and answers null, which
     # would otherwise select nothing without saying why.
     (assert (string/find "did not select an array of repositories"
-                         (error-message |(filter/apply-filter entries "bare" "path")))
+                         (error-message (fn [] (filter/apply-filter entries "bare" "path"))))
             "null output is refused rather than read as an empty selection")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
-    (def message (error-message |(filter/apply-filter entries "broken" "[?")))
+    (def message (error-message (fn [] (filter/apply-filter entries "broken" "[?"))))
     (assert (string/find `filter "broken" failed` message)
             "a failing filter is named in the error")
     (assert (string/find "SyntaxError" message)
@@ -133,7 +133,7 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'not json'")
     (assert (string/find "produced unreadable output"
-                         (error-message |(filter/apply-filter entries "odd" "@")))
+                         (error-message (fn [] (filter/apply-filter entries "odd" "@"))))
             "output that is not JSON is refused with the filter named")))
 
 # A filter that rejects its expression answers at once without reading the
@@ -143,7 +143,7 @@
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
     (assert (string/find "SyntaxError"
                          (error-message
-                           |(filter/apply-filter (large-entries) "broken" "[?")))
+                           (fn [] (filter/apply-filter (large-entries) "broken" "[?"))))
             "a filter that never reads a large list still reports why")))
 
 (with-fixture dir
@@ -154,7 +154,7 @@
 (with-fixture dir
   (without-filter-program dir
                           (assert (string/find (string "needs " filter/filter-executable " on PATH")
-                                               (error-message |(filter/apply-filter entries "any" "@")))
+                                               (error-message (fn [] (filter/apply-filter entries "any" "@"))))
                                   "a missing filter program is reported against the filter")))
 
 # The list is held in a file with no name, handed over as standard input.
@@ -179,8 +179,8 @@
     (filter/apply-filter entries "any" "@")
     (filter/apply-filter (large-entries) "any" "@")
     (each place (distinct ["/tmp" (os/getenv "TMPDIR" "/tmp")])
-      (assert (empty? (filter |(and (string/has-prefix? "herd-filter-" $)
-                                    (string/has-suffix? ".json" $))
+      (assert (empty? (filter (fn [name] (and (string/has-prefix? "herd-filter-" name)
+                                              (string/has-suffix? ".json" name)))
                               (os/dir place)))
               (string "filtering leaves no input file in " place)))))
 
@@ -241,12 +241,12 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'Invalid type for: <nil>' >&2" 1)
     (def named (error-message
-                 |(filter/apply-filter entries "cli" "@" filter/command-filter-hint)))
+                 (fn [] (filter/apply-filter entries "cli" "@" filter/command-filter-hint))))
     (assert (string/find "applied to every configured list" named)
             "a filter named on the command line explains itself")
     (assert (string/find "Invalid type" named)
             "and still carries what the filter reported")
-    (def own (error-message |(filter/apply-filter entries "row" "@")))
+    (def own (error-message (fn [] (filter/apply-filter entries "row" "@"))))
     (assert (string/find "Invalid type" own)
             "a row's own filter reports what the filter said")
     (assert (not (string/find "applied to every configured list" own))
@@ -257,9 +257,9 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def message (error-message
-                   |(filter/filter-entries entries ["first" "second"]
-                                           {"first" "ok" "second" "no"}
-                                           filter/command-filter-hint)))
+                   (fn [] (filter/filter-entries entries ["first" "second"]
+                                                 {"first" "ok" "second" "no"}
+                                                 filter/command-filter-hint))))
     (assert (string/find `filter "second" failed` message)
             "the failing filter in the chain is the one named")
     (assert (string/find "applied to every configured list" message)
@@ -294,14 +294,14 @@
   (spit config listing)
   (with-stub (answering-stub dir)
     (assert (deep= @[(path/join src "a")]
-                   (map |($ :path)
+                   (map (fn [repository] (repository :path))
                         (config/read-config config nil
                                             @[{:anchor src :filter ["first"]}]
                                             answers)))
             "a row's filter narrows what its file contributes")
 
     (assert (deep= @[(path/join src "a")]
-                   (map |($ :path)
+                   (map (fn [repository] (repository :path))
                         (config/read-config
                           config nil
                           @[{:anchor src
@@ -315,11 +315,11 @@
     # what a filter kept can have been validated above.
     (assert (string/find "needs a string"
                          (error-message
-                           |(config/read-config config nil @[{:anchor src}] answers)))
+                           (fn [] (config/read-config config nil @[{:anchor src}] answers))))
             "an entry no filter removed still has to be a repository")
 
     (assert (deep= @[(path/join src "a") (path/join vendor "b")]
-                   (map |($ :path)
+                   (map (fn [repository] (repository :path))
                         (config/read-config config nil
                                             @[{:anchor src :filter ["first"]}
                                               {:anchor vendor :filter ["second"]}]
@@ -344,13 +344,13 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def from-command
-      (error-message |(config/read-config config nil @[{:anchor src}] answers ["bad"])))
+      (error-message (fn [] (config/read-config config nil @[{:anchor src}] answers ["bad"]))))
     (assert (string/find "applied to every configured list" from-command)
             "a filter named with -f explains why it reached this list")
 
     (def from-row
       (error-message
-        |(config/read-config config nil @[{:anchor src :filter ["bad"]}] answers)))
+        (fn [] (config/read-config config nil @[{:anchor src :filter ["bad"]}] answers))))
     (assert (string/find "boom" from-row)
             "a row's own filter still reports what the filter said")
     (assert (not (string/find "applied to every configured list" from-row))
@@ -360,8 +360,8 @@
     # fails is reported even when a command-line filter is also named.
     (def both
       (error-message
-        |(config/read-config config nil @[{:anchor src :filter ["bad"]}]
-                             answers ["good"])))
+        (fn [] (config/read-config config nil @[{:anchor src :filter ["bad"]}]
+                                   answers ["good"]))))
     (assert (not (string/find "applied to every configured list" both))
             "the row's filter fails first, and speaks for itself")))
 
@@ -384,7 +384,7 @@
                                       {:anchor two :filter ["a" "b"]}]
                                     answers))
     (assert (deep= @[(path/join one "x") (path/join two "y")]
-                   (map |($ :path) loaded))
+                   (map (fn [repository] (repository :path)) loaded))
             "chains that merely spell alike are kept apart")))
 
 # Keying on the chain still has to share the work it was there to share: two
@@ -442,7 +442,7 @@
       {"active" "[?schedules[?starts_with(name, 'nightly-')]]"
        "none" "[?path=='absent']"})
     (assert (deep= @[(path/join src "a")]
-                   (map |($ :path)
+                   (map (fn [repository] (repository :path))
                         (config/read-config config nil
                                             @[{:anchor src :filter ["active"]}]
                                             filters)))

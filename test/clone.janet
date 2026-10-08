@@ -23,7 +23,7 @@
 (spit (path/join occupied "file") "present")
 (var blocked-messages @[])
 (assert (= :blocked (clone/clone-repository nil nil
-                                            |(array/push blocked-messages (string ;$&))
+                                            (fn [& args] (array/push blocked-messages (string ;args)))
                                             occupied "unused"))
         "something that is not a repository blocks the clone")
 (assert (deep= @[(string "Clone blocked: " occupied
@@ -57,7 +57,7 @@
   (def success (path/join dir "success"))
   (assert (= :cloned
              (clone/clone-repository cloning-vcs env
-                                     |(array/push messages (string ;$&))
+                                     (fn [& args] (array/push messages (string ;args)))
                                      success "unused")))
   (assert (= 1 (length messages)) "a successful clone reports completion")
   (assert (= :directory (os/stat (path/join success ".git") :mode))
@@ -92,7 +92,7 @@
   (def failure (path/join dir "failure"))
   (assert (= :failed
              (clone/clone-repository (process/find-executable "false") env
-                                     |(array/push messages (string ;$&))
+                                     (fn [& args] (array/push messages (string ;args)))
                                      failure "unused")))
   (assert (= 1 (length messages)) "a failed clone reports its path")
 
@@ -108,7 +108,7 @@
   (def vanished (path/join dir "vanished"))
   (assert (= :failed
              (clone/clone-repository (process/find-executable "true") env
-                                     |(array/push messages (string ;$&))
+                                     (fn [& args] (array/push messages (string ;args)))
                                      vanished "unused"))
           "a VCS that succeeds without writing a clone has failed")
   (assert (= 2 (length messages)) "the failed move is reported"))

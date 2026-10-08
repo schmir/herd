@@ -6,7 +6,7 @@
 
 (def marker-names
   "Marker names that the walk must not enter."
-  (map |($ 1) markers))
+  (map (fn [marker] (marker 1)) markers))
 
 (defn repository-vcs
   ``Return the VCS marked in `directory`, or nil.

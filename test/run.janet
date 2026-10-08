@@ -158,12 +158,12 @@
     (assert (= :succeeded
                (run/run-in-repository
                  ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
-                 env repo |(array/push messages (string ;$&)))))
+                 env repo (fn [& args] (array/push messages (string ;args))))))
     (assert (empty? messages) "successful command output stays hidden")
     (assert (= :succeeded
                (run/run-in-repository
                  ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
-                 env repo |(array/push messages (string ;$&)) "always")))
+                 env repo (fn [& args] (array/push messages (string ;args))) "always")))
     (assert (= 1 (length messages)) "requested successful output is one block")
     (assert (string/find (string "✓ " dir) (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
@@ -171,7 +171,7 @@
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
-                 ["true"] env repo |(array/push messages (string ;$&))
+                 ["true"] env repo (fn [& args] (array/push messages (string ;args)))
                  "always")))
     (assert (empty? messages)
             "always stays quiet about a successful command without output")
@@ -179,12 +179,12 @@
     (assert (= :succeeded
                (run/run-in-repository
                  ["printf" "suppressed"] env repo
-                 |(array/push messages (string ;$&)) "never")))
+                 (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides successful command results")
     (assert (= :failed
                (run/run-in-repository
                  ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
-                 env repo |(array/push messages (string ;$&)))))
+                 env repo (fn [& args] (array/push messages (string ;args))))))
     (assert (= 1 (length messages)) "failure output is one buffered block")
     (assert (string/find (string "✗ " dir " (exit 7)") (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   second line" (messages 0)))
@@ -192,12 +192,12 @@
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 ["false"] env repo |(array/push messages (string ;$&)) "never")))
+                 ["false"] env repo (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides failed command results")
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 ["false"] env repo |(array/push messages (string ;$&)))))
+                 ["false"] env repo (fn [& args] (array/push messages (string ;args))))))
     (assert (and (= 1 (length messages))
                  (= (string "✗ " dir " (exit 1)") (messages 0)))
             "a failure without output still names the repository"))
@@ -205,7 +205,7 @@
 
 (let [messages @[]
       state @{:reported false}
-      report |(array/push messages (string ;$&))]
+      report (fn [& args] (array/push messages (string ;args)))]
   (run/report-command-result state report "first result")
   (run/report-command-result state report "second result")
   (assert (deep= messages @["first result" "" "second result"])
@@ -229,7 +229,7 @@
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
   (def loaded (config/read-config config (config/config-directory) @[{}]))
-  (assert (deep= (map |($ :path) loaded)
+  (assert (deep= (map (fn [repository] (repository :path)) loaded)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
   (assert (= 2 (length (select/select-repositories-with-anchors

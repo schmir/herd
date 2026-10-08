@@ -185,10 +185,10 @@
   when none names the file.``
   [settings name]
   (def defaults (get settings :defaults {}))
-  (def configured (filter |(= ($ :from) name) (get settings :checkouts [])))
+  (def configured (filter (fn [checkout] (= (checkout :from) name)) (get settings :checkouts [])))
   (if (empty? configured)
     @[(merge defaults)]
-    (map |(merge defaults $) configured)))
+    (map (fn [checkout] (merge defaults checkout)) configured)))
 
 (defn- checkout-options
   "Return only the checkout options set in `source`."
@@ -237,7 +237,7 @@
   [repository-path strip-count anchor]
   (if (zero? strip-count)
     repository-path
-    (let [components (filter |(not (empty? $))
+    (let [components (filter (fn [component] (not (empty? component)))
                              (path/parts (path/normalize repository-path)))]
       (when (>= strip-count (length components))
         (error (string "the row anchored at " (describe anchor)
@@ -319,7 +319,7 @@
       # be remembered and revisited.
       (def disagreement
         (when previous
-          (find |(not= (get-in previous [:options $]) (get entry $))
+          (find (fn [key] (not= (get-in previous [:options key]) (get entry key)))
                 checkout/checkout-keys)))
       (cond
         (nil? previous)
@@ -341,7 +341,7 @@
 
         true
         (each anchor (entry :anchors)
-          (unless (some |(= anchor $) (previous :anchors))
+          (unless (some (fn [known] (= anchor known)) (previous :anchors))
             (array/push (previous :anchors) anchor))))))
   merged)
 
@@ -350,7 +350,7 @@
   renamed list from silently using the defaults.``
   [settings config-paths]
   (def present (map path/basename config-paths))
-  (each name (distinct (map |($ :from) (get settings :checkouts [])))
+  (each name (distinct (map (fn [checkout] (checkout :from)) (get settings :checkouts [])))
     (unless (index-of name present)
       (error (string "config.jdn: :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))

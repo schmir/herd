@@ -64,8 +64,9 @@
       (do
         (def result
           (clone-into-place
-            |(clone-process-command (or vcs checkout/default-vcs)
-                                    executable url $)
+            (fn [staging]
+              (clone-process-command (or vcs checkout/default-vcs)
+                                     executable url staging))
             env path))
         (if (zero? (result :status))
           (do
