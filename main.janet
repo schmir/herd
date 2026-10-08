@@ -504,17 +504,8 @@
   handler starts from them, leaving the command line to override.``
   [config]
   (def {:settings settings :jobs jobs} config)
-  (def fetch-help "Fetch Git remotes in configured repositories beneath a path.")
   {"clone" {:run (fn [args] (clone-command args settings jobs))
             :help "Check out the configured repositories beneath a path."}
-   "fetch" {:run (make-run-command
-                   {:command-git "git fetch"
-                    :command-jj "jj git fetch"}
-                   fetch-help
-                   run/default-show-output
-                   jobs
-                   settings)
-            :help fetch-help}
    "completions" {:run (fn [args]
                          (completions-command
                            args
@@ -545,11 +536,18 @@
 
 (def built-in-command-names
   "Names of the built-in subcommands, which a custom command may not reuse."
-  ["clone" "fetch" "completions" "list" "run"])
+  ["clone" "completions" "list" "run"])
 
 (def custom-command-keys
   "Keys a custom-command definition may contain."
   [:command :command-git :command-jj :description :show-output])
+
+(def default-command-definitions
+  ``Custom commands herd defines itself, written as they would be in :commands
+  of config.jdn. A definition of the same name there replaces one.``
+  {"fetch" {:command-git "git fetch"
+            :command-jj "jj git fetch"
+            :description "Fetch Git remotes in configured repositories beneath a path."}})
 
 (defn command-from-definition
   "Validate one custom-command definition and return its :command, :description, and :show-output."
@@ -603,7 +601,7 @@
   (unless (dictionary? configured)
     (error ":commands must be a dictionary"))
   (def commands @{})
-  (eachp [name definition] configured
+  (eachp [name definition] (merge default-command-definitions configured)
     (def {:command command :description description :show-output show-output}
       (command-from-definition name definition))
     (put commands name
