@@ -41,9 +41,9 @@
 
 (defn- config-error
   "Return the error from config anchor resolution, or nil if it succeeds."
-  [config-path directory rows]
+  [config-path directory checkouts]
   (try
-    (do (config/config-anchors config-path directory rows) nil)
+    (do (config/config-anchors config-path directory checkouts) nil)
     ([err] (string err))))
 
 (defn- anchor-paths
@@ -246,7 +246,7 @@
   (spit config-path "# nothing configured yet\n")
   (def settings (get (herd/load-command-config config-path) :settings))
   (assert (and (empty? (settings :defaults))
-               (empty? (settings :rows))
+               (empty? (settings :checkouts))
                (empty? (settings :filters)))
           "a file with no settings in it reads as no settings")
   (sh/rm dir))
@@ -475,11 +475,12 @@
                  {:checkouts [{:from "work.json" :anchor "work"}
                               {:from "vendor.json" :anchor "/opt"}
                               {:from "work.json" :anchor "/srv" :vcs "git"}]})]
+  (assert (deep= @["work" "/opt" "/srv"]
+                 (map |($ :anchor) (settings :checkouts)))
+          "rows are kept in the order they were written")
   (assert (deep= @["work" "/srv"]
-                 (map |($ :anchor) (get-in settings [:rows "work.json"])))
-          "rows reading one file are grouped in the order they were written")
-  (assert (= 1 (length (get-in settings [:rows "vendor.json"])))
-          "each file keeps only the rows that read it"))
+                 (map |($ :anchor) (config/checkouts-for-file settings "work.json")))
+          "a file reads only the rows that name it"))
 
 
 # --- filter settings ------------------------------------------------------
@@ -532,23 +533,23 @@
                   :checkouts [{:from "work.json"}
                               {:from "work.json" :filter ["platform"]}
                               {:from "work.json" :filter []}]})
-      rows (config/rows-for-file settings "work.json")]
+      checkouts (config/checkouts-for-file settings "work.json")]
   (assert (deep= {"active" "[?a]" "platform" "[?b]"} (settings :filters))
           "the registry is carried with the settings")
-  (assert (deep= ["active"] ((rows 0) :filter))
+  (assert (deep= ["active"] ((checkouts 0) :filter))
           "a row that names no filter inherits the default one")
-  (assert (deep= ["platform"] ((rows 1) :filter))
+  (assert (deep= ["platform"] ((checkouts 1) :filter))
           "a row that names filters replaces the default ones")
-  (assert (empty? ((rows 2) :filter))
+  (assert (empty? ((checkouts 2) :filter))
           "and an empty array drops them without naming another"))
-# --- rows-for-file --------------------------------------------------------
+# --- checkouts-for-file --------------------------------------------------------
 
 (let [settings (config/configured-repository-settings
                  {:defaults {:anchor "src" :vcs "jj"}
                   :checkouts [{:from "work.json" :anchor "work"}
                               {:from "work.json" :anchor "/srv" :vcs "git"}]})
-      unmentioned (config/rows-for-file settings "other.json")
-      work (config/rows-for-file settings "work.json")]
+      unmentioned (config/checkouts-for-file settings "other.json")
+      work (config/checkouts-for-file settings "work.json")]
   (assert (= 1 (length unmentioned))
           "a file no row reads is checked out once")
   (assert (= "src" ((unmentioned 0) :anchor))
@@ -562,9 +563,9 @@
   (assert (= "git" ((work 1) :vcs))
           "and replaces the ones it does"))
 
-(let [rows (config/rows-for-file config/default-repository-settings "any.json")]
-  (assert (= 1 (length rows)) "without a configuration every file is read once")
-  (assert (nil? ((rows 0) :anchor))
+(let [checkouts (config/checkouts-for-file config/default-repository-settings "any.json")]
+  (assert (= 1 (length checkouts)) "without a configuration every file is read once")
+  (assert (nil? ((checkouts 0) :anchor))
           "and settles no anchor, leaving its own location to decide"))
 
 

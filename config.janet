@@ -89,19 +89,19 @@
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
   configuration file.``
-  [row where]
-  (unless (dictionary? row)
+  [checkout where]
+  (unless (dictionary? checkout)
     (error (string where " must be a dictionary")))
-  (eachk key row
+  (eachk key checkout
     (reject-unknown-setting where key [;checkout-row-keys ;checkout/checkout-keys]))
-  (def from (get row :from))
+  (def from (get checkout :from))
   (unless (and (string? from) (not (empty? from)))
     (error (string where " needs a :from naming a configuration file")))
-  (validate-anchor-setting row where)
-  (validate-filter-setting row where)
-  (validate-strip-components-setting row where)
-  (checkout/validate-checkout-options row where)
-  row)
+  (validate-anchor-setting checkout where)
+  (validate-filter-setting checkout where)
+  (validate-strip-components-setting checkout where)
+  (checkout/validate-checkout-options checkout where)
+  checkout)
 
 (defn validate-checkout-defaults
   "Validate `:defaults` and return them. Defaults cannot name a source."
@@ -154,44 +154,41 @@
 
 (def default-repository-settings
   "Repository settings used when config.jdn is absent."
-  {:defaults {} :rows {} :filters {}})
+  {:defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
-  ``Validate repository settings and group checkout rows by source.
-  Preserve the row order for each source.``
+  ``Validate repository settings. The checkouts keep the order they were
+  written in.``
   [config]
   (unless (dictionary? config)
     (error "expected a JDN dictionary"))
   (def configured (get config :checkouts []))
   (unless (indexed? configured)
     (error ":checkouts must be an array of rows"))
-  (def rows @{})
-  (for index 0 (length configured)
-    (def row (validate-checkout-row (configured index)
-                                    (string ":checkouts row " index)))
-    (if-let [written (get rows (row :from))]
-      (array/push written row)
-      (put rows (row :from) @[row])))
+  (def checkouts
+    (seq [index :range [0 (length configured)]]
+      (validate-checkout-row (configured index)
+                             (string ":checkouts row " index))))
   (def filters (validate-filters (get config :filters {})))
   (def defaults (validate-checkout-defaults (get config :defaults {})))
   (reject-unknown-filters defaults ":defaults" filters)
-  (eachp [from written] rows
-    (for index 0 (length written)
-      (reject-unknown-filters (written index)
-                              (string ":checkouts row for " (describe from))
-                              filters)))
+  (each checkout checkouts
+    (reject-unknown-filters checkout
+                            (string ":checkouts row for " (describe (checkout :from)))
+                            filters))
   {:defaults defaults
-   :rows rows
+   :checkouts checkouts
    :filters filters})
 
-(defn rows-for-file
-  ``Merge each row for `name` with the defaults. Return the defaults alone
-  when no row names the file.``
+(defn checkouts-for-file
+  ``Merge each checkout of `name` with the defaults. Return the defaults alone
+  when none names the file.``
   [settings name]
   (def defaults (get settings :defaults {}))
-  (if-let [configured (get-in settings [:rows name])]
-    (map |(merge defaults $) configured)
-    @[(merge defaults)]))
+  (def configured (filter |(= ($ :from) name) (get settings :checkouts [])))
+  (if (empty? configured)
+    @[(merge defaults)]
+    (map |(merge defaults $) configured)))
 
 (defn- checkout-options
   "Return only the checkout options set in `source`."
@@ -208,11 +205,11 @@
   filter and path settings. Relative anchors use HOME. A missing anchor uses
   HOME for configured files and the file's parent otherwise. Keep configured
   paths because selection resolves symbolic links.``
-  [config-path directory rows]
+  [config-path directory checkouts]
   (def parent (path/abspath (path/parent config-path)))
   (def name (path/basename config-path))
-  (seq [row :in rows]
-    (def anchor (get row :anchor))
+  (seq [checkout :in checkouts]
+    (def anchor (get checkout :anchor))
     (def resolved
       (cond
         (nil? anchor)
@@ -228,10 +225,10 @@
             (path/abspath anchor))
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
-    (merge (checkout-options row)
+    (merge (checkout-options checkout)
            {:path resolved
-            :filter (get row :filter [])
-            :strip-components (get row :strip-components 0)})))
+            :filter (get checkout :filter [])
+            :strip-components (get checkout :strip-components 0)})))
 
 (defn- strip-path-components
   ``Remove `strip-count` leading components and return a relative path. The
@@ -277,11 +274,11 @@
   Only the entries a filter kept are validated: a list may carry entries herd
   could not use, which is the point of filtering it. The file is decoded once,
   after the filters have had it, so what they see is the file itself.``
-  [config-path directory rows &opt filters names]
+  [config-path directory checkouts &opt filters names]
   (default filters {})
   (default names [])
   (def source (slurp config-path))
-  (def anchors (config-anchors config-path directory rows))
+  (def anchors (config-anchors config-path directory checkouts))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -349,11 +346,11 @@
   merged)
 
 (defn- reject-unknown-sources
-  ``Reject checkout rows whose source file is missing. This prevents a
+  ``Reject checkouts whose source file is missing. This prevents a
   renamed list from silently using the defaults.``
   [settings config-paths]
   (def present (map |(path/basename $) config-paths))
-  (each name (keys (get settings :rows {}))
+  (each name (distinct (map |($ :from) (get settings :checkouts [])))
     (unless (index-of name present)
       (error (string "config.jdn: :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
@@ -370,7 +367,7 @@
       [config-path
        (try
          (read-config config-path directory
-                      (rows-for-file settings (path/basename config-path))
+                      (checkouts-for-file settings (path/basename config-path))
                       (get settings :filters {})
                       names)
          ([err] (error (string config-path ": " err))))])))

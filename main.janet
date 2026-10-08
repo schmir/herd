@@ -104,9 +104,8 @@
   [names settings]
   (or (not (empty? names))
       (not (empty? (get-in settings [:defaults :filter] [])))
-      (true? (some (fn [rows]
-                     (some |(not (empty? (get $ :filter []))) rows))
-                   (values (get settings :rows {}))))))
+      (true? (some |(not (empty? (get $ :filter [])))
+                   (get settings :checkouts [])))))
 
 (defn- describe-filters
   "Name the filters in play, for a message about an empty selection."
