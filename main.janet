@@ -605,14 +605,13 @@
 (defn load-command-config
   "Read and validate JDN configuration, or return defaults when absent."
   [config-path]
-  (if (nil? (os/stat config-path))
-    (prepare-command-config {})
-    (do
-      (unless (= :file (os/stat config-path :mode))
-        (error (string config-path " is not a file")))
-      (try
-        (prepare-command-config (config/parse-settings (slurp config-path)))
-        ([err] (error (string config-path ": " err)))))))
+  (def stat (os/stat config-path))
+  (cond
+    (nil? stat) (prepare-command-config {})
+    (not= :file (stat :mode)) (error (string config-path " is not a file"))
+    (try
+      (prepare-command-config (config/parse-settings (slurp config-path)))
+      ([err] (error (string config-path ": " err))))))
 
 (defn available-commands
   "Return built-in commands merged with the configured custom commands."
