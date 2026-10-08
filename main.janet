@@ -492,11 +492,10 @@
 
 (defn built-in-commands
   ``Subcommands by name, with their argument handler and one-line summary.
-  The per-file settings and job count are bound here so every handler starts
-  from them, leaving the command line to override.``
-  [&opt settings jobs]
-  (default settings config/default-repository-settings)
-  (default jobs parallel/default-jobs)
+  The config's per-file settings and job count are bound here so every
+  handler starts from them, leaving the command line to override.``
+  [config]
+  (def {:settings settings :jobs jobs} config)
   {"clone" {:run (fn [args] (clone-command args settings jobs))
             :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
@@ -621,18 +620,14 @@
         (prepare-command-config (config/parse-settings (slurp config-path)))
         ([err] (error (string config-path ": " err)))))))
 
-(defn commands-for-config
-  "Return all commands from prepared configuration."
-  [config]
-  (merge (built-in-commands (config :settings) (config :jobs))
-         (config :commands)))
-
 (defn available-commands
   "Return built-in commands merged with the configured custom commands."
   []
-  (if-let [config-path (command-config-path)]
-    (commands-for-config (load-command-config config-path))
-    (built-in-commands)))
+  (def config
+    (if-let [config-path (command-config-path)]
+      (load-command-config config-path)
+      (prepare-command-config {})))
+  (merge (built-in-commands config) (config :commands)))
 
 (set command-source available-commands)
 
