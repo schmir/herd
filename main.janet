@@ -504,16 +504,17 @@
   handler starts from them, leaving the command line to override.``
   [config]
   (def {:settings settings :jobs jobs} config)
+  (def fetch-help "Fetch Git remotes in configured repositories beneath a path.")
   {"clone" {:run (fn [args] (clone-command args settings jobs))
             :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
                    {:command-git "git fetch"
                     :command-jj "jj git fetch"}
-                   "Fetch Git remotes in each configured repository beneath a path."
+                   fetch-help
                    run/default-show-output
                    jobs
                    settings)
-            :help "Fetch Git remotes in configured repositories beneath a path."}
+            :help fetch-help}
    "completions" {:run (fn [args]
                          (completions-command
                            args
