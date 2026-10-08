@@ -489,10 +489,12 @@
                           :help (string "Shell to write for: "
                                         (string/join completions/shells ", ") ".")}))
   (def rest (rest-arguments parsed))
+  (def script
+    (when (= 1 (length rest))
+      (completions/script (first rest))))
   (cond
     (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (commands)))
-    (and (= 1 (length rest)) (completions/script (first rest)))
-    (prin (completions/script (first rest)))
+    script (prin script)
     (do (eprint "herd completions needs one of: "
                 (string/join completions/shells ", "))
       (os/exit 1))))
