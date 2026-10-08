@@ -1,7 +1,7 @@
 {
   description = "Development environment for herd";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.janet-lsp-nix = {
     url = "github:Blue-Berry/janet-lsp.nix";
     flake = false;
