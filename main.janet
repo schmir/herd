@@ -80,6 +80,15 @@
       (get-in options [:default :short-circuit]) (break)))
   found)
 
+(defn- exit-on-error
+  "Return what `attempt` returns, or print `label` and the error and exit 1."
+  [label attempt]
+  (try
+    (attempt)
+    ([err]
+      (eprint label err)
+      (os/exit 1))))
+
 (defn- parse-args
   ``Parse `args` against an argparse specification, exiting on a mistake.
   Asking for help is not a mistake, so it leaves through the successful door.``
@@ -152,18 +161,13 @@
             "configuration directory to read")
     (os/exit 1))
   (def config-paths
-    (try
-      (config/discover-config-files directory)
-      ([err]
-        (eprint "Configuration error: " err)
-        (os/exit 1))))
+    (exit-on-error "Configuration error: "
+                   (fn [] (config/discover-config-files directory))))
   # Validate checkout sources even when no repository lists exist.
   (def repositories
-    (try
-      (config/load-config config-paths directory settings names)
-      ([err]
-        (eprint "Configuration error: " err)
-        (os/exit 1))))
+    (exit-on-error "Configuration error: "
+                   (fn [] (config/load-config config-paths directory settings
+                                              names))))
   {:directory directory :paths config-paths :repositories repositories})
 
 (defn- select-configured
@@ -284,11 +288,7 @@
 (defn- parsed-jobs
   "Return the validated --jobs count, or report the mistake and exit."
   [parsed]
-  (try
-    (scan-jobs (parsed "jobs"))
-    ([err]
-      (eprint "Invalid --jobs: " err)
-      (os/exit 1))))
+  (exit-on-error "Invalid --jobs: " (fn [] (scan-jobs (parsed "jobs")))))
 
 (defn- selected-repositories
   "Load the repositories `parsed` selects: its --at, --all-anchors and --filter."
@@ -344,11 +344,8 @@
   meant to be there.``
   [parsed settings names configured]
   (def max-depth
-    (try
-      (scan-max-depth (parsed "max-depth"))
-      ([err]
-        (eprint "Invalid --max-depth: " err)
-        (os/exit 1))))
+    (exit-on-error "Invalid --max-depth: "
+                   (fn [] (scan-max-depth (parsed "max-depth")))))
   (def everything
     (if (empty? names)
       configured
@@ -436,11 +433,8 @@
   "Run a command in the selected repositories and report its outcome."
   [command parsed &opt settings]
   (def show-output
-    (try
-      (run/require-show-output (parsed "show-output"))
-      ([err]
-        (eprint "Invalid --show-output: " err)
-        (os/exit 1))))
+    (exit-on-error "Invalid --show-output: "
+                   (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (parsed-jobs parsed))
   (def repositories (selected-repositories parsed settings))
   (def counts (run/run-in-repositories command repositories show-output jobs))
@@ -651,11 +645,7 @@
     (print "herd " version)
     (os/exit 0))
   (def commands
-    (try
-      (available-commands)
-      ([err]
-        (eprint "Configuration error: " err)
-        (os/exit 1))))
+    (exit-on-error "Configuration error: " available-commands))
   (def spec
     [(string "manage multiple git/jj repositories\n\n Commands:\n"
              (command-list commands))
