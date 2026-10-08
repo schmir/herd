@@ -169,14 +169,36 @@
           "a VCS-specific custom command provides a handler"))
 
 (assert (deep= {:command-git "git status" :command-jj "jj status"}
-               (herd/command-from-definition
-                 "check"
-                 {:command-git "git status" :command-jj "jj status"}))
+               (get (herd/command-from-definition
+                      "check"
+                      {:command-git "git status"
+                       :command-jj "jj status"
+                       :description "Check."})
+                    :command))
         "VCS-specific configuration becomes a per-repository command")
 (assert (deep= {:command-jj "jj status"}
-               (herd/command-from-definition
-                 "check" {:command-jj "jj status"}))
+               (get (herd/command-from-definition
+                      "check" {:command-jj "jj status" :description "Check."})
+                    :command))
         "a VCS-specific command can support only jj")
+(assert-error "a definition needs a description"
+              (herd/command-from-definition "check" {:command "true"}))
+(assert-error "a definition show-output condition must be known"
+              (herd/command-from-definition
+                "check" {:command "true"
+                         :description "Check."
+                         :show-output "sometimes"}))
+
+(assert-error "a custom command name must be a non-empty string"
+              (herd/command-from-definition "" {:command "true" :description "x"}))
+(assert-error "a custom command cannot replace a built-in command name"
+              (herd/command-from-definition
+                "run" {:command "true" :description "x"}))
+(assert-error "a custom command definition must be a dictionary"
+              (herd/command-from-definition "check" "true"))
+(assert-error "a custom command definition cannot have an unknown key"
+              (herd/command-from-definition
+                "check" {:command "true" :comand-jj "jj status"}))
 
 (let [dir (fixture)
       config-path (path/join dir "config.jdn")]

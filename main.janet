@@ -545,30 +545,47 @@
   [:command :command-git :command-jj :description :show-output])
 
 (defn command-from-definition
-  "Return the command described by one custom-command definition."
+  "Validate one custom-command definition and return its :command, :description, and :show-output."
   [name definition]
+  (unless (and (string? name) (not (empty? name)))
+    (error "custom command names must be non-empty strings"))
+  (defn fail [message]
+    (error (string "custom command \"" name "\" " message)))
+  (when (get built-in-command-help name)
+    (fail "conflicts with a built-in command"))
+  (unless (dictionary? definition)
+    (fail "must be a dictionary"))
+  (eachk key definition
+    (unless (index-of key custom-command-keys)
+      (fail (string "has an unknown key " (describe key)))))
   (def command (get definition :command))
   (def command-git (get definition :command-git))
   (def command-jj (get definition :command-jj))
-  (if (not (nil? command))
-    (do
-      (unless (string? command)
-        (error (string "custom command \"" name "\" needs a string :command")))
-      (when (or (not (nil? command-git)) (not (nil? command-jj)))
-        (error (string "custom command \"" name
-                       "\" cannot combine :command with VCS-specific commands")))
-      command)
-    (do
-      (when (and (nil? command-git) (nil? command-jj))
-        (error (string "custom command \"" name
-                       "\" needs :command, :command-git, or :command-jj")))
-      (unless (or (nil? command-git) (string? command-git))
-        (error (string "custom command \"" name
-                       "\" needs a string :command-git")))
-      (unless (or (nil? command-jj) (string? command-jj))
-        (error (string "custom command \"" name
-                       "\" needs a string :command-jj")))
-      {:command-git command-git :command-jj command-jj})))
+  (def resolved
+    (if (not (nil? command))
+      (do
+        (unless (string? command)
+          (fail "needs a string :command"))
+        (when (or (not (nil? command-git)) (not (nil? command-jj)))
+          (fail "cannot combine :command with VCS-specific commands"))
+        command)
+      (do
+        (when (and (nil? command-git) (nil? command-jj))
+          (fail "needs :command, :command-git, or :command-jj"))
+        (unless (or (nil? command-git) (string? command-git))
+          (fail "needs a string :command-git"))
+        (unless (or (nil? command-jj) (string? command-jj))
+          (fail "needs a string :command-jj"))
+        {:command-git command-git :command-jj command-jj})))
+  (def description (get definition :description))
+  (unless (string? description)
+    (fail "needs a string :description"))
+  (def show-output (get definition :show-output run/default-show-output))
+  (try
+    (run/require-show-output show-output)
+    ([err]
+      (fail (string "has an invalid :show-output; " err))))
+  {:command resolved :description description :show-output show-output})
 
 (defn custom-commands
   "Validate a JDN configuration and return its command handlers."
@@ -581,26 +598,8 @@
     (error ":commands must be a dictionary"))
   (def result @{})
   (eachp [name definition] configured
-    (unless (and (string? name) (not (empty? name)))
-      (error "custom command names must be non-empty strings"))
-    (when (get built-in-command-help name)
-      (error (string "custom command \"" name "\" conflicts with a built-in command")))
-    (unless (dictionary? definition)
-      (error (string "custom command \"" name "\" must be a dictionary")))
-    (eachk key definition
-      (unless (index-of key custom-command-keys)
-        (error (string "custom command \"" name "\" has an unknown key "
-                       (describe key)))))
-    (def command (command-from-definition name definition))
-    (def description (get definition :description))
-    (unless (string? description)
-      (error (string "custom command \"" name "\" needs a string :description")))
-    (def show-output (get definition :show-output run/default-show-output))
-    (try
-      (run/require-show-output show-output)
-      ([err]
-        (error (string "custom command \"" name
-                       "\" has an invalid :show-output; " err))))
+    (def {:command command :description description :show-output show-output}
+      (command-from-definition name definition))
     (put result name
          {:run (make-run-command command description show-output jobs settings)
           :help description}))
