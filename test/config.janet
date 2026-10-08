@@ -87,6 +87,9 @@
 (assert-error "a custom command cannot replace a built-in command"
               (herd/custom-commands
                 {:commands {"run" {:command "true" :description "Conflict."}}}))
+(assert (deep= (sorted herd/built-in-command-names)
+               (sorted (keys (herd/built-in-commands))))
+        "the reserved names are exactly the built-in commands")
 (assert-error "a custom command needs a shell command"
               (herd/custom-commands
                 {:commands {"check" {:description "Check repositories."}}}))

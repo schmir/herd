@@ -490,14 +490,6 @@
                 (string/join completions/shells ", "))
       (os/exit 1))))
 
-(def built-in-command-help
-  "One-line summaries for the built-in subcommands, by name."
-  {"clone" "Check out the configured repositories beneath a path."
-   "fetch" "Fetch Git remotes in configured repositories beneath a path."
-   "completions" "Print a shell completion script for herd."
-   "list" "Print the configured repositories beneath a path."
-   "run" "Run a command in each configured repository beneath a path."})
-
 (defn built-in-commands
   ``Subcommands by name, with their argument handler and one-line summary.
   The per-file settings and job count are bound here so every handler starts
@@ -506,7 +498,7 @@
   (default settings config/default-repository-settings)
   (default jobs parallel/default-jobs)
   {"clone" {:run (fn [args] (clone-command args settings jobs))
-            :help (built-in-command-help "clone")}
+            :help "Check out the configured repositories beneath a path."}
    "fetch" {:run (make-run-command
                    {:command-git "git fetch"
                     :command-jj "jj git fetch"}
@@ -514,13 +506,13 @@
                    run/default-show-output
                    jobs
                    settings)
-            :help (built-in-command-help "fetch")}
+            :help "Fetch Git remotes in configured repositories beneath a path."}
    "completions" {:run completions-command
-                  :help (built-in-command-help "completions")}
+                  :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args settings))
-           :help (built-in-command-help "list")}
+           :help "Print the configured repositories beneath a path."}
    "run" {:run (fn [args] (run-command args jobs settings))
-          :help (built-in-command-help "run")}})
+          :help "Run a command in each configured repository beneath a path."}})
 
 (defn command-config-path
   "Return the JDN configuration path, or nil without a config directory."
@@ -539,6 +531,10 @@
                    parallel/max-jobs)))
   jobs)
 
+(def built-in-command-names
+  "Names of the built-in subcommands, which a custom command may not reuse."
+  ["clone" "fetch" "completions" "list" "run"])
+
 (def custom-command-keys
   "Keys a custom-command definition may contain."
   [:command :command-git :command-jj :description :show-output])
@@ -550,7 +546,7 @@
     (error "custom command names must be non-empty strings"))
   (defn fail [message]
     (error (string "custom command \"" name "\" " message)))
-  (when (get built-in-command-help name)
+  (when (index-of name built-in-command-names)
     (fail "conflicts with a built-in command"))
   (unless (dictionary? definition)
     (fail "must be a dictionary"))
