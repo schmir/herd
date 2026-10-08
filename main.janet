@@ -467,13 +467,11 @@
     (os/exit 1))
   (run-configured-command command parsed settings))
 
-# Returns the commands in effect; set once available-commands exists.
-(var- command-source nil)
-
 (defn completions-command
   ``Run `herd completions`: print the script for a shell, or, for the scripts
-  to call back, the commands in effect including any configured ones.``
-  [args]
+  to call back, the commands in effect including any configured ones, which
+  `commands` returns.``
+  [args commands]
   (def parsed
     (parse-args args
                 "Print a shell completion script for herd."
@@ -483,7 +481,7 @@
                                         (string/join completions/shells ", ") ".")}))
   (def rest (or (parsed :rest) @[]))
   (cond
-    (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (command-source)))
+    (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (commands)))
     (and (= 1 (length rest)) (completions/script (first rest)))
     (prin (completions/script (first rest)))
     (do (eprint "herd completions needs one of: "
@@ -506,7 +504,11 @@
                    jobs
                    settings)
             :help "Fetch Git remotes in configured repositories beneath a path."}
-   "completions" {:run completions-command
+   "completions" {:run (fn [args]
+                         (completions-command
+                           args
+                           (fn [] (merge (built-in-commands config)
+                                         (config :commands)))))
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args settings))
            :help "Print the configured repositories beneath a path."}
@@ -628,8 +630,6 @@
       (load-command-config config-path)
       (prepare-command-config {})))
   (merge (built-in-commands config) (config :commands)))
-
-(set command-source available-commands)
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
