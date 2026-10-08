@@ -280,6 +280,22 @@
       (eprint "Invalid --jobs: " err)
       (os/exit 1))))
 
+(defn- selected-repositories
+  "Load the repositories `parsed` selects: its --at, --all-anchors and --filter."
+  [parsed settings]
+  (configured-repositories (parsed "at") (parsed "all-anchors") settings
+                           (or (parsed "filter") [])))
+
+(defn- exit-unless-complete
+  ``Leave with the interrupt exit code when the run was interrupted, and with 1
+  when `failed`. An interrupted run reached only part of the list, so it
+  cannot report success however well the part it reached went.``
+  [failed]
+  (when (parallel/interrupted?)
+    (os/exit parallel/interrupt-exit-code))
+  (when failed
+    (os/exit 1)))
+
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt settings jobs]
@@ -288,21 +304,14 @@
                      "Check out the configured repositories beneath a path."
                      "jobs" (jobs-option jobs)))
   (def jobs (parsed-jobs parsed))
-  (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors") settings
-                             (or (parsed "filter") [])))
+  (def repositories (selected-repositories parsed settings))
   (def counts (clone/clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
          (counts :blocked) " blocked, "
          (counts :failed) " failed")
-  # An interrupted run reached only part of the list, so it cannot report
-  # success however well the part it reached went.
-  (when (parallel/interrupted?)
-    (os/exit parallel/interrupt-exit-code))
   # A blocked repository was asked for and is still not checked out.
-  (when (pos? (+ (counts :failed) (counts :blocked)))
-    (os/exit 1)))
+  (exit-unless-complete (pos? (+ (counts :failed) (counts :blocked)))))
 
 (def- discovery-options
   "The list options that shape the scan of the disk, by name."
@@ -423,20 +432,13 @@
         (eprint "Invalid --show-output: " err)
         (os/exit 1))))
   (def jobs (parsed-jobs parsed))
-  (def repositories
-    (configured-repositories (parsed "at") (parsed "all-anchors") settings
-                             (or (parsed "filter") [])))
+  (def repositories (selected-repositories parsed settings))
   (def counts (run/run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
          (counts :skipped) " skipped, "
          (counts :not-checked-out) " not checked out")
-  # An interrupted run reached only part of the list, so it cannot report
-  # success however well the part it reached went.
-  (when (parallel/interrupted?)
-    (os/exit parallel/interrupt-exit-code))
-  (when (pos? (counts :failed))
-    (os/exit 1)))
+  (exit-unless-complete (pos? (counts :failed))))
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."
