@@ -170,6 +170,14 @@
                                               names))))
   {:directory directory :paths config-paths :repositories repositories})
 
+(defn- exit-unconfigured
+  ``Say that `loaded` read no configuration files, and exit successfully.
+  Nothing configured yet is a normal state, not a failure: exiting non-zero
+  would make `just run` print a traceback over an unremarkable message.``
+  [loaded]
+  (eprint "No configuration files in " (loaded :directory))
+  (os/exit 0))
+
 (defn- select-configured
   ``Select the repositories in `config` at a path. Unless `quiet` is set,
   say why the result is empty.``
@@ -214,11 +222,8 @@
   (default settings config/default-repository-settings)
   (default names [])
   (def loaded (read-configuration settings names))
-  # Nothing configured yet is a normal state, not a failure: exiting non-zero
-  # would make `just run` print a traceback over an unremarkable message.
   (when (empty? (loaded :paths))
-    (eprint "No configuration files in " (loaded :directory))
-    (os/exit 0))
+    (exit-unconfigured loaded))
   (select-configured at all-anchors (loaded :repositories) settings names))
 
 (defn- at-option
@@ -406,8 +411,7 @@
   (def show-configured (or want-ok want-missing))
   (def loaded (read-configuration settings names))
   (when (and (empty? (loaded :paths)) (not scan))
-    (eprint "No configuration files in " (loaded :directory))
-    (os/exit 0))
+    (exit-unconfigured loaded))
   (def configured (loaded :repositories))
   (def selected
     (if show-configured
