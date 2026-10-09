@@ -273,7 +273,7 @@
   parallel/run-repositories accepts, so an out-of-range count fails here with
   a message instead of there with a stack trace.``
   [count]
-  (def parsed (if (string? count) (scan-number count) count))
+  (def parsed (scan-number count))
   (unless (parallel/jobs? parsed)
     (error (string "expected a positive integer no greater than "
                    parallel/max-jobs)))
