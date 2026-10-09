@@ -194,7 +194,7 @@
       (and (empty? config) (filters-in-play? names settings))
       (eprint "No configured repository is left by "
               (if (empty? names)
-                "the filters in config.jdn"
+                (string "the filters in " config/command-config-name)
                 (describe-filters names)))
 
       (empty? config) nil
@@ -521,7 +521,7 @@
   "Return the JDN configuration path, or nil without a config directory."
   []
   (when-let [directory (config/config-directory)]
-    (path/join directory "config.jdn")))
+    (path/join directory config/command-config-name)))
 
 (defn configured-jobs
   "Return the configured job count, or the default when it is not set."

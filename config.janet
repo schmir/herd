@@ -14,6 +14,10 @@
     (when-let [home (os/getenv "HOME")]
       (path/join home ".config" "herd"))))
 
+(def command-config-name
+  "File in the configuration directory holding the settings and commands."
+  "config.jdn")
+
 (def config-suffix ".json")
 
 (defn discover-config-files
@@ -153,7 +157,7 @@
                    (length values) " top-level values"))))
 
 (def default-repository-settings
-  "Repository settings used when config.jdn is absent."
+  "Repository settings used when the command config file is absent."
   {:defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
@@ -352,7 +356,7 @@
   (def present (map path/basename config-paths))
   (each name (distinct (map (fn [checkout] (checkout :from)) (get settings :checkouts [])))
     (unless (index-of name present)
-      (error (string "config.jdn: :checkouts reads " (describe name)
+      (error (string command-config-name ": :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
 
 (defn load-config
