@@ -16,6 +16,10 @@
   [["" "show-output" "WHEN" "Show command output: never, on-failure, or always."]
    jobs-option])
 
+(def- state-options
+  [["" "dirty" nil "Select only repositories with uncommitted changes."]
+   ["" "clean" nil "Select only checked-out repositories without uncommitted changes."]])
+
 (def- list-options
   [["" "ok" nil "Print configured repositories that are on disk."]
    ["" "missing" nil "Print configured repositories that are not on disk."]
@@ -32,9 +36,9 @@
   [command]
   (case command
     "clone" [;selection-options jobs-option]
-    "list" [;selection-options ;list-options]
+    "list" [;selection-options ;list-options ;state-options]
     "completions" [["h" "help" nil "Show this help message."]]
-    [;selection-options ;running-options]))
+    [;selection-options ;running-options ;state-options]))
 
 (defn- flags-of
   "Every spelling of the options, as they are written on the command line."

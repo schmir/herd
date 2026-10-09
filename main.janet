@@ -8,6 +8,7 @@
 (import ./parallel)
 (import ./run)
 (import ./select)
+(import ./state)
 (import ./survey)
 
 (defmacro- baked-version
@@ -309,6 +310,37 @@
   (when failed
     (os/exit 1)))
 
+(def- state-option-specs
+  "The --dirty and --clean specifications, shared by the commands that act."
+  ["dirty" {:kind :flag
+            :help "Select only repositories with uncommitted changes."}
+   "clean" {:kind :flag
+            :help "Select only checked-out repositories without uncommitted changes."}])
+
+(defn- wanted-state
+  "The state --dirty or --clean asks for, or nil. Asking for both is a mistake."
+  [parsed]
+  (when (and (parsed "dirty") (parsed "clean"))
+    (eprint "usage error: --dirty and --clean exclude each other")
+    (os/exit 1))
+  (cond
+    (parsed "dirty") :dirty
+    (parsed "clean") :clean))
+
+(defn- select-by-state
+  ``Keep the `repositories` in the `wanted` state, or all of them when none is
+  wanted. Say so when that leaves nothing of a selection that was not empty.``
+  [repositories wanted jobs]
+  (if wanted
+    (let [kept (exit-on-error "State error: "
+                              (fn [] (state/filter-by-state repositories wanted jobs)))]
+      (exit-unless-complete false)
+      (when (and (empty? kept) (not (empty? repositories)))
+        (eprint "None of the " (length repositories) " selected repositories is "
+                wanted))
+      kept)
+    repositories))
+
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt settings jobs]
@@ -392,7 +424,9 @@
                      "hidden" {:kind :flag
                                :help "Scan hidden directories for extra repositories."}
                      "follow-links" {:kind :flag
-                                     :help "Follow symbolic links when scanning for extra repositories."}))
+                                     :help "Follow symbolic links when scanning for extra repositories."}
+                     ;state-option-specs))
+  (def wanted (wanted-state parsed))
   (def names (filter-names parsed))
   (def status (parsed "status"))
   (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
@@ -412,12 +446,15 @@
     (exit-unconfigured loaded))
   (def configured (loaded :repositories))
   (def selected
-    (if show-configured
-      # Explaining an empty selection would mislead when the disk is
-      # scanned as well, since that can still turn up repositories.
-      (select-configured (parsed "at") (parsed "all-anchors") configured
-                         settings names scan)
-      @[]))
+    (select-by-state
+      (if show-configured
+        # Explaining an empty selection would mislead when the disk is
+        # scanned as well, since that can still turn up repositories.
+        (select-configured (parsed "at") (parsed "all-anchors") configured
+                           settings names scan)
+        @[])
+      wanted
+      parallel/default-jobs))
   (defn emit [state & fields]
     (print ;(if status [state "\t"] []) (string/join fields "\t")))
   (each entry selected
@@ -434,11 +471,13 @@
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."
   [command parsed &opt settings]
+  (def wanted (wanted-state parsed))
   (def show-output
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (parsed-jobs parsed))
-  (def repositories (selected-repositories parsed settings))
+  (def repositories
+    (select-by-state (selected-repositories parsed settings) wanted jobs))
   (def counts (run/run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
@@ -454,7 +493,8 @@
     (def parsed
       (parse-selection args description
                        "show-output" (show-output-option show-output)
-                       "jobs" (jobs-option jobs)))
+                       "jobs" (jobs-option jobs)
+                       ;state-option-specs))
     (run-configured-command command parsed settings)))
 
 (defn run-command
@@ -466,6 +506,7 @@
                              " Usage: herd run [option] ... CMD [CMD-ARGS]...")
                      "show-output" (show-output-option run/default-show-output)
                      "jobs" (jobs-option jobs)
+                     ;state-option-specs
                      :default {:kind :accumulate
                                :short-circuit true
                                :help "Command and arguments to run."}))

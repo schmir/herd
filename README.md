@@ -489,6 +489,19 @@ herd list -a -C / --filter active
 herd clone -a -C / -f active -f reviewed
 ```
 
+`--dirty` and `--clean` narrow the selection by what is in each working
+copy, for `list`, `run`, `fetch`, `diff` and custom commands. A Git
+repository is dirty when `git status --porcelain` prints anything, so
+untracked files count; a jj repository is dirty when its working-copy commit
+is not empty. A repository that is not checked out is neither, and asking
+for both flags is a mistake. They apply on top of everything above, and
+`list` leaves the extra repositories it finds on disk alone:
+
+```sh
+herd run --dirty git status --short
+herd list --clean
+```
+
 When nothing is selected, `herd` says whether a filter left nothing, no
 anchor contained the location, or no repository was in range, and points at
 `--all-anchors`. An empty selection is not an error.
@@ -524,12 +537,12 @@ The sources are layered, each file importing only the ones beneath it.
 entries of a repository list, `discover.janet` finds the repositories under
 a directory, `filter.janet` narrows one, `config.janet` turns the
 configuration directory into repositories, `select.janet` picks the ones a
-command acts on, `survey.janet` compares them with what is on disk, and
-`clone.janet` and `run.janet` do the work in parallel through
-`parallel.janet`. `main.janet` is the command line over the top of them, and
-the only file that ends the process. `access.c` is the one piece of C: Janet
-binds no `access(2)`, and the permission bits alone cannot say whether this
-process may run a file.
+command acts on, `survey.janet` compares them with what is on disk,
+`state.janet` says whether a working copy has changes, and `clone.janet` and
+`run.janet` do the work in parallel through `parallel.janet`. `main.janet`
+is the command line over the top of them, and the only file that ends the
+process. `access.c` is the one piece of C: Janet binds no `access(2)`, and
+the permission bits alone cannot say whether this process may run a file.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
