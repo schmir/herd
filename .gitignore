@@ -1,3 +1,4 @@
 /build/
 /dist/
 /jpm_tree/
+/test/cli/*.t.err
