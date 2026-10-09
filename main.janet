@@ -536,7 +536,7 @@
 
 (def built-in-command-names
   "Names of the built-in subcommands, which a custom command may not reuse."
-  ["clone" "completions" "list" "run"])
+  (keys (built-in-commands {})))
 
 (def custom-command-keys
   "Keys a custom-command definition may contain."

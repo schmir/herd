@@ -87,9 +87,9 @@
 (assert-error "a custom command cannot replace a built-in command"
               (herd/prepare-command-config
                 {:commands {"run" {:command "true" :description "Conflict."}}}))
-(assert (deep= (sorted herd/built-in-command-names)
-               (sorted (keys (herd/built-in-commands (herd/prepare-command-config {})))))
-        "the reserved names are exactly the built-in commands")
+(assert (deep= @["clone" "completions" "list" "run"]
+               (sorted herd/built-in-command-names))
+        "the reserved names are the built-in commands")
 (each name herd/built-in-command-names
   (assert-error (string "a custom command cannot replace " name)
                 (herd/prepare-command-config
