@@ -166,8 +166,10 @@
 (defn run-repositories
   ``Run `operation` for each repository with at most `jobs` active callbacks.
   The callback receives the repository and a reporter, and returns an outcome
-  key. Errors and unknown outcomes count as :failed.``
-  [repositories outcomes operation &opt jobs]
+  key. Errors and unknown outcomes count as :failed. The live progress block
+  is drawn when stderr is a terminal, unless `live` is given: false keeps the
+  run silent, apart from what it reports.``
+  [repositories outcomes operation &opt jobs live]
   (unless (some (fn [outcome] (= :failed (outcome 0))) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
@@ -176,7 +178,7 @@
   (require-jobs jobs)
   # More workers than repositories would only draw empty spinner rows.
   (def workers (max 1 (min jobs total)))
-  (def progress (make-progress total outcomes workers))
+  (def progress (make-progress total outcomes workers live))
   (def cursor @[0])
   (watch-for-interrupt progress)
   (defn worker [slot]

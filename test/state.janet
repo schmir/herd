@@ -83,7 +83,41 @@
   (assert (try (do (state/filter-by-state [broken] :dirty) false) ([_] true))
           "an unreadable repository raises"))
 
+(defn test-command-matches
+  "A command matches by its exit status, run inside the repository."
+  []
+  (def repository (make-repository "where"))
+  (assert (state/command-matches? "true" repository) "exit 0 matches")
+  (assert (not (state/command-matches? "false" repository)) "exit 1 does not")
+  (assert (not (state/command-matches? "test -f marker" repository))
+          "the file is not there yet")
+  (spit (path/join (repository :path) "marker") "")
+  (assert (state/command-matches? "test -f marker" repository)
+          "the command runs in the repository")
+  (assert (not (state/command-matches? "true" {:path (path/join dir "absent")}))
+          "a missing path never matches, and runs nothing")
+  (assert (try (do (state/command-matches? "no-such-command-here" repository) false)
+            ([_] true))
+          "a command the shell cannot find raises"))
+
+(defn test-filter-by-commands
+  "Every command must hold, and the order of the repositories is kept."
+  []
+  (def repositories (map make-repository ["w1" "w2" "w3"]))
+  (spit (path/join ((repositories 0) :path) "a") "")
+  (spit (path/join ((repositories 0) :path) "b") "")
+  (spit (path/join ((repositories 2) :path) "a") "")
+  (def paths (fn [rs] (map (fn [r] (r :path)) rs)))
+  (assert (deep= (paths [(repositories 0) (repositories 2)])
+                 (paths (state/filter-by-commands repositories ["test -f a"])))
+          "one command keeps those that pass it")
+  (assert (deep= (paths [(repositories 0)])
+                 (paths (state/filter-by-commands repositories ["test -f a" "test -f b"])))
+          "all commands must pass"))
+
 (test-state-command)
+(test-command-matches)
+(test-filter-by-commands)
 (test-repository-state)
 (test-no-working-copy-has-no-state)
 (test-filter-by-state)

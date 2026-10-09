@@ -175,10 +175,10 @@ Stripping more components than a path has.
 Filters, and the rows and defaults that name them.
 
   $ settings '{:filters []}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :filters must be a dictionary of names to expressions
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :filters must be a dictionary of names to filters
   [1]
   $ settings '{:filters {"active" 1}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "active" needs a non-empty expression
+  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "active" needs an expression, or a dictionary with :jp or :sh
   [1]
   $ settings '{:filters {"active" ""}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: filter "active" needs a non-empty expression
@@ -194,6 +194,32 @@ Filters, and the rows and defaults that name them.
   [1]
   $ settings '{:defaults {:filter ["absent"]}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults names an unknown filter "absent"
+  [1]
+
+A filter can say what it is: a JMESPath expression in :jp, or a shell
+command in :sh, exactly one of them. A string stays a JMESPath expression.
+
+  $ settings '{:filters {"a" {:jp "[?a]"} "b" {:sh "true"} "c" "[?c]"}}'
+  $ settings '{:filters {"a" {}}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "a" needs exactly one of :jp and :sh
+  [1]
+  $ settings '{:filters {"a" {:jp "[?a]" :sh "true"}}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "a" needs exactly one of :jp and :sh
+  [1]
+  $ settings '{:filters {"a" {:sh ""}}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "a" needs a non-empty string in :sh
+  [1]
+  $ settings '{:filters {"a" {:sh "true" :other 1}}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: filter "a" has an unknown key :other
+  [1]
+
+A shell filter runs in a checkout, so a row or the defaults cannot name one.
+
+  $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:from "repos.json" :filter ["b"]}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names the command filter "b", which only the command line can use
+  [1]
+  $ settings '{:filters {"b" {:sh "true"}} :defaults {:filter ["b"]}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults names the command filter "b", which only the command line can use
   [1]
 
 Only *.json files are lists, and a directory named like one is not.

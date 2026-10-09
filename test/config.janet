@@ -536,6 +536,32 @@
               (config/validate-filters {"active" ""}))
 (assert-no-error "a filter names an expression"
                  (config/validate-filters {"active" "[?schedules]"}))
+(assert-no-error "a filter can say it is JMESPath or a shell command"
+                 (config/validate-filters {"a" {:jp "[?a]"} "b" {:sh "true"}}))
+(assert-error "a filter dictionary needs :jp or :sh"
+              (config/validate-filters {"a" {}}))
+(assert-error "a filter dictionary cannot be both"
+              (config/validate-filters {"a" {:jp "[?a]" :sh "true"}}))
+(assert-error "a filter dictionary rejects other keys"
+              (config/validate-filters {"a" {:sh "true" :other 1}}))
+(assert-error "a shell filter must not be empty"
+              (config/validate-filters {"a" {:sh ""}}))
+(assert-error "a JMESPath filter must be a string"
+              (config/validate-filters {"a" {:jp 1}}))
+
+(let [settings (config/configured-repository-settings
+                 {:filters {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}})]
+  (assert (deep= {"a" "[?a]" "b" "[?b]"} (settings :filters))
+          "strings and :jp filters are the JMESPath expressions")
+  (assert (deep= {"c" "true"} (settings :sh-filters))
+          "shell filters are kept apart, with their commands"))
+(assert-error "a row cannot name a shell filter"
+              (config/configured-repository-settings
+                {:filters {"c" {:sh "true"}}
+                 :checkouts [{:from "work.json" :filter ["c"]}]}))
+(assert-error "the defaults cannot name a shell filter"
+              (config/configured-repository-settings
+                {:filters {"c" {:sh "true"}} :defaults {:filter ["c"]}}))
 
 (assert-error "a row cannot name a filter that is not configured"
               (config/configured-repository-settings

@@ -25,7 +25,9 @@ configuration defines are offered too.
 
   $ cat >"$CONFIG/config.jdn" <<'JDN'
   > {:commands {"greet" {:command "echo hi" :description "Say hi."}}
-  >  :filters {"tier1" "[?tier == `1`]" "active" "[?active]"}}
+  >  :filters {"tier1"  {:jp "[?tier == `1`]"}
+  >            "active" "[?active]"
+  >            "has-readme" {:sh "test -f README.md"}}}
   > JDN
   $ herd completions commands
   clone\tCheck out the configured repositories beneath a path. (esc)
@@ -40,4 +42,5 @@ So are the configured filters, for the option that names one.
 
   $ herd completions filters
   active\t[?active] (esc)
+  has-readme\ttest -f README.md (esc)
   tier1\t[?tier == `1`] (esc)

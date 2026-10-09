@@ -18,9 +18,18 @@ Filters narrow one after the other.
   $ herd list -f platform -f none
   No configured repository is left by .* (re)
 
+A name that is neither a filter nor a program is reported, with the filters
+there are.
+
   $ herd list -f nope
-  Unknown filter "nope"; configured filters are "none", "platform"
+  "nope" is neither a configured filter nor a command; configured filters are "none", "platform"
   [1]
+
+A program is taken to be a shell command. It runs in the checkouts, and
+nothing is checked out yet, so nothing is left.
+
+  $ herd list -f true
+  No repository is left of the 2 selected by -f
 
 A row's :filter applies to its own list.
 

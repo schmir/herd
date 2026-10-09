@@ -6,6 +6,7 @@
 (import ./config)
 (import ./discover)
 (import ./parallel)
+(import ./process)
 (import ./run)
 (import ./select)
 (import ./state)
@@ -106,10 +107,50 @@
     (os/exit 0))
   parsed)
 
-(defn- filter-names
-  "The filter names `parsed` was given on the command line, in order."
-  [parsed]
-  (or (parsed "filter") []))
+(defn- bare-word?
+  "Whether `value` is a single word, which names a program rather than a script."
+  [value]
+  (not (or (string/find " " value) (string/find "\t" value)
+           (string/find "/" value))))
+
+(defn- reject-mistyped-filter
+  ``Report and exit when `value`, given with -f, is neither a filter nor a
+  command. A single word that no program on PATH answers to was most likely a
+  filter name with a typo in it, which is better said now than found out as a
+  command that fails in every checkout, or never runs where nothing is
+  checked out.``
+  [value settings]
+  (when (and (bare-word? value) (not (process/find-executable value)))
+    (def known (sorted [;(keys (get settings :filters {}))
+                        ;(keys (get settings :sh-filters {}))]))
+    (eprint (describe value) " is neither a configured filter nor a command"
+            (if (empty? known)
+              "; no filters are configured"
+              (string "; configured filters are "
+                      (string/join (map describe known) ", "))))
+    (os/exit 1)))
+
+(defn- resolve-filters
+  ``Sort what `parsed` was given with -f, in order. A name of a JMESPath
+  filter in `settings` narrows the lists. A name of a shell filter stands for
+  its command, and anything else is taken to be a shell command itself. The
+  commands run in the checkouts, so they follow the names. `:command-values`
+  holds what was written for each command, for a message to quote.``
+  [parsed settings]
+  (def expressions (get settings :filters {}))
+  (def shell-filters (get settings :sh-filters {}))
+  (def names @[])
+  (def commands @[])
+  (def command-values @[])
+  (each value (or (parsed "filter") [])
+    (cond
+      (get expressions value) (array/push names value)
+      (do
+        (unless (get shell-filters value)
+          (reject-mistyped-filter value settings))
+        (array/push commands (get shell-filters value value))
+        (array/push command-values value))))
+  {:names names :commands commands :command-values command-values})
 
 (defn- rest-arguments
   "The positional arguments `parsed` collected, starting at the command."
@@ -132,29 +173,12 @@
   (string (if (= 1 (length names)) "filter " "filters ")
           (string/join (map describe names) " and ")))
 
-(defn- require-known-filters
-  ``Report and exit when `names` holds a filter `settings` does not define.
-  Checked before anything is read, so a typo does not look like a list that
-  simply matched nothing.``
-  [names settings]
-  (def filters (get settings :filters {}))
-  (each name names
-    (unless (get filters name)
-      (eprint "Unknown filter " (describe name)
-              (if (empty? filters)
-                "; no filters are configured"
-                (string "; configured filters are "
-                        (string/join (map describe (sort (keys filters)))
-                                     ", "))))
-      (os/exit 1))))
-
 (defn- read-configuration
   ``Load the configured repositories, exiting on a configuration error. The
   filters named in `names` narrow every configuration file further, on top of
   whatever its checkout rows already filter. Return the repositories with the
   directory and the configuration files they were read from.``
   [settings names]
-  (require-known-filters names settings)
   (def directory (config/config-directory))
   (when (nil? directory)
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
@@ -295,10 +319,11 @@
   (exit-on-error "Invalid --jobs: " (fn [] (scan-jobs (parsed "jobs")))))
 
 (defn- selected-repositories
-  "Load the repositories `parsed` selects: its --at, --all-anchors and --filter."
-  [parsed settings]
+  ``Load the repositories `parsed` selects: its --at and --all-anchors, and
+  the JMESPath filters among its -f.``
+  [parsed settings selection]
   (configured-repositories (parsed "at") (parsed "all-anchors") settings
-                           (filter-names parsed)))
+                           (selection :names)))
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when the run was interrupted, and with 1
@@ -328,16 +353,30 @@
     (parsed "clean") :clean))
 
 (defn- select-by-state
-  ``Keep the `repositories` in the `wanted` state, or all of them when none is
-  wanted. Say so when that leaves nothing of a selection that was not empty.``
-  [repositories wanted jobs]
-  (if wanted
-    (let [kept (exit-on-error "State error: "
-                              (fn [] (state/filter-by-state repositories wanted jobs)))]
-      (exit-unless-complete false)
+  ``Keep the `repositories` in the `wanted` state, if any, and where every one
+  of the shell `commands` from -f succeeds. Say so when that leaves nothing of
+  a selection that was not empty.``
+  [repositories wanted commands jobs]
+  (if (or wanted (not (empty? commands)))
+    (let [kept (exit-on-error
+                 "Selection error: "
+                 (fn []
+                   (var kept repositories)
+                   # Each stage can be interrupted, and says so only until
+                   # the next one starts.
+                   (when wanted
+                     (set kept (state/filter-by-state kept wanted jobs))
+                     (exit-unless-complete false))
+                   (unless (empty? commands)
+                     (set kept (state/filter-by-commands kept commands jobs))
+                     (exit-unless-complete false))
+                   kept))]
       (when (and (empty? kept) (not (empty? repositories)))
-        (eprint "None of the " (length repositories) " selected repositories is "
-                wanted))
+        (eprint "No repository is left of the " (length repositories)
+                " selected by "
+                (string/join [;(if wanted [(string "--" wanted)] [])
+                              ;(if (empty? commands) [] ["-f"])]
+                             " and ")))
       kept)
     repositories))
 
@@ -349,7 +388,13 @@
                      "Check out the configured repositories beneath a path."
                      "jobs" (jobs-option jobs)))
   (def jobs (parsed-jobs parsed))
-  (def repositories (selected-repositories parsed settings))
+  (def selection (resolve-filters parsed settings))
+  # A shell command needs a checkout to run in, and clone is what makes them.
+  (when-let [value (first (selection :command-values))]
+    (eprint "usage error: clone can only use the JMESPath filters in :filters, "
+            "and " (describe value) " is not one")
+    (os/exit 1))
+  (def repositories (selected-repositories parsed settings selection))
   (def counts (clone/clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
@@ -427,7 +472,8 @@
                                      :help "Follow symbolic links when scanning for extra repositories."}
                      ;state-option-specs))
   (def wanted (wanted-state parsed))
-  (def names (filter-names parsed))
+  (def selection (resolve-filters parsed settings))
+  (def names (selection :names))
   (def status (parsed "status"))
   (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
   # The ok repositories are what --status leaves out unless asked: it is
@@ -454,6 +500,7 @@
                            settings names scan)
         @[])
       wanted
+      (selection :commands)
       parallel/default-jobs))
   (defn emit [state & fields]
     (print ;(if status [state "\t"] []) (string/join fields "\t")))
@@ -476,8 +523,10 @@
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (parsed-jobs parsed))
+  (def selection (resolve-filters parsed settings))
   (def repositories
-    (select-by-state (selected-repositories parsed settings) wanted jobs))
+    (select-by-state (selected-repositories parsed settings selection) wanted
+                     (selection :commands) jobs))
   (def counts (run/run-in-repositories command repositories show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
@@ -553,7 +602,8 @@
                            args
                            (fn [] (merge (built-in-commands config)
                                          (config :commands)))
-                           (fn [] (get settings :filters {}))))
+                           (fn [] (merge (get settings :filters {})
+                                         (get settings :sh-filters {})))))
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args settings))
            :help "Print the configured repositories beneath a path."}

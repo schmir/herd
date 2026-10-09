@@ -119,8 +119,8 @@ settings:
 ```
 
 `:jobs` is the default number of operations run in parallel. `:filters`
-names the expressions that [select repositories](#filters) by what their
-entries say.
+names the JMESPath expressions and shell commands that
+[select repositories](#filters).
 
 `:checkouts` is where the repository lists are anchored. Each row reads one
 configuration file, named by `:from` as it is named in the configuration
@@ -262,6 +262,45 @@ match, so an expression meant for `-f` has to name fields defensively:
 
 Without the `|| ''`, that expression selects correctly from the list it was
 written for and fails outright on any list with no `group` at all.
+
+#### Shell filters
+
+A filter can also ask the checkout itself. Say what a filter is by writing
+it as a dictionary: `{:jp expression}` for JMESPath, `{:sh command}` for a
+shell command. A plain string is short for `:jp`.
+
+```janet
+{:filters
+ {"repoactive"   {:jp "[?schedules[?starts_with(name, 'repoactive-')]]"}
+  "has-makefile" {:sh "test -f Makefile"}}}
+```
+
+`-f` takes either kind by name, so it does not matter which a filter is. A
+value that no filter is called is run as a shell command of its own, which
+is how to try one before naming it:
+
+```sh
+herd run -f has-makefile make test
+herd list -f platform -f 'git branch --show-current | grep -qx main'
+```
+
+A command runs through `sh -c` with the repository as its working directory,
+nothing on its input and its output discarded, and keeps the repository when
+it exits 0. It cannot run where nothing is checked out, so a repository that
+is not checked out is dropped. Status 126 and 127 mean the shell could not
+run the command, which is reported as a mistake rather than as a repository
+that does not match. A single word that is neither a filter nor a program on
+`PATH` is reported before anything is read, with the filters there are,
+since it is most likely a filter name with a typo in it.
+
+Commands run after the selection, so the JMESPath filters among the `-f`
+values narrow the lists first, in the order written, and the commands then
+narrow what is left, along with `--dirty` and `--clean`. For the same reason
+only the command line can use one: a row's or the defaults' `:filter` naming
+a shell filter is an error, and so is `clone -f` with a command, as clone is
+what makes the checkouts a command would run in. `list` applies them to the
+configured repositories only, and leaves the extra ones it finds on disk
+alone.
 
 ### Custom commands
 
