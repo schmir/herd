@@ -284,8 +284,9 @@ A command is either a single `:command` string, or `:command-git` and
 repository whose VCS has no command is skipped. Commands run through
 `sh -c`, so pipes and `&&` work. `:show-output` sets that command's default
 output condition; see [Use](#use). Custom names cannot shadow the built-in
-commands. `diff` and `fetch` are themselves custom commands herd defines by
-default, so an entry of the same name in `:commands` replaces them.
+commands `clone`, `completions`, `list` and `run`. `diff` and `fetch` are
+themselves custom commands herd defines by default, so an entry of the same
+name in `:commands` replaces them.
 
 ## Shell completions
 
