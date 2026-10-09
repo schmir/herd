@@ -62,6 +62,20 @@ never hides even a failure.
   $ herd fetch
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
+  $ herd diff
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+A change that is staged but not committed shows up in diff, as it does in
+jj. A repository without changes prints nothing.
+
+  $ echo changed >src/api/notes
+  $ git -C src/api add notes
+  $ herd diff -j 1 | grep -E '^(.*\$ROOT|\|.*\+changed|[0-9])'
+  \xe2\x9c\x93 $ROOT/home/src/api (esc)
+  |   +changed
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ git -C src/api rm -q -f --cached notes && rm src/api/notes
+
 A custom command is listed in --help and runs like run, with its own
 default for --show-output.
 

@@ -29,6 +29,7 @@ configuration defines are offered too.
   $ herd completions commands
   clone\tCheck out the configured repositories beneath a path. (esc)
   completions\tPrint a shell completion script for herd. (esc)
+  diff\tShow working copy changes in configured repositories beneath a path. (esc)
   fetch\tFetch Git remotes in configured repositories beneath a path. (esc)
   greet\tSay hi. (esc)
   list\tPrint the configured repositories beneath a path. (esc)

@@ -545,7 +545,11 @@
 (def default-command-definitions
   ``Custom commands herd defines itself, written as they would be in :commands
   of config.jdn. A definition of the same name there replaces one.``
-  {"fetch" {:command-git "git fetch"
+  {"diff" {:command-git "git diff HEAD"
+           :command-jj "jj diff"
+           :description "Show working copy changes in configured repositories beneath a path."
+           :show-output "always"}
+   "fetch" {:command-git "git fetch"
             :command-jj "jj git fetch"
             :description "Fetch Git remotes in configured repositories beneath a path."}})
 

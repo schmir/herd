@@ -18,6 +18,7 @@ not stop it.
    Commands:
     clone       Check out the configured repositories beneath a path.
     completions Print a shell completion script for herd.
+    diff        Show working copy changes in configured repositories beneath a path.
     fetch       Fetch Git remotes in configured repositories beneath a path.
     list        Print the configured repositories beneath a path.
     run         Run a command in each configured repository beneath a path.

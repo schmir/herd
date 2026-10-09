@@ -90,6 +90,25 @@
 (assert (deep= (sorted herd/built-in-command-names)
                (sorted (keys (herd/built-in-commands (herd/prepare-command-config {})))))
         "the reserved names are exactly the built-in commands")
+(each name herd/built-in-command-names
+  (assert-error (string "a custom command cannot replace " name)
+                (herd/prepare-command-config
+                  {:commands {name {:command "true" :description "Conflict."}}})))
+(each name ["diff" "fetch"]
+  (let [prepared (herd/prepare-command-config {})]
+    (assert (function? (get-in prepared [:commands name :run]))
+            (string name " is a default custom command"))
+    (assert (string? (get-in prepared [:commands name :help]))
+            (string name " has a description")))
+  (let [prepared (herd/prepare-command-config
+                   {:commands {name {:command "true" :description "Mine."}}})]
+    (assert (= "Mine." (get-in prepared [:commands name :help]))
+            (string "a configured " name " replaces the default"))))
+(assert (= "Mine." (get-in (herd/prepare-command-config
+                             {:commands {"extra" {:command "true"
+                                                  :description "Mine."}}})
+                           [:commands "extra" :help]))
+        "a configured command is added beside the defaults")
 (assert-error "a custom command needs a shell command"
               (herd/prepare-command-config
                 {:commands {"check" {:description "Check repositories."}}}))

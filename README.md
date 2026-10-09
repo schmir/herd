@@ -284,8 +284,8 @@ A command is either a single `:command` string, or `:command-git` and
 repository whose VCS has no command is skipped. Commands run through
 `sh -c`, so pipes and `&&` work. `:show-output` sets that command's default
 output condition; see [Use](#use). Custom names cannot shadow the built-in
-commands. `fetch` is itself a custom command herd defines by default, so a
-`"fetch"` entry in `:commands` replaces it.
+commands. `diff` and `fetch` are themselves custom commands herd defines by
+default, so an entry of the same name in `:commands` replaces them.
 
 ## Shell completions
 
@@ -384,6 +384,12 @@ Fetch the Git remotes of every checked-out repository:
 
 ```sh
 herd fetch
+```
+
+Show the uncommitted changes of every checked-out repository:
+
+```sh
+herd diff
 ```
 
 Run any command in every checked-out repository:
