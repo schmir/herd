@@ -6,8 +6,8 @@
 (import ./entries)
 
 (defn config-directory
-  ``Directory holding the JSON configuration files, or nil when neither
-  XDG_CONFIG_HOME nor HOME is set.``
+  ``Directory holding the JSON repository lists and the command config file,
+  or nil when neither XDG_CONFIG_HOME nor HOME is set.``
   []
   (if-let [xdg (os/getenv "XDG_CONFIG_HOME")]
     (path/join xdg "herd")
