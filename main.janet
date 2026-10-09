@@ -478,8 +478,8 @@
 (defn completions-command
   ``Run `herd completions`: print the script for a shell, or, for the scripts
   to call back, the commands in effect including any configured ones, which
-  `commands` returns.``
-  [args commands]
+  `commands` returns, or the configured filters, which `filters` returns.``
+  [args commands filters]
   (def parsed
     (parse-args args
                 "Print a shell completion script for herd."
@@ -493,6 +493,7 @@
       (completions/script (first rest))))
   (cond
     (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (commands)))
+    (deep= (tuple ;rest) ["filters"]) (print (completions/filter-lines (filters)))
     script (prin script)
     (do (eprint "herd completions needs one of: "
                 (string/join completions/shells ", "))
@@ -510,7 +511,8 @@
                          (completions-command
                            args
                            (fn [] (merge (built-in-commands config)
-                                         (config :commands)))))
+                                         (config :commands)))
+                           (fn [] (get settings :filters {}))))
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args settings))
            :help "Print the configured repositories beneath a path."}

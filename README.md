@@ -292,7 +292,8 @@ name in `:commands` replaces them.
 
 `herd completions bash`, `zsh` or `fish` prints a completion script. The
 scripts ask `herd` for its commands each time, so the ones defined in
-`:commands` are completed too.
+`:commands` are completed too. After `-f` or `--filter` they offer the names
+in `:filters` the same way.
 
 Either load the script when the shell starts, which runs `herd` once per
 shell, or write it to a file once.

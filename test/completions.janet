@@ -28,6 +28,20 @@
              (completions/command-lines {"b" {:help "second"}
                                          "a" {:help "first"}}))))
 
+(defn test-filter-lines
+  "Filters are listed by name, each with its expression after a tab."
+  []
+  (assert (= "a\t[?a]\nb\t[?b]"
+             (completions/filter-lines {"b" "[?b]" "a" "[?a]"})))
+  (assert (= "" (completions/filter-lines {})) "no filters, no lines"))
+
+(defn test-scripts-complete-filter-names
+  "Each script asks herd for the filter names after the filter option."
+  []
+  (each shell completions/shells
+    (assert (string/find "herd completions filters" (completions/script shell))
+            (string shell " completes filter names"))))
+
 (defn test-bash-skips-option-values
   "The bash scanner skips the value of every option that takes one."
   []
@@ -41,5 +55,7 @@
 (test-bash-skips-option-values)
 (test-scripts-offer-every-option)
 (test-command-lines)
+(test-filter-lines)
+(test-scripts-complete-filter-names)
 
 (end-suite)

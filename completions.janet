@@ -55,6 +55,11 @@
 # looks, as in: herd completions bash > ~/.local/share/bash-completion/completions/herd
 _herd() {
     local cur=${COMP_WORDS[COMP_CWORD]} cmd= cmd_index=0 i
+    case ${COMP_WORDS[COMP_CWORD-1]} in
+        -f|--filter)
+            COMPREPLY=($(compgen -W "$(herd completions filters 2>/dev/null | cut -f1)" -- "$cur"))
+            return ;;
+    esac
     # The command is the first word that is neither an option nor its value.
     for ((i = 1; i < COMP_CWORD; i++)); do
         case ${COMP_WORDS[i]} in
@@ -95,7 +100,11 @@ complete -F _herd herd
     (string "complete -c herd -n " (fish-quote condition)
             (if (empty? short) "" (string " -s " short))
             " -l " long
-            (if value " -r" "")
+            # A filter name is never a file, so offer the names alone.
+            (cond
+              (= long "filter") " -x -a '(herd completions filters 2>/dev/null)'"
+              value " -r"
+              "")
             " -d " (fish-quote help) "\n")))
 
 (defn- fish-script []
@@ -136,7 +145,11 @@ complete -F _herd herd
 
 (defn- zsh-spec [[short long value help]]
   (def text (string/replace-all "]" "\\]" (string/replace-all "'" "'\\''" help)))
-  (def action (if value (string ":" (string/ascii-lower value) ":") ""))
+  (def action
+    (if value
+      (string ":" (string/ascii-lower value) ":"
+              (if (= long "filter") " _herd_filters" ""))
+      ""))
   (if (empty? short)
     (string "'--" long "[" text "]" action "'")
     (string "'(-" short " --" long ")'{-" short ",--" long "}'[" text "]" action "'")))
@@ -154,6 +167,11 @@ complete -F _herd herd
     "    local -a commands\n"
     "    commands=(${(f)\"$(herd completions commands 2>/dev/null | sed 's/:/\\\\:/; s/\\t/:/')\"})\n"
     "    _describe -t commands 'herd command' commands\n"
+    "}\n\n"
+    "_herd_filters() {\n"
+    "    local -a filters\n"
+    "    filters=(${(f)\"$(herd completions filters 2>/dev/null | sed 's/:/\\\\:/; s/\\t/:/')\"})\n"
+    "    _describe -t filters 'herd filter' filters\n"
     "}\n\n"
     "_herd() {\n"
     # The command is the first word that is neither an option nor its value.
@@ -199,6 +217,14 @@ complete -F _herd herd
     "bash" (bash-script)
     "fish" (fish-script)
     "zsh" (zsh-script)))
+
+(defn filter-lines
+  "One `name TAB expression` line per filter, which the scripts offer as choices."
+  [filters]
+  (string/join
+    (seq [name :in (sort (keys filters))]
+      (string name "\t" (filters name)))
+    "\n"))
 
 (defn command-lines
   "One `name TAB summary` line per command, which the scripts offer as choices."

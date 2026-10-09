@@ -24,7 +24,8 @@ The scripts learn the commands from herd itself, so the ones the
 configuration defines are offered too.
 
   $ cat >"$CONFIG/config.jdn" <<'JDN'
-  > {:commands {"greet" {:command "echo hi" :description "Say hi."}}}
+  > {:commands {"greet" {:command "echo hi" :description "Say hi."}}
+  >  :filters {"tier1" "[?tier == `1`]" "active" "[?active]"}}
   > JDN
   $ herd completions commands
   clone\tCheck out the configured repositories beneath a path. (esc)
@@ -34,3 +35,9 @@ configuration defines are offered too.
   greet\tSay hi. (esc)
   list\tPrint the configured repositories beneath a path. (esc)
   run\tRun a command in each configured repository beneath a path. (esc)
+
+So are the configured filters, for the option that names one.
+
+  $ herd completions filters
+  active\t[?active] (esc)
+  tier1\t[?tier == `1`] (esc)
