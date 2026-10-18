@@ -1,3 +1,5 @@
+(import ./run)
+
 (def shells
   "Shells a completion script can be written for."
   ["bash" "fish" "zsh"])
@@ -63,6 +65,15 @@ _herd() {
         -f|--filter)
             COMPREPLY=($(compgen -W "$(herd completions filters 2>/dev/null | cut -f1)" -- "$cur"))
             return ;;
+        -C|--at)
+            COMPREPLY=($(compgen -d -- "$cur"))
+            return ;;
+        # A number cannot be completed, and flag names would be misleading.
+        -j|--jobs|--max-depth)
+            return ;;
+        --show-output)
+            COMPREPLY=($(compgen -W "`` (string/join run/show-output-conditions " ") ``" -- "$cur"))
+            return ;;
     esac
     # The command is the first word that is neither an option nor its value.
     for ((i = 1; i < COMP_CWORD; i++)); do
@@ -89,6 +100,28 @@ _herd() {
     (string/join (flags-of (command-options "run")) " ")
     ``" -- "$cur")) ;;
     esac
+    if [[ $cmd == run ]]; then
+        # The command to run is the first word after run that is neither an
+        # option nor its value; complete it, and what follows it, as a command.
+        local run_index=0
+        for ((i = cmd_index + 1; i < COMP_CWORD; i++)); do
+            case ${COMP_WORDS[i]} in
+                `` (string/join value-flags "|") ``) ((i++)) ;;
+                -*) ;;
+                *) run_index=$i; break ;;
+            esac
+        done
+        if ((run_index > 0)); then
+            COMPREPLY=()
+            if declare -F _command_offset >/dev/null; then
+                _command_offset $run_index
+            fi
+            return
+        elif [[ $cur != -* ]]; then
+            COMPREPLY=($(compgen -c -- "$cur"))
+            return
+        fi
+    fi
     if [[ $cmd == completions && $COMP_CWORD -eq $((cmd_index + 1)) ]]; then
         COMPREPLY=($(compgen -W "bash fish zsh" -- "$cur"))
     fi
@@ -107,6 +140,9 @@ complete -F _herd herd
             # A filter name is never a file, so offer the names alone.
             (cond
               (= long "filter") " -x -a '(herd completions filters 2>/dev/null)'"
+              (= long "at") " -x -a '(__fish_complete_directories)'"
+              (= long "show-output")
+              (string " -x -a '" (string/join run/show-output-conditions " ") "'")
               value " -r"
               "")
             " -d " (fish-quote help) "\n")))
@@ -137,10 +173,34 @@ complete -F _herd herd
     "    set -l command (__herd_command)\n"
     "    test -n \"$command\"; and not contains -- $command clone list completions\n"
     "end\n"
+    # Where the command to run starts, as a position in the command line: the
+    # first word after run that is neither an option nor its value.
+    "function __herd_run_index\n"
+    "    set -l skip 0\n"
+    "    set -l seen 0\n"
+    "    set -l i 1\n"
+    "    for word in (commandline -opc)[2..-1]\n"
+    "        set i (math $i + 1)\n"
+    "        if test $skip = 1\n"
+    "            set skip 0\n"
+    "        else if contains -- $word " (string/join value-flags " ") "\n"
+    "            set skip 1\n"
+    "        else if not string match -q -- '-*' $word\n"
+    "            if test $seen = 0\n"
+    "                set seen 1\n"
+    "            else\n"
+    "                echo $i\n"
+    "                return\n"
+    "            end\n"
+    "        end\n"
+    "    end\n"
+    "end\n"
     "complete -c herd -f\n"
     "complete -c herd -n '" cond-none "' -a '(herd completions commands 2>/dev/null)'\n"
     "complete -c herd -n '" cond-none "' -s h -l help -d 'Show this help message.'\n"
     "complete -c herd -n '" cond-none "' -s V -l version -d 'Show the version and exit.'\n"
+    "complete -c herd -n '__herd_command_is run; and test -z \"$(__herd_run_index)\"' -a '(__fish_complete_command)'\n"
+    "complete -c herd -n '__herd_command_is run; and test -n \"$(__herd_run_index)\"' -x -a '(__fish_complete_subcommand --fcs-skip=2 " (string/join value-flags " ") ")'\n"
     "complete -c herd -n '__herd_command_is completions' -a '" (string/join shells " ") "'\n"
     (string/join (fish-lines "__herd_command_is clone" (command-options "clone")) "")
     (string/join (fish-lines "__herd_command_is list" (command-options "list")) "")
@@ -152,7 +212,11 @@ complete -F _herd herd
   (def action
     (if value
       (string ":" (string/ascii-lower value) ":"
-              (if (= long "filter") " _herd_filters" ""))
+              (case long
+                "filter" " _herd_filters"
+                "show-output" (string "(" (string/join run/show-output-conditions " ") ")")
+                "at" " _files -/"
+                ""))
       ""))
   (if (empty? short)
     (string "'--" long "[" text "]" action "'")
@@ -205,7 +269,10 @@ complete -F _herd herd
     "        completions) _arguments '1:shell:(" (string/join shells " ") ")' ;;\n"
     "        clone)\n            _arguments \\\n" (specs clone) "                ;;\n"
     "        list)\n            _arguments \\\n" (specs list-opts) "                ;;\n"
-    "        *)\n            _arguments \\\n" (specs run) "                '*:command: _normal' ;;\n"
+    # Only run takes a command. -A stops option completion at the command, so
+    # its own options are left to _normal.
+    "        run)\n            _arguments -A '-*' \\\n" (specs run) "                '*::command:_normal' ;;\n"
+    "        *)\n            _arguments \\\n" (specs run) "                ;;\n"
     "    esac\n"
     "}\n\n"
     "if [[ $funcstack[1] == _herd ]]; then\n"

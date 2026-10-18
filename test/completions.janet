@@ -42,6 +42,37 @@
     (assert (string/find "herd completions filters" (completions/script shell))
             (string shell " completes filter names"))))
 
+(defn test-scripts-complete-show-output-values
+  "Each script offers the conditions --show-output accepts."
+  []
+  (each shell completions/shells
+    (assert (string/find "never on-failure always" (completions/script shell))
+            (string shell " completes --show-output values"))))
+
+(defn test-scripts-complete-directories-after-at
+  "Each script completes directories for the --at option."
+  []
+  (each [shell needle] [["bash" "compgen -d"]
+                        ["fish" "__fish_complete_directories"]
+                        ["zsh" "_files -/"]]
+    (assert (string/find needle (completions/script shell))
+            (string shell " completes directories for --at"))))
+
+(defn test-scripts-complete-the-command-after-run
+  "Each script completes the command that herd run runs, and its arguments."
+  []
+  (each [shell needle] [["bash" "_command_offset"]
+                        ["fish" "__fish_complete_subcommand"]
+                        ["zsh" "'*::command:_normal'"]]
+    (assert (string/find needle (completions/script shell))
+            (string shell " completes the command after run"))))
+
+(defn test-bash-offers-nothing-after-numeric-options
+  "bash offers no completions where an option wants a number."
+  []
+  (assert (string/find "-j|--jobs|--max-depth)" (completions/script "bash"))
+          "bash returns no completions after -j, --jobs and --max-depth"))
+
 (defn test-bash-skips-option-values
   "The bash scanner skips the value of every option that takes one."
   []
@@ -56,6 +87,10 @@
 (test-scripts-offer-every-option)
 (test-command-lines)
 (test-filter-lines)
+(test-scripts-complete-the-command-after-run)
+(test-bash-offers-nothing-after-numeric-options)
+(test-scripts-complete-directories-after-at)
+(test-scripts-complete-show-output-values)
 (test-scripts-complete-filter-names)
 
 (end-suite)
