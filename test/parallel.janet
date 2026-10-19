@@ -101,7 +101,7 @@
 
 (assert (= 2 (length lines)) "progress has one active row and one tally")
 (assert (string/has-prefix? "⠋ " (lines 0)) "an active row starts with a spinner")
-(assert (= "2/3  1 succeeded  0 skipped  1 f"
+(assert (= "2/3  1 succeeded, 0 skipped, 1 f"
            (lines 1))
         "the tally is truncated to the terminal width")
 (assert (= "…/common/path/first"

@@ -108,7 +108,7 @@
   (array/push lines
               (string (rawterm/slice-monowidth
                         (string completed "/" (progress :total) "  "
-                                (string/join fields "  "))
+                                (string/join fields ", "))
                         width)))
   lines)
 
