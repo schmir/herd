@@ -53,6 +53,7 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               coreutils
+              gitMinimal
               janet
               janet-format
               janet-lsp
