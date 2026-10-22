@@ -2,6 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
+(import ../location)
 (import ../select)
 
 (start-suite "selection")
@@ -16,7 +17,7 @@
   "Return selected paths so assertions read as plain lists."
   [path anchors &opt all-anchors]
   (map (fn [repository] (repository :path))
-       (select/select-repositories-with-anchors
+       (location/select-repositories-with-anchors
          path repositories all-anchors anchors)))
 
 # A directory selects everything checked out below it.
@@ -49,15 +50,23 @@
 
 # A relative path is read from the current directory.
 (assert (deep= (map (fn [repository] (repository :path))
-                    (select/select-repositories-with-anchors
+                    (location/select-repositories-with-anchors
                       "below" [{:path (string (os/cwd) "/below/repo")
                                 :ssh_url "u"
                                 :anchors @[(os/cwd)]}]
                       false @[(os/cwd)]))
                @[(string (os/cwd) "/below/repo")]))
 
-(assert (empty? (select/select-repositories-with-anchors "/srv" [] false @["/srv"])))
+(assert (empty? (location/select-repositories-with-anchors "/srv" [] false @["/srv"])))
 (assert (empty? (selected "/elsewhere" @[])))
+
+(let [selected (select/by-location "/srv/foo" false repositories)]
+  (assert (deep= @["/srv"] (selected :anchors))
+          "the selection boundary returns containing anchors")
+  (assert (deep= @["/srv/foo" "/srv/foo/bar"]
+                 (map (fn [repository] (repository :path))
+                      (selected :repositories)))
+          "the selection boundary returns repositories below the location"))
 
 (def nested
   [{:path "/work/one" :ssh_url "one" :anchors @["/work"]}
@@ -71,13 +80,13 @@
   "Return paths selected from repositories with nested anchors."
   [path anchors &opt all-anchors]
   (map (fn [repository] (repository :path))
-       (select/select-repositories-with-anchors
+       (location/select-repositories-with-anchors
          path nested all-anchors anchors)))
 
 (assert (deep= @["/work" "/work/team"]
-               (select/containing-anchors "/work/team/inside" nested))
+               (location/containing-anchors "/work/team/inside" nested))
         "all containing anchors are selected")
-(assert (empty? (select/containing-anchors "/elsewhere" nested))
+(assert (empty? (location/containing-anchors "/elsewhere" nested))
         "an unrelated path has no anchor")
 (assert (deep= (selected-nested "/work/team" @["/work" "/work/team"])
                @["/work/team/two" "/work/team/parent" "/work/team/shared"])
@@ -93,14 +102,18 @@
                @["/work/team/parent"])
         "a repository from any containing anchor can hold the path")
 
+(defn- scratch-dir
+  "Create and resolve a fresh directory for one selection test."
+  [name]
+  (def dir (path/join (os/getenv "TMPDIR" "/tmp")
+                      (string name "-" (os/getpid))))
+  (sh/rm dir)
+  (sh/create-dirs dir)
+  (os/realpath dir))
+
 # Configured paths and the working location may reach the same directory
 # through different symlinks, so both sides are resolved before comparison.
-(def fixture (path/join (os/getenv "TMPDIR" "/tmp")
-                        (string "herd-selection-test-" (os/getpid))))
-(sh/rm fixture)
-(sh/create-dirs fixture)
-
-(let [dir (os/realpath fixture)
+(let [dir (scratch-dir "herd-selection-test")
       real (string dir "/real/work")
       alias (string dir "/link/work")]
   (sh/create-dirs (string real "/repo"))
@@ -111,8 +124,8 @@
     (def repositories [{:path repository-path :ssh_url "u"
                         :anchors @[anchor]}])
     (map (fn [repository] (repository :path))
-         (select/select-repositories-with-anchors
-           at repositories false (select/containing-anchors at repositories))))
+         (location/select-repositories-with-anchors
+           at repositories false (location/containing-anchors at repositories))))
 
   (assert (deep= (linked real (string alias "/repo") alias) @[(string alias "/repo")])
           "a working location selects a repository configured through a link")
@@ -124,5 +137,53 @@
   (assert (empty? (linked real (string alias "/repo") (string dir "/other")))
           "resolving does not make an unrelated anchor contain the location")
   (sh/rm dir))
+
+(defn- git-selection
+  "Run Git for the by-state fixture with isolated commit identity."
+  [directory & args]
+  (def env (merge (os/environ)
+                  @{"GIT_CONFIG_GLOBAL" "/dev/null"
+                    "GIT_AUTHOR_NAME" "test" "GIT_AUTHOR_EMAIL" "t@example.com"
+                    "GIT_COMMITTER_NAME" "test" "GIT_COMMITTER_EMAIL" "t@example.com"}))
+  (assert (zero? (os/execute ["git" "-C" directory ;args] :pe env))
+          (string "git " (string/join args " ") " succeeds")))
+
+(let [scratch (scratch-dir "herd-selection-state-test")
+      root (path/join scratch "root")
+      first (string root "/first")
+      second (string root "/second")]
+  (var stages 0)
+  (sh/create-dirs first)
+  (sh/create-dirs second)
+  (git-selection first "init" "-q")
+  (git-selection first "commit" "-q" "--allow-empty" "-m" "init")
+  (git-selection second "init" "-q")
+  (git-selection second "commit" "-q" "--allow-empty" "-m" "init")
+  (spit (string first "/marker") "")
+  (def kept
+    (select/by-state [{:path first} {:path second}]
+                     :dirty ["test -f marker"] 1
+                     (fn [] (++ stages))))
+  (assert (deep= @[first] (map (fn [repository] (repository :path)) kept))
+          "by-state keeps repositories that pass every shell command")
+  (assert (= 2 stages)
+          "by-state reports each completed selection stage")
+  (def both [{:path first} {:path second}])
+  (def paths (fn [repositories] (map (fn [r] (r :path)) repositories)))
+  (set stages 0)
+  (assert (deep= @[second] (paths (select/by-state both :clean [] 1
+                                                   (fn [] (++ stages)))))
+          "a state alone keeps the repositories in that state")
+  (assert (= 1 stages) "a state alone is one stage")
+  (set stages 0)
+  (assert (deep= @[first] (paths (select/by-state both nil ["test -f marker"] 1
+                                                  (fn [] (++ stages)))))
+          "commands alone keep the repositories where they succeed")
+  (assert (= 1 stages) "commands alone are one stage")
+  (assert (deep= @[first second] (paths (select/by-state both nil [] 1)))
+          "no state and no commands keeps everything")
+  (assert (deep= @[first] (paths (select/by-state both nil ["test -f marker"] 1)))
+          "the after-stage callback is optional")
+  (sh/rm scratch))
 
 (end-suite)

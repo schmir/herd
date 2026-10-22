@@ -9,7 +9,6 @@
 (import ./process)
 (import ./run)
 (import ./select)
-(import ./state)
 (import ./survey)
 
 (defmacro- baked-version
@@ -174,25 +173,15 @@
           (string/join (map describe names) " and ")))
 
 (defn- read-configuration
-  ``Load the configured repositories, exiting on a configuration error. The
-  filters named in `names` narrow every configuration file further, on top of
-  whatever its checkout rows already filter. Return the repositories with the
-  directory and the configuration files they were read from.``
+  "Load the repository catalog and report configuration errors for the CLI."
   [settings names]
   (def directory (config/config-directory))
   (when (nil? directory)
     (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
             "configuration directory to read")
     (os/exit 1))
-  (def config-paths
-    (exit-on-error "Configuration error: "
-                   (fn [] (config/discover-config-files directory))))
-  # Validate checkout sources even when no repository lists exist.
-  (def repositories
-    (exit-on-error "Configuration error: "
-                   (fn [] (config/load-config config-paths directory settings
-                                              names))))
-  {:directory directory :paths config-paths :repositories repositories})
+  (exit-on-error "Configuration error: "
+                 (fn [] (config/load-repository-catalog directory settings names))))
 
 (defn- exit-unconfigured
   ``Say that `loaded` read no configuration files, and exit successfully.
@@ -206,9 +195,9 @@
   ``Select the repositories in `config` at a path. Unless `quiet` is set,
   say why the result is empty.``
   [at all-anchors config settings names &opt quiet]
-  (def anchors (unless all-anchors (select/containing-anchors at config)))
-  (def selected
-    (select/select-repositories-with-anchors at config all-anchors anchors))
+  (def location (select/by-location at all-anchors config))
+  (def anchors (location :anchors))
+  (def selected (location :repositories))
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
@@ -353,32 +342,22 @@
     (parsed "clean") :clean))
 
 (defn- select-by-state
-  ``Keep the `repositories` in the `wanted` state, if any, and where every one
-  of the shell `commands` from -f succeeds. Say so when that leaves nothing of
-  a selection that was not empty.``
+  ``Apply state and shell-command selection, preserving CLI error and
+  interruption handling around the selection module.``
   [repositories wanted commands jobs]
-  (if (or wanted (not (empty? commands)))
-    (let [kept (exit-on-error
-                 "Selection error: "
-                 (fn []
-                   (var kept repositories)
-                   # Each stage can be interrupted, and says so only until
-                   # the next one starts.
-                   (when wanted
-                     (set kept (state/filter-by-state kept wanted jobs))
-                     (exit-unless-complete false))
-                   (unless (empty? commands)
-                     (set kept (state/filter-by-commands kept commands jobs))
-                     (exit-unless-complete false))
-                   kept))]
-      (when (and (empty? kept) (not (empty? repositories)))
-        (eprint "No repository is left of the " (length repositories)
-                " selected by "
-                (string/join [;(if wanted [(string "--" wanted)] [])
-                              ;(if (empty? commands) [] ["-f"])]
-                             " and ")))
-      kept)
-    repositories))
+  (def kept
+    (exit-on-error
+      "Selection error: "
+      (fn []
+        (select/by-state repositories wanted commands jobs
+                         (fn [] (exit-unless-complete false))))))
+  (when (and (empty? kept) (not (empty? repositories)))
+    (eprint "No repository is left of the " (length repositories)
+            " selected by "
+            (string/join [;(if wanted [(string "--" wanted)] [])
+                          ;(if (empty? commands) [] ["-f"])]
+                         " and ")))
+  kept)
 
 (defn clone-command
   "Run herd clone with each repository's configured VCS."

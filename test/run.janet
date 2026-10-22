@@ -3,9 +3,9 @@
 (import spork/path)
 (import spork/sh)
 (import ../config)
+(import ../location)
 (import ../process)
 (import ../run)
-(import ../select)
 (import ../main :as herd)
 
 (start-suite "run")
@@ -232,8 +232,8 @@
   (assert (deep= (map (fn [repository] (repository :path)) loaded)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
-  (assert (= 2 (length (select/select-repositories-with-anchors
-                         root loaded false (select/containing-anchors root loaded))))
+  (assert (= 2 (length (location/select-repositories-with-anchors
+                         root loaded false (location/containing-anchors root loaded))))
           "the fixture root selects both repositories")
   ((herd/make-run-command "touch fixed-command"
                           "Run the fixed test command.")
