@@ -939,4 +939,32 @@
             "an agreeing duplicate retains every configuration anchor"))
   (sh/rm dir))
 
+# --- load-repository-catalog ---------------------------------------------
+
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
+      config (string configuration "/repos.json")]
+  (sh/create-dirs configuration)
+  (write-config config [{:path "/abs/one" :ssh_url "one-url"}])
+  (let [catalog (config/load-repository-catalog configuration nil)]
+    (assert (= configuration (catalog :directory))
+            "the catalog keeps the configuration directory")
+    (assert (deep= @[config] (catalog :paths))
+            "the catalog keeps the configuration files it read")
+    (assert (deep= @["/abs/one"]
+                   (map (fn [repository] (repository :path))
+                        (catalog :repositories)))
+            "the catalog holds the merged repositories"))
+  (let [catalog (config/load-repository-catalog (string dir "/missing") nil)]
+    (assert (and (empty? (catalog :paths)) (empty? (catalog :repositories)))
+            "a missing directory yields an empty catalog"))
+  (assert (try (do (config/load-repository-catalog
+                     configuration
+                     (config/configured-repository-settings
+                       {:checkouts [{:from "absent.json" :anchor "root"}]}))
+                 false)
+            ([_] true))
+          "a checkout from an absent file is a configuration error")
+  (sh/rm dir))
+
 (end-suite)

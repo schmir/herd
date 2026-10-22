@@ -422,3 +422,15 @@
                       (get settings :filters {})
                       names)
          ([err] (error (string config-path ": " err))))])))
+
+(defn load-repository-catalog
+  ``Discover and load the repository configuration. The returned catalog keeps
+  the directory and source paths for command messages, and the repositories
+  are resolved and merged in configuration order. `names` narrows source JSON
+  before entries are validated, as required by the filter semantics.``
+  [directory settings &opt names]
+  (default names [])
+  (def config-paths (discover-config-files directory))
+  {:directory directory
+   :paths config-paths
+   :repositories (load-config config-paths directory settings names)})

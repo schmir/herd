@@ -2,8 +2,8 @@
 
 (import spork/path)
 (import ./discover)
+(import ./location)
 (import ./process)
-(import ./select)
 
 (defn scan-root
   ``Return the directory a scan from `at` starts at: the innermost repository
@@ -28,8 +28,8 @@
   anchor or filter keeps would read as extra.``
   [discovered configured]
   (def known (tabseq [repository :in configured]
-               (select/comparable-path (repository :path)) true))
-  (filter (fn [repository] (not (get known (select/comparable-path (repository :path))))) discovered))
+               (location/comparable-path (repository :path)) true))
+  (filter (fn [repository] (not (get known (location/comparable-path (repository :path))))) discovered))
 
 (defn- origin-from-jj
   "Return the URL of the remote named origin in `jj git remote list` output."
