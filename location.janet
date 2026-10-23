@@ -47,17 +47,17 @@
   found)
 
 (defn containing-anchors
-  "Return each configured anchor that contains path."
-  [path repositories]
-  (def root (comparable-path path))
-  (filter (fn [anchor] (holds-path? anchor root))
+  "Return each configured anchor that contains `at-path`."
+  [at-path repositories]
+  (def comparable-at-path (comparable-path at-path))
+  (filter (fn [anchor] (holds-path? anchor comparable-at-path))
           (configured-anchors repositories)))
 
 (defn select-repositories-with-anchors
-  ``Keep the repositories configured under one of the `selected-anchors` that are at
-  `path`, beneath it or holding it.``
-  [path repositories selected-anchors]
-  (def root (comparable-path path))
+  ``Keep the repositories configured under one of the `selected-anchors` that
+  are at `at-path`, beneath it or holding it.``
+  [at-path repositories selected-anchors]
+  (def comparable-at-path (comparable-path at-path))
   (filter (fn [repository]
             (def candidate (comparable-path (repository :path)))
             (and (some (fn [repository-anchor]
@@ -65,6 +65,6 @@
                          (some (fn [anchor] (= normalized anchor))
                                selected-anchors))
                        (get repository :anchors []))
-                 (or (holds-path? root candidate)
-                     (holds-path? candidate root))))
+                 (or (holds-path? comparable-at-path candidate)
+                     (holds-path? candidate comparable-at-path))))
           repositories))

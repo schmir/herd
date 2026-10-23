@@ -15,10 +15,10 @@
 
 (defn- selected
   "Return selected paths so assertions read as plain lists."
-  [path selected-anchors]
+  [at-path selected-anchors]
   (map (fn [repository] (repository :path))
        (location/select-repositories-with-anchors
-         path repositories selected-anchors)))
+         at-path repositories selected-anchors)))
 
 # A directory selects everything checked out below it.
 (assert (deep= (selected "/srv/foo" @["/srv"]) @["/srv/foo" "/srv/foo/bar"]))
@@ -79,10 +79,10 @@
 
 (defn- selected-nested
   "Return paths selected from repositories with nested anchors."
-  [path selected-anchors]
+  [at-path selected-anchors]
   (map (fn [repository] (repository :path))
        (location/select-repositories-with-anchors
-         path nested selected-anchors)))
+         at-path nested selected-anchors)))
 
 (assert (deep= @["/work" "/work/team"]
                (location/containing-anchors "/work/team/inside" nested))
@@ -123,12 +123,13 @@
   (os/link (string dir "/real") (string dir "/link") true)
   (defn- linked
     "Return the paths selected for a working location and one repository."
-    [at repository-path anchor]
+    [at-path repository-path anchor]
     (def repositories [{:path repository-path :ssh_url "u"
                         :anchors @[anchor]}])
     (map (fn [repository] (repository :path))
          (location/select-repositories-with-anchors
-           at repositories (location/containing-anchors at repositories))))
+           at-path repositories
+           (location/containing-anchors at-path repositories))))
 
   (assert (deep= (linked real (string alias "/repo") alias) @[(string alias "/repo")])
           "a working location selects a repository configured through a link")

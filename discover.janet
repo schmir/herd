@@ -8,7 +8,7 @@
   "Marker names that the walk must not enter."
   (map (fn [marker] (marker 1)) markers))
 
-(defn repository-vcs
+(defn directory-vcs
   ``Return the VCS marked in `directory`, or nil.
   A `.git` marker can be a file or a directory.``
   [directory]
@@ -19,7 +19,7 @@
 (defn repository?
   "Whether `directory` is the root of a git or jj repository."
   [directory]
-  (not (nil? (repository-vcs directory))))
+  (not (nil? (directory-vcs directory))))
 
 (defn- require-max-depth
   "Return `max-depth`, or raise unless it is nil or a non-negative integer."
@@ -76,7 +76,7 @@
   (while (not (empty? stack))
     (def [directory depth] (array/pop stack))
     (unless (revisited? directory)
-      (def vcs (repository-vcs directory))
+      (def vcs (directory-vcs directory))
       (when vcs
         (array/push found {:path directory :vcs vcs}))
       (when (and (or nested (nil? vcs))

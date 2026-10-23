@@ -228,12 +228,12 @@
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
-  (def loaded (config/read-config config (config/config-directory) @[{}]))
-  (assert (deep= (map (fn [repository] (repository :path)) loaded)
+  (def repositories (config/read-config config (config/config-directory) @[{}]))
+  (assert (deep= (map (fn [repository] (repository :path)) repositories)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
   (assert (= 2 (length (location/select-repositories-with-anchors
-                         root loaded (location/containing-anchors root loaded))))
+                         root repositories (location/containing-anchors root repositories))))
           "the fixture root selects both repositories")
   ((herd/make-run-command "touch fixed-command"
                           "Run the fixed test command.")

@@ -185,26 +185,26 @@
                  (fn [] (config/load-repository-catalog directory settings names))))
 
 (defn- exit-unconfigured
-  ``Say that `loaded` read no configuration files, and exit successfully.
+  ``Say that `catalog` read no configuration files, and exit successfully.
   Nothing configured yet is a normal state, not a failure: exiting non-zero
   would make `just run` print a traceback over an unremarkable message.``
-  [loaded]
-  (eprint "No configuration files in " (loaded :directory))
+  [catalog]
+  (eprint "No configuration files in " (catalog :directory))
   (os/exit 0))
 
 (defn- anchors-at
   ``The anchors of `repositories` to select from at a path: every one with
   `all-anchors?`, otherwise those containing the path.``
-  [at repositories all-anchors?]
+  [at-path repositories all-anchors?]
   (if all-anchors?
     (location/configured-anchors repositories)
-    (location/containing-anchors at repositories)))
+    (location/containing-anchors at-path repositories)))
 
 (defn- select-configured
   ``Select the `repositories` at a path, from the `selected-anchors`. Unless
   `quiet` is set, say why the result is empty.``
-  [at repositories selected-anchors settings names &opt quiet]
-  (def selected (select/by-location at repositories selected-anchors))
+  [at-path repositories selected-anchors settings names &opt quiet]
+  (def selected (select/by-location at-path repositories selected-anchors))
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
@@ -221,26 +221,26 @@
       (empty? repositories) nil
 
       (empty? selected-anchors)
-      (eprint "No configuration anchor contains " at
+      (eprint "No configuration anchor contains " at-path
               "; use -a/--all-anchors to consider every anchor")
 
       true
       (eprint "None of the configured repositories under the selected "
-              "anchors are beneath " at " or hold it")))
+              "anchors are beneath " at-path " or hold it")))
   selected)
 
 (defn- configured-repositories
   ``Load the configured repositories and select the ones at a path. The
   filters named in `names` narrow every configuration file further, on top of
   whatever its checkout rows already filter.``
-  [at all-anchors? &opt settings names]
+  [at-path all-anchors? &opt settings names]
   (default settings config/default-repository-settings)
-  (def loaded (read-configuration settings names))
-  (when (empty? (loaded :paths))
-    (exit-unconfigured loaded))
-  (def repositories (loaded :repositories))
-  (select-configured at repositories
-                     (anchors-at at repositories all-anchors?)
+  (def catalog (read-configuration settings names))
+  (when (empty? (catalog :paths))
+    (exit-unconfigured catalog))
+  (def repositories (catalog :repositories))
+  (select-configured at-path repositories
+                     (anchors-at at-path repositories all-anchors?)
                      settings names))
 
 (defn- at-option
@@ -402,7 +402,7 @@
     parsed))
 
 (defn- extra-on-disk
-  ``Scan the disk from `at` and return the repositories no configuration file
+  ``Scan the disk from `--at` and return the repositories no configuration file
   defines, whatever their anchor or the filters named on the command line.
   A checkout row's own filter does count: a repository it leaves out is not
   meant to be there.``
@@ -471,10 +471,10 @@
               "repositories are listed, by --extra or a plain --status")
       (os/exit 1)))
   (def show-configured (or want-ok want-missing))
-  (def loaded (read-configuration settings names))
-  (when (and (empty? (loaded :paths)) (not scan))
-    (exit-unconfigured loaded))
-  (def configured (loaded :repositories))
+  (def catalog (read-configuration settings names))
+  (when (and (empty? (catalog :paths)) (not scan))
+    (exit-unconfigured catalog))
+  (def configured (catalog :repositories))
   (def selected
     (select-by-state
       (if show-configured
@@ -490,12 +490,12 @@
       parallel/default-jobs))
   (defn emit [state & fields]
     (print ;(if status [state "\t"] []) (string/join fields "\t")))
-  (each entry selected
+  (each repository selected
     (def state (if (and want-ok want-missing (not status))
                  "ok"
-                 (checkout/checkout-status entry)))
+                 (checkout/checkout-status repository)))
     (when (if (= "ok" state) want-ok want-missing)
-      (emit state (entry :path) (entry :ssh_url))))
+      (emit state (repository :path) (repository :ssh_url))))
   (when scan
     (each repository (extra-on-disk parsed settings names configured)
       (emit "extra" (repository :path)
