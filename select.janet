@@ -5,9 +5,10 @@
 
 (defn by-location
   ``Return the repositories configured under one of the `selected-anchors` that
-  are at `at`, beneath it or holding it.``
-  [at repositories selected-anchors]
-  (location/select-repositories-with-anchors at repositories selected-anchors))
+  are at `at-path`, beneath it or holding it.``
+  [at-path repositories selected-anchors]
+  (location/select-repositories-with-anchors at-path repositories
+                                             selected-anchors))
 
 (defn by-state
   ``Apply the requested repository state and shell-command stages in order.

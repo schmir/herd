@@ -379,12 +379,13 @@
                 "b" `[{"path": "y", "ssh_url": "git@example.com:y.git"}]`})
   (spit config `[{"path": "x", "ssh_url": "git@example.com:x.git"}]`)
   (with-stub (answering-stub dir)
-    (def loaded (config/read-config config nil
-                                    @[{:anchor one :filter ["a\0b"]}
-                                      {:anchor two :filter ["a" "b"]}]
-                                    answers))
+    (def repositories
+      (config/read-config config nil
+                          @[{:anchor one :filter ["a\0b"]}
+                            {:anchor two :filter ["a" "b"]}]
+                          answers))
     (assert (deep= @[(path/join one "x") (path/join two "y")]
-                   (map (fn [repository] (repository :path)) loaded))
+                   (map (fn [repository] (repository :path)) repositories))
             "chains that merely spell alike are kept apart")))
 
 # Keying on the chain still has to share the work it was there to share: two
@@ -400,12 +401,13 @@
                           (string `printf 'x' >> ` runs "\n"
                                   `printf '%s' "$2"`))
     (def answer `[{"path": "r", "ssh_url": "git@example.com:r.git"}]`)
-    (def loaded (config/read-config config nil
-                                    @[{:anchor one :filter ["same"]}
-                                      {:anchor two :filter ["same"]}
-                                      {:anchor three :filter ["other"]}]
-                                    {"same" answer "other" answer}))
-    (assert (= 3 (length loaded)) "every row still contributes its checkout")
+    (def repositories
+      (config/read-config config nil
+                          @[{:anchor one :filter ["same"]}
+                            {:anchor two :filter ["same"]}
+                            {:anchor three :filter ["other"]}]
+                          {"same" answer "other" answer}))
+    (assert (= 3 (length repositories)) "every row still contributes its checkout")
     (assert (= 2 (length (slurp runs)))
             "the shared chain is filtered once, the distinct one again")))
 

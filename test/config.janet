@@ -713,17 +713,17 @@
                 [{:path "relative" :ssh_url "relative-url"}
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config
-                 [config] configuration
-                 (config/configured-repository-settings
-                   {:checkouts [{:from "repos.json" :anchor "root"}]}))]
+  (let [repositories (config/load-config
+                       [config] configuration
+                       (config/configured-repository-settings
+                         {:checkouts [{:from "repos.json" :anchor "root"}]}))]
     (assert (= (string (path/abspath dir) "/root/relative")
-               ((loaded 0) :path))
+               ((repositories 0) :path))
             "relative paths use the configured anchor")
-    (assert (= "/absolute" ((loaded 1) :path))
+    (assert (= "/absolute" ((repositories 1) :path))
             "absolute paths ignore the configured anchor")
     (assert (deep= @[(string (path/abspath dir) "/root")]
-                   ((loaded 0) :anchors))
+                   ((repositories 0) :anchors))
             "the configured anchor is retained on each repository"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -737,23 +737,23 @@
                 [{:path "relative" :ssh_url "relative-url"}
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config
-                 [config] configuration
-                 (config/configured-repository-settings
-                   {:checkouts [{:from "repos.json" :anchor "one"}
-                                {:from "repos.json" :anchor "two"}]}))
+  (let [repositories (config/load-config
+                       [config] configuration
+                       (config/configured-repository-settings
+                         {:checkouts [{:from "repos.json" :anchor "one"}
+                                      {:from "repos.json" :anchor "two"}]}))
         root (path/abspath dir)]
-    (assert (= 3 (length loaded))
+    (assert (= 3 (length repositories))
             "several rows check the relative tree out at each of their anchors")
     (assert (deep= @[(string root "/one/relative")
                      "/absolute"
                      (string root "/two/relative")]
-                   (map (fn [repository] (repository :path)) loaded))
+                   (map (fn [repository] (repository :path)) repositories))
             "each anchor contributes its own resolved paths")
-    (assert (deep= @[(string root "/one")] ((loaded 0) :anchors))
+    (assert (deep= @[(string root "/one")] ((repositories 0) :anchors))
             "a relative path belongs to the anchor it resolved under")
     (assert (deep= @[(string root "/one") (string root "/two")]
-                   ((loaded 1) :anchors))
+                   ((repositories 1) :anchors))
             "an absolute path stays one repository under every anchor"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -765,16 +765,16 @@
   (sh/create-dirs configuration)
   (write-config config [{:path "org/team/repo" :ssh_url "url"}])
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config
-                 [config] configuration
-                 (config/configured-repository-settings
-                   {:checkouts
-                    [{:from "repos.json" :anchor "one" :strip-components 1}
-                     {:from "repos.json" :anchor "two" :strip-components 2}]}))
+  (let [repositories (config/load-config
+                       [config] configuration
+                       (config/configured-repository-settings
+                         {:checkouts
+                          [{:from "repos.json" :anchor "one" :strip-components 1}
+                           {:from "repos.json" :anchor "two" :strip-components 2}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/one/team/repo")
                      (string root "/two/repo")]
-                   (map (fn [repository] (repository :path)) loaded))
+                   (map (fn [repository] (repository :path)) repositories))
             "each row strips its own number of path components"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -788,14 +788,14 @@
   (write-config unread [{:path "one" :ssh_url "one-url"}])
   (write-config read-by-a-row [{:path "two" :ssh_url "two-url"}])
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config
-                 (config/discover-config-files configuration) configuration
-                 (config/configured-repository-settings
-                   {:defaults {:anchor "root"}
-                    :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
+  (let [repositories (config/load-config
+                       (config/discover-config-files configuration) configuration
+                       (config/configured-repository-settings
+                         {:defaults {:anchor "root"}
+                          :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/root/one") (string root "/elsewhere/two")]
-                   (map (fn [repository] (repository :path)) loaded))
+                   (map (fn [repository] (repository :path)) repositories))
             "a file no row reads resolves from the defaults alone"))
   (assert-error "a row reading a file that is not there is refused"
                 (config/load-config
@@ -815,13 +815,13 @@
         `[{"path": "plain", "ssh_url": "u"},
           {"path": "own", "ssh_url": "u", "vcs": "jj"}]`)
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config
-                 [config] configuration
-                 (config/configured-repository-settings
-                   {:defaults {:vcs "jj"}
-                    :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
-                                {:from "repos.json" :anchor "b"}]}))]
-    (assert (deep= @["git" "jj" "jj" "jj"] (map (fn [repository] (repository :vcs)) loaded))
+  (let [repositories (config/load-config
+                       [config] configuration
+                       (config/configured-repository-settings
+                         {:defaults {:vcs "jj"}
+                          :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
+                                      {:from "repos.json" :anchor "b"}]}))]
+    (assert (deep= @["git" "jj" "jj" "jj"] (map (fn [repository] (repository :vcs)) repositories))
             "each level overrides the one it sits inside"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -841,12 +841,13 @@
   (os/link (string dir "/missing") (string broken ".root") true)
   (os/link target (string directory ".root") true)
   (os/setenv "HOME" dir)
-  (let [loaded (config/load-config (config/discover-config-files configuration)
-                                   configuration)]
-    (assert (= 3 (length loaded)) "root companions do not affect loading")
+  (let [repositories (config/load-config
+                       (config/discover-config-files configuration)
+                       configuration)]
+    (assert (= 3 (length repositories)) "root companions do not affect loading")
     (assert (every?
               (map (fn [repository] (string/has-prefix? (string (path/abspath dir) "/") (repository :path)))
-                   loaded))
+                   repositories))
             "every root companion form is ignored"))
   (os/setenv "HOME" home)
   (sh/rm dir))
@@ -932,10 +933,10 @@
       checkout (string dir "/shared")]
   (write-config first [{:path checkout :ssh_url "shared-url"}])
   (write-config second [{:path checkout :ssh_url "shared-url"}])
-  (let [loaded (config/load-config [first second] nil)]
-    (assert (= 1 (length loaded)) "an agreeing duplicate remains one repository")
+  (let [repositories (config/load-config [first second] nil)]
+    (assert (= 1 (length repositories)) "an agreeing duplicate remains one repository")
     (assert (deep= (map path/abspath [(path/parent first) (path/parent second)])
-                   ((loaded 0) :anchors))
+                   ((repositories 0) :anchors))
             "an agreeing duplicate retains every configuration anchor"))
   (sh/rm dir))
 

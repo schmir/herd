@@ -355,43 +355,45 @@
   resolved)
 
 (defn merge-configs
-  ``Concatenate `[config-path entries]` pairs into one repository list. Two
-  files may name the same checkout only when they agree on the URL and on
+  ``Concatenate `[config-path repositories]` pairs into one repository list.
+  Two files may name the same checkout only when they agree on the URL and on
   every checkout option; letting them disagree would make the result depend
   on the reading order.``
-  [loaded]
+  [lists]
   (def seen @{})
   (def merged @[])
-  (each [config-path entries] loaded
-    (each entry entries
-      (def previous (get seen (entry :path)))
+  (each [config-path repositories] lists
+    (each repository repositories
+      (def previous (get seen (repository :path)))
       # Weigh whichever options there are rather than naming one of them, so
       # that a checkout option added later is compared without this having to
       # be remembered and revisited.
       (def disagreement
         (when previous
-          (find (fn [key] (not= (get-in previous [:options key]) (get entry key)))
+          (find (fn [key]
+                  (not= (get-in previous [:options key]) (get repository key)))
                 checkout/checkout-keys)))
       (cond
         (nil? previous)
         (do
-          (put seen (entry :path) {:source config-path
-                                   :ssh_url (entry :ssh_url)
-                                   :options (checkout-options entry)
-                                   :anchors (entry :anchors)})
-          (array/push merged entry))
+          (put seen (repository :path)
+               {:source config-path
+                :ssh_url (repository :ssh_url)
+                :options (checkout-options repository)
+                :anchors (repository :anchors)})
+          (array/push merged repository))
 
-        (not= (previous :ssh_url) (entry :ssh_url))
+        (not= (previous :ssh_url) (repository :ssh_url))
         (error (string/format "%s and %s disagree on the URL for %s"
-                              (previous :source) config-path (entry :path)))
+                              (previous :source) config-path (repository :path)))
 
         disagreement
         (error (string/format "%s and %s disagree on the %s for %s"
                               (previous :source) config-path disagreement
-                              (entry :path)))
+                              (repository :path)))
 
         true
-        (each anchor (entry :anchors)
+        (each anchor (repository :anchors)
           (unless (some (fn [known] (= anchor known)) (previous :anchors))
             (array/push (previous :anchors) anchor))))))
   merged)

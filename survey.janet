@@ -6,23 +6,24 @@
 (import ./process)
 
 (defn scan-root
-  ``Return the directory a scan from `at` starts at: the innermost repository
-  holding `at`, or `at` itself. Selection picks the configured repositories
-  holding the working location, so the scan has to reach them too.``
-  [at]
-  (var directory (path/abspath at))
+  ``Return the directory a scan from `at-path` starts at: the innermost
+  repository holding `at-path`, or `at-path` itself. Selection picks the
+  configured repositories holding the working location, so the scan has to
+  reach them too.``
+  [at-path]
+  (var directory (path/abspath at-path))
   (var found nil)
   (while (nil? found)
     (def parent (path/parent directory))
     (cond
       (discover/repository? directory) (set found directory)
       # path/parent of the root is the root itself, or empty.
-      (or (empty? parent) (= parent directory)) (set found (path/abspath at))
+      (or (empty? parent) (= parent directory)) (set found (path/abspath at-path))
       (set directory parent)))
   found)
 
 (defn extra-repositories
-  ``Return the repositories in `discovered` that no entry in `configured`
+  ``Return the repositories in `discovered` that no repository in `configured`
   names, comparing paths the way selection does. `configured` must be every
   configured repository, not the selected ones, or a repository another
   anchor or filter keeps would read as extra.``
