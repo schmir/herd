@@ -63,6 +63,91 @@ test-cli herd="":
     [[ "$herd" == /* ]] || herd="$PWD/$herd"
     HERD="$herd" uvx {{ prysk }} test/cli/
 
+# The server evaluates a file and its imports to find definitions, so a module
+# path that misses spork or the native access module makes every lookup answer
+# null. See .janet-path/README.md. Needs the devshell for janet-lsp and the
+# JANET_PATH it relies on.
+[doc('Check that janet-lsp finds a definition in config.janet.')]
+[extension('.py')]
+check-lsp: build
+    #!/usr/bin/env -S uv run --script
+    # /// script
+    # dependencies = ["pytest"]
+    # ///
+    import json
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import pytest
+
+    ROOT = Path.cwd()
+    SOURCE = ROOT / "src" / "config.janet"
+
+    pytestmark = pytest.mark.skipif(
+        shutil.which("janet-lsp") is None, reason="janet-lsp is not on PATH"
+    )
+
+
+    def test_definition_of_a_function_defined_in_the_same_file():
+        """Asking for a called function's definition finds its defn."""
+        text = SOURCE.read_text()
+        lines = text.split("\n")
+        defn = next(i for i, l in enumerate(lines) if "(defn merge-repository-lists" in l)
+        call = next(i for i, l in enumerate(lines) if l.strip() == "(merge-repository-lists")
+        uri = SOURCE.as_uri()
+
+        server = subprocess.Popen(
+            ["janet-lsp"],
+            cwd=ROOT,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+
+        def send(message):
+            body = json.dumps({"jsonrpc": "2.0", **message}).encode()
+            server.stdin.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
+            server.stdin.flush()
+
+        def receive_until(wanted):
+            while True:
+                length = 0
+                while (line := server.stdout.readline()) not in (b"\r\n", b""):
+                    if line.lower().startswith(b"content-length"):
+                        length = int(line.split(b":")[1])
+                if wanted(message := json.loads(server.stdout.read(length))):
+                    return message
+
+        try:
+            send({"id": 1, "method": "initialize", "params": {
+                "processId": None, "rootUri": ROOT.as_uri(), "capabilities": {}}})
+            receive_until(lambda m: m.get("id") == 1)
+            send({"method": "initialized", "params": {}})
+            send({"method": "textDocument/didOpen", "params": {"textDocument": {
+                "uri": uri, "version": 0, "languageId": "janet", "text": text}}})
+            # The server has evaluated the file once it reports diagnostics for it.
+            diagnostics = receive_until(
+                lambda m: m.get("method") == "textDocument/publishDiagnostics"
+            )
+            assert diagnostics["params"]["diagnostics"] == []
+
+            column = lines[call].index("merge-repository-lists") + 3
+            send({"id": 2, "method": "textDocument/definition", "params": {
+                "textDocument": {"uri": uri},
+                "position": {"line": call, "character": column}}})
+            result = receive_until(lambda m: m.get("id") == 2)["result"]
+        finally:
+            server.kill()
+
+        assert result is not None
+        assert result["range"]["start"]["line"] == defn
+
+
+    if __name__ == "__main__":
+        sys.exit(pytest.main([__file__, "-q", "-rs"]))
+
 # Format the tree and run both test suites.
 ci: && test test-cli
     treefmt
