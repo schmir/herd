@@ -8,23 +8,12 @@ repositories, with a configurable number of operations running in parallel
 
 ## Install
 
-Prebuilt binaries are available for Linux (x86-64 and ARM64) and macOS
-(ARM64 and x86-64) on the
-[releases page](https://github.com/schmir/herd/releases/latest). Every
-release ships one `herd-<version>-<platform>.tar.gz` per platform, each
-holding a single executable named `herd`, so unpacking it leaves the binary
-ready to move onto your `PATH`:
+Prebuilt binaries for Linux and macOS (ARM64 and x86-64) are on the
+[releases page](https://github.com/schmir/herd/releases/latest). Unpack the
+archive for your platform and put `herd` on your `PATH`.
 
-```sh
-tar xzf herd-v1.2.3-macos-arm64.tar.gz
-install -m 755 herd ~/.local/bin/herd
-```
-
-On macOS, a browser marks whatever it downloads as quarantined, and `herd`
-is not signed with an Apple Developer ID, so Gatekeeper refuses to run a
-quarantined copy. Unpacking the archive with `tar` in a terminal leaves the
-binary unmarked, but Safari and Finder unpack archives themselves and do
-pass the mark on. If macOS declines to run `herd`, clear it:
+`herd` is not signed with an Apple Developer ID, so if macOS refuses to run
+a binary that was unpacked by Safari or Finder, clear the quarantine mark:
 
 ```sh
 xattr -d com.apple.quarantine ~/.local/bin/herd
@@ -34,22 +23,7 @@ xattr -d com.apple.quarantine ~/.local/bin/herd
 also require the VCS you use, `jj` or `git`, on `PATH`. [Filters](#filters)
 require [`jp`](https://github.com/jmespath/jp), and only when one is used.
 
-To build from source with Nix:
-
-```sh
-nix develop
-just install
-```
-
-`just install` compiles the binary a release would ship for this machine and
-installs it as `~/.local/bin/herd`.
-
-Without Nix, install [Janet](https://janet-lang.org/),
-[JPM](https://github.com/janet-lang/jpm), `just`, and `jj`, then run
-`just build` and copy `build/herd` onto your `PATH`. `just install` and
-`just dist` also need [Zig](https://ziglang.org/): they compile with
-`zig cc`, against a Janet they build from source, which takes `git`, `make`
-and a C compiler as well.
+To build from source, see [README-dev.md](README-dev.md).
 
 ## Configure
 
@@ -550,44 +524,8 @@ reference, including any custom commands.
 
 ## Develop
 
-Enter the development shell and run the test suite:
-
-```sh
-nix develop
-just test
-```
-
-`just test-cli` runs the command-line tests in `test/cli/` with
-[prysk](https://www.prysk.net/) against `build/herd`, or against the binary
-it is given, such as a release binary: `just test-cli path/to/herd`.
-
-`just build` records the version `herd --version` reports, taking it from
-`git describe` unless `HERD_VERSION` names one; release builds pass their
-tag.
-
-`project.janet` pins every JPM dependency to a commit, so every build
-compiles the same sources. To update one, change its `:tag` and run
-`just deps`.
-
-The sources are layered, each file importing only the ones beneath it.
-`process.janet` runs a subprocess and collects what it printed,
-`checkout.janet` says what a checkout is and `entries.janet` reads the
-entries of a repository list, `discover.janet` finds the repositories under
-a directory, `filter.janet` narrows one, `config.janet` turns the
-configuration directory into repositories, `select.janet` picks the ones a
-command acts on, `survey.janet` compares them with what is on disk,
-`state.janet` says whether a working copy has changes, and `clone.janet` and
-`run.janet` do the work in parallel through `parallel.janet`. `main.janet`
-is the command line over the top of them, and the only file that ends the
-process. `access.c` is the one piece of C: Janet binds no `access(2)`, and
-the permission bits alone cannot say whether this process may run a file.
-
-`treefmt` formats the Janet sources and the justfile; CI checks that the
-tree is already formatted. Useful recipes are listed by `just`. Build
-artifacts and locally installed JPM dependencies are stored in `build/` and
-`jpm_tree/`. `just dist` compiles the release binaries for every platform
-with `zig cc` into `dist/`, and `just install` installs the one for this
-machine.
+See [README-dev.md](README-dev.md) for building, testing and the layout of
+the sources.
 
 ## License
 

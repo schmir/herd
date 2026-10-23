@@ -132,8 +132,8 @@ same flag from a failed outcome rather than from a signal.
 Whether the live block is drawn is decided solely by
 `(default live (os/isatty stderr))`. There is no `--quiet`, no
 `--no-progress`, and no way to force it when stderr is not a terminal.
-`TERM=dumb` gets the escape sequences like anything else, and `NO_COLOR` —
-which the justfile honours — means nothing here.
+`TERM=dumb` gets the escape sequences like anything else, and `NO_COLOR`
+means nothing here.
 
 ### Cloning cannot be tuned
 
