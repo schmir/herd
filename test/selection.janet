@@ -15,17 +15,17 @@
 
 (defn- selected
   "Return selected paths so assertions read as plain lists."
-  [path anchors &opt all-anchors]
+  [path selected-anchors]
   (map (fn [repository] (repository :path))
        (location/select-repositories-with-anchors
-         path repositories all-anchors anchors)))
+         path repositories selected-anchors)))
 
 # A directory selects everything checked out below it.
 (assert (deep= (selected "/srv/foo" @["/srv"]) @["/srv/foo" "/srv/foo/bar"]))
 (assert (deep= (selected "/srv" @["/srv"])
                @["/srv/foo" "/srv/foo/bar" "/srv/foobar" "/srv/other"]))
 (assert (empty? (selected "/" @[])) "no configured anchor contains the filesystem root")
-(assert (deep= (selected "/" @[] true) (map (fn [repository] (repository :path)) repositories))
+(assert (deep= (selected "/" (location/configured-anchors repositories)) (map (fn [repository] (repository :path)) repositories))
         "all anchors restores selection from the filesystem root")
 
 # A path inside a working copy selects that repository, however deep.
@@ -54,19 +54,20 @@
                       "below" [{:path (string (os/cwd) "/below/repo")
                                 :ssh_url "u"
                                 :anchors @[(os/cwd)]}]
-                      false @[(os/cwd)]))
+                      @[(os/cwd)]))
                @[(string (os/cwd) "/below/repo")]))
 
-(assert (empty? (location/select-repositories-with-anchors "/srv" [] false @["/srv"])))
+(assert (empty? (location/select-repositories-with-anchors "/srv" [] @["/srv"])))
 (assert (empty? (selected "/elsewhere" @[])))
 
-(let [selected (select/by-location "/srv/foo" false repositories)]
-  (assert (deep= @["/srv"] (selected :anchors))
-          "the selection boundary returns containing anchors")
+(let [selected (select/by-location
+                 "/srv/foo" repositories
+                 (location/containing-anchors "/srv/foo" repositories))]
   (assert (deep= @["/srv/foo" "/srv/foo/bar"]
-                 (map (fn [repository] (repository :path))
-                      (selected :repositories)))
+                 (map (fn [repository] (repository :path)) selected))
           "the selection boundary returns repositories below the location"))
+(assert (empty? (select/by-location "/srv/foo" repositories @[]))
+        "no selected anchor selects nothing")
 
 (def nested
   [{:path "/work/one" :ssh_url "one" :anchors @["/work"]}
@@ -78,14 +79,16 @@
 
 (defn- selected-nested
   "Return paths selected from repositories with nested anchors."
-  [path anchors &opt all-anchors]
+  [path selected-anchors]
   (map (fn [repository] (repository :path))
        (location/select-repositories-with-anchors
-         path nested all-anchors anchors)))
+         path nested selected-anchors)))
 
 (assert (deep= @["/work" "/work/team"]
                (location/containing-anchors "/work/team/inside" nested))
         "all containing anchors are selected")
+(assert (deep= @["/work" "/work/team" "/other"] (location/configured-anchors nested))
+        "configured anchors are listed once each in first-seen order")
 (assert (empty? (location/containing-anchors "/elsewhere" nested))
         "an unrelated path has no anchor")
 (assert (deep= (selected-nested "/work/team" @["/work" "/work/team"])
@@ -94,7 +97,7 @@
 (assert (deep= (selected-nested "/work" @["/work"])
                @["/work/one" "/work/team/parent" "/work/team/shared"])
         "a nested anchor does not contain its parent directory")
-(assert (deep= (selected-nested "/work/team" @[] true)
+(assert (deep= (selected-nested "/work/team" (location/configured-anchors nested))
                @["/work/team/two" "/work/team/parent" "/work/team/shared"
                  "/work/team/unrelated"])
         "all anchors also includes unrelated anchors")
@@ -125,7 +128,7 @@
                         :anchors @[anchor]}])
     (map (fn [repository] (repository :path))
          (location/select-repositories-with-anchors
-           at repositories false (location/containing-anchors at repositories))))
+           at repositories (location/containing-anchors at repositories))))
 
   (assert (deep= (linked real (string alias "/repo") alias) @[(string alias "/repo")])
           "a working location selects a repository configured through a link")
