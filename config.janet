@@ -399,7 +399,7 @@
 (defn- reject-unknown-sources
   ``Reject checkouts whose source file is missing. This prevents a
   renamed list from silently using the defaults.``
-  [settings config-paths]
+  [config-paths settings]
   (def present (map path/basename config-paths))
   (each name (distinct (map (fn [checkout] (checkout :from)) (get settings :checkouts [])))
     (unless (index-of name present)
@@ -412,7 +412,7 @@
   place once several files are in play.``
   [config-paths directory &opt settings names]
   (default settings default-repository-settings)
-  (reject-unknown-sources settings config-paths)
+  (reject-unknown-sources config-paths settings)
   (merge-configs
     (seq [config-path :in config-paths]
       [config-path

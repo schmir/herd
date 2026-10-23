@@ -52,7 +52,7 @@
   ``Clone a repository with vcs unless it is already checked out, or
   something that is not a repository stands in its way.
   Return :skipped, :blocked, :cloned, or :failed.``
-  [executable env report path url &opt vcs]
+  [executable env report url path &opt vcs]
   (case (checkout/checkout-status {:path path})
     "ok" :skipped
     "blocked"
@@ -106,8 +106,8 @@
         (if (or executable
                 (not= "missing" (checkout/checkout-status repository)))
           (clone-repository executable env report
-                            (repository :path)
                             (repository :ssh_url)
+                            (repository :path)
                             selected-vcs)
           (do
             (report "Clone failed: " (repository :path) ": "

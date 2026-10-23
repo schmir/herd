@@ -513,7 +513,7 @@
   (def repositories
     (select-by-state (selected-repositories parsed settings selection) wanted
                      (selection :commands) jobs))
-  (def counts (run/run-in-repositories command repositories show-output jobs))
+  (def counts (run/run-in-repositories repositories command show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
          (counts :skipped) " skipped, "

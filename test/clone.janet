@@ -15,7 +15,7 @@
 
 (def existing (path/join dir "existing"))
 (sh/create-dirs (path/join existing ".git"))
-(assert (= :skipped (clone/clone-repository nil nil nil existing "unused"))
+(assert (= :skipped (clone/clone-repository nil nil nil "unused" existing))
         "an existing checkout does not start a process")
 
 (def occupied (path/join dir "occupied"))
@@ -24,7 +24,7 @@
 (var blocked-messages @[])
 (assert (= :blocked (clone/clone-repository nil nil
                                             (fn [& args] (array/push blocked-messages (string ;args)))
-                                            occupied "unused"))
+                                            "unused" occupied))
         "something that is not a repository blocks the clone")
 (assert (deep= @[(string "Clone blocked: " occupied
                          " holds something that is not a repository")]
@@ -58,7 +58,7 @@
   (assert (= :cloned
              (clone/clone-repository cloning-vcs env
                                      (fn [& args] (array/push messages (string ;args)))
-                                     success "unused")))
+                                     "unused" success)))
   (assert (= 1 (length messages)) "a successful clone reports completion")
   (assert (= :directory (os/stat (path/join success ".git") :mode))
           "a successful clone is moved into place")
@@ -67,8 +67,8 @@
 
   (def empty (path/join dir "empty"))
   (sh/create-dirs empty)
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) empty
-                                             "unused"))
+  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+                                             empty))
           "an empty directory is cloned into")
   (assert (= :directory (os/stat (path/join empty ".git") :mode)))
 
@@ -76,16 +76,16 @@
   (def link (path/join dir "link"))
   (sh/create-dirs link-target)
   (os/symlink "link-target" link)
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) link
-                                             "unused"))
+  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+                                             link))
           "a link to an empty directory is cloned through")
   (assert (= :link (os/lstat link :mode)) "the link is kept")
   (assert (= :directory (os/stat (path/join link-target ".git") :mode)))
 
   (def leftover (path/join dir "leftover"))
   (sh/create-dirs (path/join (clone/staging-path leftover) ".git"))
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) leftover
-                                             "unused"))
+  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+                                             leftover))
           "what an earlier crashed clone staged does not stop the next one")
 
   (set messages @[])
@@ -93,12 +93,12 @@
   (assert (= :failed
              (clone/clone-repository (process/find-executable "false") env
                                      (fn [& args] (array/push messages (string ;args)))
-                                     failure "unused")))
+                                     "unused" failure)))
   (assert (= 1 (length messages)) "a failed clone reports its path")
 
   (def crashed (path/join dir "crashed"))
-  (assert (= :failed (clone/clone-repository dying-vcs env (fn [&]) crashed
-                                             "unused")))
+  (assert (= :failed (clone/clone-repository dying-vcs env (fn [&]) "unused"
+                                             crashed)))
   (assert (= "missing" (checkout/checkout-status {:path crashed}))
           "a clone that dies half-written does not pass for a checkout")
   (assert (nil? (os/lstat (clone/staging-path crashed)))
@@ -109,7 +109,7 @@
   (assert (= :failed
              (clone/clone-repository (process/find-executable "true") env
                                      (fn [& args] (array/push messages (string ;args)))
-                                     vanished "unused"))
+                                     "unused" vanished))
           "a VCS that succeeds without writing a clone has failed")
   (assert (= 2 (length messages)) "the failed move is reported"))
 

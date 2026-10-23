@@ -77,7 +77,7 @@
   no working copy never matches, and the command is not run there. Status
   126 and 127 mean the shell could not run the command, which is a mistake
   rather than a repository that does not match, so they raise.``
-  [command repository]
+  [repository command]
   (if (checkout/repository-vcs repository)
     (with [devnull (file/open "/dev/null" :r)]
       (def result
@@ -97,6 +97,6 @@
   [repositories commands &opt jobs]
   (keep-repositories repositories
                      (fn [repository]
-                       (all (fn [command] (command-matches? command repository))
+                       (all (fn [command] (command-matches? repository command))
                             commands))
                      jobs))
