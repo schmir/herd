@@ -10,38 +10,9 @@ janet_commit := "0fea20c82182fe661f75b00a8889d801fe2d79b6"
 default:
     @just --list
 
-# Install the locked dependencies in the local JPM tree.
-deps: check-lock
-    jpm --local load-lockfile
-
-# Nothing else notices the drift: load-lockfile never reads project.janet, and
-# a missing dependency only surfaces as a failing import much later.
-[doc('Fail when project.janet declares a dependency lockfile.jdn does not record.')]
-check-lock:
-    #!/usr/bin/env janet
-    (def declared
-      (mapcat |(get (struct ;(slice $ 1)) :dependencies [])
-              (filter |(and (tuple? $) (= 'declare-project (first $)))
-                      (parse-all (slurp "project.janet")))))
-    (def locked (map |(get $ :url) (parse (slurp "lockfile.jdn"))))
-    (def missing (filter |(nil? (index-of $ locked)) declared))
-    (unless (empty? missing)
-      (eprint "lockfile.jdn does not record: " (string/join missing ", "))
-      (eprint "Run `just lock` to regenerate it.")
-      (os/exit 1))
-
-# Regenerate lockfile.jdn from the dependencies declared in project.janet.
-lock:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Resolve into a throwaway tree: make-lockfile records whatever the tree
-    # happens to contain, so anything installed into jpm_tree by hand would
-    # otherwise end up in the lockfile too.
-    tree="$(mktemp -d)"
-    trap 'rm -rf "$tree"' EXIT
-    jpm --tree="$tree" deps
-    jpm --tree="$tree" make-lockfile lockfile.jdn
-    treefmt lockfile.jdn
+# Install the dependencies project.janet pins in the local JPM tree.
+deps:
+    jpm --local deps
 
 # Janet looks for a native module by bare name on the module path, and jpm
 # adds build/ to it only for the builds and test runs it drives itself. These
@@ -161,11 +132,11 @@ dist *platforms: build
         exit 1
     fi
     # jpm keeps the cache of every spork commit it has fetched, so take the
-    # one the lockfile pins.
-    spork_commit=$(sed -n 's/.*spork\.git" :tag "\([0-9a-f]*\)".*/\1/p' lockfile.jdn)
+    # one project.janet pins.
+    spork_commit=$(sed -n 's/.*:tag "\([0-9a-f]*\)".*/\1/p' project.janet)
     spork="jpm_tree/lib/.cache/git_${spork_commit}_https___github.com_janet-lang_spork.git"
     if [[ -z "$spork_commit" || ! -d "$spork" ]]; then
-        echo "jpm_tree holds no spork source for the commit lockfile.jdn" \
+        echo "jpm_tree holds no spork source for the commit project.janet" \
              "pins (${spork_commit:-none found})." >&2
         exit 1
     fi

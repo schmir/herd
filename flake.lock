@@ -42,11 +42,11 @@
     "spork": {
       "flake": false,
       "locked": {
-        "lastModified": 1788526829,
-        "narHash": "sha256-F/wU9XBvsL56JySUzcYdC/w+ETn9c2L3AdEgs5tInyY=",
+        "lastModified": 1792203590,
+        "narHash": "sha256-jfm9+g9PCh3TH3vDp9B8cFuw0e24BMTnD6wJwKhoZPE=",
         "owner": "janet-lang",
         "repo": "spork",
-        "rev": "0667f96b74de52747ffe5e19e185563ebf53816b",
+        "rev": "26af769b7fd8f7214ea8f95dad5c2d360a79f6b4",
         "type": "github"
       },
       "original": {

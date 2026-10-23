@@ -565,10 +565,9 @@ it is given, such as a release binary: `just test-cli path/to/herd`.
 `git describe` unless `HERD_VERSION` names one; release builds pass their
 tag.
 
-`lockfile.jdn` pins every JPM dependency to a commit, so every build
-compiles the same sources. Run `just lock` after changing the dependencies
-in `project.janet` and commit the result; `just deps` refuses to install
-until the lockfile records everything `project.janet` declares.
+`project.janet` pins every JPM dependency to a commit, so every build
+compiles the same sources. To update one, change its `:tag` and run
+`just deps`.
 
 The sources are layered, each file importing only the ones beneath it.
 `process.janet` runs a subprocess and collects what it printed,
