@@ -66,6 +66,18 @@
               uv
               zig
             ];
+
+            # janet-lsp needs spork and the access module on the module path;
+            # see .janet-path/README.md.
+            shellHook = ''
+              root="$PWD"
+              while [ ! -d "$root/.janet-path" ] && [ -n "$root" ]; do
+                root="''${root%/*}"
+              done
+              [ -n "$root" ] || root="$PWD"
+              export JANET_PATH="$root/.janet-path"
+              unset root
+            '';
           };
         }
       );
