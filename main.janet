@@ -193,18 +193,18 @@
   (os/exit 0))
 
 (defn- anchors-at
-  ``The anchors of `config` to select from at a path: every one with
+  ``The anchors of `repositories` to select from at a path: every one with
   `all-anchors?`, otherwise those containing the path.``
-  [at config all-anchors?]
+  [at repositories all-anchors?]
   (if all-anchors?
-    (location/configured-anchors config)
-    (location/containing-anchors at config)))
+    (location/configured-anchors repositories)
+    (location/containing-anchors at repositories)))
 
 (defn- select-configured
-  ``Select the repositories in `config` at a path, from the `selected-anchors`.
-  Unless `quiet` is set, say why the result is empty.``
-  [at config selected-anchors settings names &opt quiet]
-  (def selected (select/by-location at config selected-anchors))
+  ``Select the `repositories` at a path, from the `selected-anchors`. Unless
+  `quiet` is set, say why the result is empty.``
+  [at repositories selected-anchors settings names &opt quiet]
+  (def selected (select/by-location at repositories selected-anchors))
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
@@ -212,13 +212,13 @@
     (cond
       # Filtering can empty the configuration itself, before the location is
       # ever weighed, so say that rather than blaming the location.
-      (and (empty? config) (filters-in-play? names settings))
+      (and (empty? repositories) (filters-in-play? names settings))
       (eprint "No configured repository is left by "
               (if (empty? names)
                 (string "the filters in " config/command-config-name)
                 (describe-filters names)))
 
-      (empty? config) nil
+      (empty? repositories) nil
 
       (empty? selected-anchors)
       (eprint "No configuration anchor contains " at
@@ -238,8 +238,9 @@
   (def loaded (read-configuration settings names))
   (when (empty? (loaded :paths))
     (exit-unconfigured loaded))
-  (def config (loaded :repositories))
-  (select-configured at config (anchors-at at config all-anchors?)
+  (def repositories (loaded :repositories))
+  (select-configured at repositories
+                     (anchors-at at repositories all-anchors?)
                      settings names))
 
 (defn- at-option
