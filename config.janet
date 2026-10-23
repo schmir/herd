@@ -207,20 +207,20 @@
 (defn configured-repository-settings
   ``Validate repository settings. The checkouts keep the order they were
   written in.``
-  [config]
-  (unless (dictionary? config)
+  [command-config]
+  (unless (dictionary? command-config)
     (error "expected a JDN dictionary"))
-  (def configured (get config :checkouts []))
-  (unless (indexed? configured)
+  (def rows (get command-config :checkouts []))
+  (unless (indexed? rows)
     (error ":checkouts must be an array of rows"))
   (def checkouts
-    (seq [index :range [0 (length configured)]]
-      (validate-checkout-row (configured index)
+    (seq [index :range [0 (length rows)]]
+      (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
-  (def filters (validate-filters (get config :filters {})))
+  (def filters (validate-filters (get command-config :filters {})))
   (def expressions (filters-of-kind filters :jp))
   (def commands (filters-of-kind filters :sh))
-  (def defaults (validate-checkout-defaults (get config :defaults {})))
+  (def defaults (validate-checkout-defaults (get command-config :defaults {})))
   (reject-unknown-filters defaults ":defaults" expressions commands)
   (each checkout checkouts
     (reject-unknown-filters checkout
@@ -236,10 +236,12 @@
   when none names the file.``
   [settings name]
   (def defaults (get settings :defaults {}))
-  (def configured (filter (fn [checkout] (= (checkout :from) name)) (get settings :checkouts [])))
-  (if (empty? configured)
+  (def matching
+    (filter (fn [checkout] (= (checkout :from) name))
+            (get settings :checkouts [])))
+  (if (empty? matching)
     @[(merge defaults)]
-    (map (fn [checkout] (merge defaults checkout)) configured)))
+    (map (fn [checkout] (merge defaults checkout)) matching)))
 
 (defn- checkout-options
   "Return only the checkout options set in `source`."
