@@ -1,3 +1,5 @@
+# The herd command line: argument parsing and the subcommands.
+
 (import spork/argparse)
 (import spork/path)
 (import ./checkout)

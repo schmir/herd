@@ -1,3 +1,5 @@
+# Writing the shell completion scripts for the herd command line.
+
 (import ./run)
 
 (def shells

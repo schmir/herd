@@ -3,7 +3,7 @@
 (import spork/path)
 
 (defn- bare-path
-  ``Drop trailing slashes, which normalisation keeps but comparison must not.``
+  "Drop trailing slashes, which normalisation keeps but comparison must not."
   [path]
   (def trimmed (string/trimr path "/"))
   (if (empty? trimmed) "/" trimmed))
