@@ -37,9 +37,9 @@
   (sh/create-dirs second)
   (sh/create-dirs (string first "/.git"))
   (sh/create-dirs (string second "/.git"))
-  (def counts (run/run-in-repositories ["touch" "command ran"]
-                                       [(repository first)
-                                        (repository second)]))
+  (def counts (run/run-in-repositories [(repository first)
+                                        (repository second)]
+                                       ["touch" "command ran"]))
   (assert (= 2 (counts :succeeded))
           "successful commands report no failures")
   (assert (= 0 (counts :failed)))
@@ -58,9 +58,9 @@
   (sh/create-dirs (string jj-repository "/.jj"))
   (def counts
     (run/run-in-repositories
+      [(repository git-repository) (repository jj-repository)]
       {:command-git "touch selected-git"
-       :command-jj "touch selected-jj"}
-      [(repository git-repository) (repository jj-repository)]))
+       :command-jj "touch selected-jj"}))
   (assert (= 2 (counts :succeeded))
           "VCS-specific commands run in both repository types")
   (assert (= :file (os/stat (string git-repository "/selected-git") :mode))
@@ -74,9 +74,9 @@
   (sh/create-dirs (string dir "/.jj"))
   (def counts
     (run/run-in-repositories
+      [(repository dir)]
       {:command-git "touch selected-git"
-       :command-jj "touch selected-jj"}
-      [(repository dir)]))
+       :command-jj "touch selected-jj"}))
   (assert (= 1 (counts :succeeded))
           "a colocated repository runs one command")
   (assert (= :file (os/stat (string dir "/selected-jj") :mode))
@@ -89,8 +89,8 @@
   (sh/create-dirs (string dir "/.jj"))
   (def counts
     (run/run-in-repositories
-      {:command-git "touch selected-git"}
-      [(repository dir)]))
+      [(repository dir)]
+      {:command-git "touch selected-git"}))
   (assert (= 1 (counts :skipped))
           "a missing command for the repository VCS is skipped")
   (assert (= 0 (counts :failed))
@@ -107,10 +107,10 @@
   (sh/create-dirs last)
   (sh/create-dirs (string first "/.git"))
   (sh/create-dirs (string last "/.git"))
-  (def counts (run/run-in-repositories ["touch" "ran"]
-                                       [(repository first)
+  (def counts (run/run-in-repositories [(repository first)
                                         (repository missing)
-                                        (repository last)]))
+                                        (repository last)]
+                                       ["touch" "ran"]))
   (assert (= 0 (counts :failed)))
   (assert (= 1 (counts :not-checked-out))
           "an unavailable repository is not checked out")
@@ -124,7 +124,7 @@
       blocked (string dir "/blocked")]
   (sh/create-dirs blocked)
   (spit (string blocked "/notes") "")
-  (def counts (run/run-in-repositories ["touch" "ran"] [(repository blocked)]))
+  (def counts (run/run-in-repositories [(repository blocked)] ["touch" "ran"]))
   (assert (= 1 (counts :not-checked-out))
           "a directory holding no repository is not checked out")
   (assert (nil? (os/stat (string blocked "/ran")))
@@ -140,8 +140,8 @@
   (sh/create-dirs (string second "/.git"))
   (def counts
     (run/run-in-repositories
-      ["sh" "-c" "touch ran-before-failure; exit 7"]
-      [(repository first) (repository second)]))
+      [(repository first) (repository second)]
+      ["sh" "-c" "touch ran-before-failure; exit 7"]))
   (assert (= 2 (counts :failed))
           "each non-zero command counts as one failure")
   (assert (= :file (os/stat (string first "/ran-before-failure") :mode)))
@@ -157,13 +157,13 @@
     (def env {:in devnull :out :pipe :err :pipe})
     (assert (= :succeeded
                (run/run-in-repository
-                 ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
-                 env repo (fn [& args] (array/push messages (string ;args))))))
+                 repo ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
+                 env (fn [& args] (array/push messages (string ;args))))))
     (assert (empty? messages) "successful command output stays hidden")
     (assert (= :succeeded
                (run/run-in-repository
-                 ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
-                 env repo (fn [& args] (array/push messages (string ;args))) "always")))
+                 repo ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
+                 env (fn [& args] (array/push messages (string ;args))) "always")))
     (assert (= 1 (length messages)) "requested successful output is one block")
     (assert (string/find (string "✓ " dir) (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
@@ -171,20 +171,20 @@
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
-                 ["true"] env repo (fn [& args] (array/push messages (string ;args)))
+                 repo ["true"] env (fn [& args] (array/push messages (string ;args)))
                  "always")))
     (assert (empty? messages)
             "always stays quiet about a successful command without output")
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
-                 ["printf" "suppressed"] env repo
+                 repo ["printf" "suppressed"] env
                  (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides successful command results")
     (assert (= :failed
                (run/run-in-repository
-                 ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
-                 env repo (fn [& args] (array/push messages (string ;args))))))
+                 repo ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
+                 env (fn [& args] (array/push messages (string ;args))))))
     (assert (= 1 (length messages)) "failure output is one buffered block")
     (assert (string/find (string "✗ " dir " (exit 7)") (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   second line" (messages 0)))
@@ -192,12 +192,12 @@
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 ["false"] env repo (fn [& args] (array/push messages (string ;args))) "never")))
+                 repo ["false"] env (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides failed command results")
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 ["false"] env repo (fn [& args] (array/push messages (string ;args))))))
+                 repo ["false"] env (fn [& args] (array/push messages (string ;args))))))
     (assert (and (= 1 (length messages))
                  (= (string "✗ " dir " (exit 1)") (messages 0)))
             "a failure without output still names the repository"))

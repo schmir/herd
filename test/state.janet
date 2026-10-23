@@ -87,16 +87,16 @@
   "A command matches by its exit status, run inside the repository."
   []
   (def repository (make-repository "where"))
-  (assert (state/command-matches? "true" repository) "exit 0 matches")
-  (assert (not (state/command-matches? "false" repository)) "exit 1 does not")
-  (assert (not (state/command-matches? "test -f marker" repository))
+  (assert (state/command-matches? repository "true") "exit 0 matches")
+  (assert (not (state/command-matches? repository "false")) "exit 1 does not")
+  (assert (not (state/command-matches? repository "test -f marker"))
           "the file is not there yet")
   (spit (path/join (repository :path) "marker") "")
-  (assert (state/command-matches? "test -f marker" repository)
+  (assert (state/command-matches? repository "test -f marker")
           "the command runs in the repository")
-  (assert (not (state/command-matches? "true" {:path (path/join dir "absent")}))
+  (assert (not (state/command-matches? {:path (path/join dir "absent")} "true"))
           "a missing path never matches, and runs nothing")
-  (assert (try (do (state/command-matches? "no-such-command-here" repository) false)
+  (assert (try (do (state/command-matches? repository "no-such-command-here") false)
             ([_] true))
           "a command the shell cannot find raises"))
 

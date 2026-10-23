@@ -44,7 +44,7 @@
 
 (defn command-for-repository
   "Return the process command selected for repository."
-  [command repository]
+  [repository command]
   (cond
     (string? command)
     ["sh" "-c" command]
@@ -72,13 +72,13 @@
 
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
-  [command env repository report &opt show-output]
+  [repository command env report &opt show-output]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
     # A blocked path holds no working copy to run in, so it counts as not
     # checked out rather than as a place to run the command.
     (if (= "ok" (checkout/checkout-status repository))
-      (if-let [selected (command-for-repository command repository)]
+      (if-let [selected (command-for-repository repository command)]
         (let [result (process/capture-process
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`
                         "herd" (repository :path) ;selected]
@@ -118,7 +118,7 @@
 
 (defn run-in-repositories
   "Run a command in parallel and return its outcome counts."
-  [command repositories &opt show-output jobs]
+  [repositories command &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Parallel commands must not share a terminal for input or output. Capture
   # output per process so each visible result is one coherent block.
@@ -132,7 +132,7 @@
        [:skipped "skipped"]
        [:not-checked-out "not checked out"]]
       (fn [repository report]
-        (run-in-repository command env repository
+        (run-in-repository repository command env
                            (fn [& args] (report-command-result report-state report ;args))
                            show-output))
       jobs)))
