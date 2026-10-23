@@ -20,8 +20,8 @@
   is: looking the variable up at run time would only describe the machine the
   binary ended up on. A build that names no version is not a release.``
   []
-  (def configured (os/getenv "HERD_VERSION"))
-  (if (or (nil? configured) (empty? configured)) "dev" configured))
+  (def requested (os/getenv "HERD_VERSION"))
+  (if (or (nil? requested) (empty? requested)) "dev" requested))
 
 (def version
   "Version this build was compiled for."
@@ -280,12 +280,12 @@
 
 (defn- jobs-option
   "Return the --jobs specification with default, shared by running commands."
-  [&opt configured]
-  (default configured parallel/default-jobs)
+  [&opt jobs]
+  (default jobs parallel/default-jobs)
   {:kind :option
    :short "j"
    :value-name "N"
-   :default (string configured)
+   :default (string jobs)
    :help "Run at most N repository operations at the same time."})
 
 (defn- scan-jobs
@@ -579,17 +579,17 @@
 
 (defn built-in-commands
   ``Subcommands by name, with their argument handler and one-line summary.
-  The config's per-file settings and job count are bound here so every
-  handler starts from them, leaving the command line to override.``
-  [config]
-  (def {:settings settings :jobs jobs} config)
+  The prepared config's per-file settings and job count are bound here so
+  every handler starts from them, leaving the command line to override.``
+  [prepared]
+  (def {:settings settings :jobs jobs} prepared)
   {"clone" {:run (fn [args] (clone-command args settings jobs))
             :help "Check out the configured repositories beneath a path."}
    "completions" {:run (fn [args]
                          (completions-command
                            args
-                           (fn [] (merge (built-in-commands config)
-                                         (config :commands)))
+                           (fn [] (merge (built-in-commands prepared)
+                                         (prepared :commands)))
                            (fn [] (merge (get settings :filters {})
                                          (get settings :sh-filters {})))))
                   :help "Print a shell completion script for herd."}
@@ -606,10 +606,10 @@
 
 (defn configured-jobs
   "Return the configured job count, or the default when it is not set."
-  [config]
-  (unless (dictionary? config)
+  [command-config]
+  (unless (dictionary? command-config)
     (error "expected a JDN dictionary"))
-  (def jobs (get config :jobs parallel/default-jobs))
+  (def jobs (get command-config :jobs parallel/default-jobs))
   (unless (parallel/jobs? jobs)
     (error (string ":jobs must be a positive integer no greater than "
                    parallel/max-jobs)))
@@ -679,14 +679,14 @@
 
 (defn prepare-command-config
   "Validate raw JDN configuration and construct its command handlers."
-  [config]
-  (def jobs (configured-jobs config))
-  (def settings (config/configured-repository-settings config))
-  (def configured (get config :commands {}))
-  (unless (dictionary? configured)
+  [command-config]
+  (def jobs (configured-jobs command-config))
+  (def settings (config/configured-repository-settings command-config))
+  (def definitions (get command-config :commands {}))
+  (unless (dictionary? definitions)
     (error ":commands must be a dictionary"))
   (def commands @{})
-  (eachp [name definition] (merge default-command-definitions configured)
+  (eachp [name definition] (merge default-command-definitions definitions)
     (def {:command command :description description :show-output show-output}
       (command-from-definition name definition))
     (put commands name
@@ -698,23 +698,25 @@
 
 (defn load-command-config
   "Read and validate JDN configuration, or return defaults when absent."
-  [config-path]
-  (def stat (os/stat config-path))
+  [command-config-file]
+  (def stat (os/stat command-config-file))
   (cond
     (nil? stat) (prepare-command-config {})
-    (not= :file (stat :mode)) (error (string config-path " is not a file"))
+    (not= :file (stat :mode))
+    (error (string command-config-file " is not a file"))
     (try
-      (prepare-command-config (config/parse-settings (slurp config-path)))
-      ([err] (error (string config-path ": " err))))))
+      (prepare-command-config
+        (config/parse-settings (slurp command-config-file)))
+      ([err] (error (string command-config-file ": " err))))))
 
 (defn available-commands
   "Return built-in commands merged with the configured custom commands."
   []
-  (def config
-    (if-let [config-path (command-config-path)]
-      (load-command-config config-path)
+  (def prepared
+    (if-let [command-config-file (command-config-path)]
+      (load-command-config command-config-file)
       (prepare-command-config {})))
-  (merge (built-in-commands config) (config :commands)))
+  (merge (built-in-commands prepared) (prepared :commands)))
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named
