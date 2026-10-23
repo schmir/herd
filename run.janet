@@ -1,8 +1,8 @@
 # Running one command in each repository and reporting what it printed.
 
+(import ./checkout)
 (import ./parallel)
 (import ./process)
-(import ./checkout)
 
 (def default-show-output
   "When to show command output, unless another default is set."

@@ -1,3 +1,5 @@
+# Running an operation on each repository in parallel, with progress.
+
 (import spork/rawterm)
 
 (def default-jobs
@@ -102,9 +104,9 @@
   (var completed 0)
   (def fields @[])
   (each outcome (progress :outcomes)
-    (def count (get (progress :counts) (outcome 0)))
-    (+= completed count)
-    (array/push fields (string count " " (outcome 1))))
+    (def outcome-count (get (progress :counts) (outcome 0)))
+    (+= completed outcome-count)
+    (array/push fields (string outcome-count " " (outcome 1))))
   (array/push lines
               (string (rawterm/slice-monowidth
                         (string completed "/" (progress :total) "  "

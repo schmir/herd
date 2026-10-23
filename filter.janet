@@ -1,7 +1,7 @@
 # Narrowing a repository list with the JMESPath expressions it is named by.
 
-(import ./process)
 (import ./entries)
+(import ./process)
 
 (def filter-executable
   "Program that evaluates a filter expression."

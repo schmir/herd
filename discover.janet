@@ -1,3 +1,5 @@
+# Finding the git and jj repositories that lie below a directory.
+
 (import spork/path)
 
 (def markers

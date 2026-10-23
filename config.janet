@@ -1,9 +1,9 @@
 # Reading the configuration directory into the repositories it describes.
 
 (import spork/path)
-(import ./filter)
 (import ./checkout)
 (import ./entries)
+(import ./filter)
 
 (defn config-directory
   ``Directory holding the JSON repository lists and the command config file,
@@ -193,12 +193,12 @@
   first of: settings appended as a second dictionary, rather than merged into
   the one already there, would otherwise be dropped without a word.``
   [source]
-  (def values (parse-all source))
-  (case (length values)
+  (def parsed (parse-all source))
+  (case (length parsed)
     0 {}
-    1 (values 0)
+    1 (parsed 0)
     (error (string "expected one dictionary of settings, but the file holds "
-                   (length values) " top-level values"))))
+                   (length parsed) " top-level values"))))
 
 (def default-repository-settings
   "Repository settings used when the command config file is absent."

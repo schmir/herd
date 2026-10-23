@@ -2,9 +2,9 @@
 
 (import spork/path)
 (import spork/sh)
+(import ./checkout)
 (import ./parallel)
 (import ./process)
-(import ./checkout)
 
 (defn clone-process-command
   "Return the process command that clones url to path with vcs."
@@ -82,8 +82,8 @@
         :failed))))
 
 (defn clone-repositories
-  "Clone repositories with their selected VCS and limit concurrent processes.
-  Return the cloned, skipped, blocked, and failed counts."
+  ``Clone repositories with their selected VCS and limit concurrent processes.
+  Return the cloned, skipped, blocked, and failed counts.``
   [repositories &opt jobs]
   (def executables {"git" (process/find-executable "git")
                     "jj" (process/find-executable "jj")})
