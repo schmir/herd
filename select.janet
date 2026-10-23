@@ -4,13 +4,10 @@
 (import ./state)
 
 (defn by-location
-  ``Return the repositories and anchors selected by `at`. When
-  `all-anchors` is true, every repository is considered.``
-  [at all-anchors repositories]
-  (def anchors (unless all-anchors (location/containing-anchors at repositories)))
-  {:anchors anchors
-   :repositories (location/select-repositories-with-anchors
-                   at repositories all-anchors anchors)})
+  ``Return the repositories configured under one of the `selected-anchors` that
+  are at `at`, beneath it or holding it.``
+  [at repositories selected-anchors]
+  (location/select-repositories-with-anchors at repositories selected-anchors))
 
 (defn by-state
   ``Apply the requested repository state and shell-command stages in order.

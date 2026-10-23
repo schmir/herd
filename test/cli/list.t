@@ -36,7 +36,7 @@ message points at --all-anchors.
 
   $ mkdir elsewhere
   $ herd list -C elsewhere
-  None of the configured repositories associated with an anchor containing elsewhere are beneath it or hold it; use -a/--all-anchors to consider every anchor
+  None of the configured repositories under the selected anchors are beneath elsewhere or hold it
 
 A :checkouts row anchors its list somewhere else, so the home no longer
 contains the anchor.

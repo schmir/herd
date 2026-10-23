@@ -233,7 +233,7 @@
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
   (assert (= 2 (length (location/select-repositories-with-anchors
-                         root loaded false (location/containing-anchors root loaded))))
+                         root loaded (location/containing-anchors root loaded))))
           "the fixture root selects both repositories")
   ((herd/make-run-command "touch fixed-command"
                           "Run the fixed test command.")

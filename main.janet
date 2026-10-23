@@ -5,6 +5,7 @@
 (import ./completions)
 (import ./config)
 (import ./discover)
+(import ./location)
 (import ./parallel)
 (import ./process)
 (import ./run)
@@ -191,13 +192,19 @@
   (eprint "No configuration files in " (loaded :directory))
   (os/exit 0))
 
+(defn- anchors-at
+  ``The anchors of `config` to select from at a path: every one with
+  `all-anchors?`, otherwise those containing the path.``
+  [at config all-anchors?]
+  (if all-anchors?
+    (location/configured-anchors config)
+    (location/containing-anchors at config)))
+
 (defn- select-configured
-  ``Select the repositories in `config` at a path. Unless `quiet` is set,
-  say why the result is empty.``
-  [at all-anchors config settings names &opt quiet]
-  (def location (select/by-location at all-anchors config))
-  (def anchors (location :anchors))
-  (def selected (location :repositories))
+  ``Select the repositories in `config` at a path, from the `selected-anchors`.
+  Unless `quiet` is set, say why the result is empty.``
+  [at config selected-anchors settings names &opt quiet]
+  (def selected (select/by-location at config selected-anchors))
   # Say why the result is empty. Since --at defaults to the current
   # directory, standing in the wrong place otherwise looks like a broken
   # configuration.
@@ -213,30 +220,27 @@
 
       (empty? config) nil
 
-      all-anchors
-      (eprint "None of the " (length config) " configured repositories are beneath " at
-              " or hold it")
-
-      (empty? anchors)
+      (empty? selected-anchors)
       (eprint "No configuration anchor contains " at
               "; use -a/--all-anchors to consider every anchor")
 
       true
-      (eprint "None of the configured repositories associated with an anchor "
-              "containing " at " are beneath it or hold it; use "
-              "-a/--all-anchors to consider every anchor")))
+      (eprint "None of the configured repositories under the selected "
+              "anchors are beneath " at " or hold it")))
   selected)
 
 (defn- configured-repositories
   ``Load the configured repositories and select the ones at a path. The
   filters named in `names` narrow every configuration file further, on top of
   whatever its checkout rows already filter.``
-  [at all-anchors &opt settings names]
+  [at all-anchors? &opt settings names]
   (default settings config/default-repository-settings)
   (def loaded (read-configuration settings names))
   (when (empty? (loaded :paths))
     (exit-unconfigured loaded))
-  (select-configured at all-anchors (loaded :repositories) settings names))
+  (def config (loaded :repositories))
+  (select-configured at config (anchors-at at config all-anchors?)
+                     settings names))
 
 (defn- at-option
   "The --at specification, shared by every selecting command."
@@ -475,7 +479,9 @@
       (if show-configured
         # Explaining an empty selection would mislead when the disk is
         # scanned as well, since that can still turn up repositories.
-        (select-configured (parsed "at") (parsed "all-anchors") configured
+        (select-configured (parsed "at") configured
+                           (anchors-at (parsed "at") configured
+                                       (parsed "all-anchors"))
                            settings names scan)
         @[])
       wanted

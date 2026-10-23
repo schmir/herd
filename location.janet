@@ -34,30 +34,37 @@
       (string/has-prefix? (if (= "/" ancestor) ancestor (string ancestor "/"))
                           descendant)))
 
-(defn containing-anchors
-  "Return each configured anchor that contains path."
-  [path repositories]
-  (def root (comparable-path path))
+(defn configured-anchors
+  ``Return the comparable form of every anchor the `repositories` are configured
+  under, each once, in the order they are first seen.``
+  [repositories]
   (def found @[])
   (each repository repositories
     (each anchor (get repository :anchors [])
       (def candidate (comparable-path anchor))
-      (when (and (holds-path? candidate root)
-                 (not (some (fn [path] (= candidate path)) found)))
+      (unless (some (fn [known] (= candidate known)) found)
         (array/push found candidate))))
   found)
 
+(defn containing-anchors
+  "Return each configured anchor that contains path."
+  [path repositories]
+  (def root (comparable-path path))
+  (filter (fn [anchor] (holds-path? anchor root))
+          (configured-anchors repositories)))
+
 (defn select-repositories-with-anchors
-  "Filter repositories with anchors that were already selected."
-  [path repositories all-anchors anchors]
+  ``Keep the repositories configured under one of the `selected-anchors` that are at
+  `path`, beneath it or holding it.``
+  [path repositories selected-anchors]
   (def root (comparable-path path))
   (filter (fn [repository]
             (def candidate (comparable-path (repository :path)))
-            (and (or all-anchors
-                     (some (fn [repository-anchor]
-                             (def normalized (comparable-path repository-anchor))
-                             (some (fn [anchor] (= normalized anchor)) anchors))
-                           (get repository :anchors [])))
+            (and (some (fn [repository-anchor]
+                         (def normalized (comparable-path repository-anchor))
+                         (some (fn [anchor] (= normalized anchor))
+                               selected-anchors))
+                       (get repository :anchors []))
                  (or (holds-path? root candidate)
                      (holds-path? candidate root))))
           repositories))
