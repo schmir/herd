@@ -7,9 +7,9 @@
 
 (defn discover-root
   ``Return the directory a discovery from `at-path` starts at: the innermost
-  repository holding `at-path`, or `at-path` itself. Selection picks the
-  configured repositories holding the working location, so the discovery has to
-  reach them too.``
+  repository containing `at-path`, or `at-path` itself. Selection picks the
+  configured repositories containing the working location, so the
+  discovery has to reach them too.``
   [at-path]
   (var directory (path/abspath at-path))
   (var found nil)

@@ -145,7 +145,7 @@
     :none-beneath-path
     (unless quiet?
       (eprint "None of the configured repositories under the selected "
-              "anchors are beneath " (reason :at-path) " or hold it"))))
+              "anchors are beneath " (reason :at-path) " or contain it"))))
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when `result`, of a run or a selection,

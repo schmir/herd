@@ -40,9 +40,9 @@
           (put known path resolved)
           resolved))))
 
-(defn- holds-path?
-  ``Whether `ancestor` is `descendant` or holds it somewhere below. Compares
-  whole segments, so /srv/foobar is not held by /srv/foo.``
+(defn- contains-path?
+  ``Whether `ancestor` equals `descendant` or contains it somewhere below.
+  Compares whole segments, so /srv/foobar is not contained by /srv/foo.``
   [ancestor descendant]
   (or (= ancestor descendant)
       (string/has-prefix? (if (= "/" ancestor) ancestor (string ancestor "/"))
@@ -65,12 +65,12 @@
   "Return each configured anchor that contains `at-path`."
   [at-path repositories]
   (def resolved-at-path (resolved-path at-path))
-  (filter (fn [anchor] (holds-path? anchor resolved-at-path))
+  (filter (fn [anchor] (contains-path? anchor resolved-at-path))
           (configured-anchors repositories)))
 
 (defn select-repositories-with-anchors
   ``Keep the repositories configured under one of the `selected-anchors` that
-  are at `at-path`, beneath it or holding it.``
+  are at `at-path`, beneath it or containing it.``
   [at-path repositories selected-anchors]
   (def resolved-at-path (resolved-path at-path))
   (def resolved-anchor (caching-resolved-path))
@@ -81,6 +81,6 @@
                          (some (fn [anchor] (= normalized anchor))
                                selected-anchors))
                        (get repository :anchors []))
-                 (or (holds-path? resolved-at-path candidate)
-                     (holds-path? candidate resolved-at-path))))
+                 (or (contains-path? resolved-at-path candidate)
+                     (contains-path? candidate resolved-at-path))))
           repositories))

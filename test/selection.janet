@@ -33,7 +33,7 @@
 (assert (deep= (selected "/srv/foo/deep/inside" @["/srv"]) @["/srv/foo"]))
 (assert (deep= (selected "/srv/foobar/x" @["/srv"]) @["/srv/foobar"]))
 
-# Nested repositories both hold a path below them.
+# Nested repositories both contain a path below them.
 (assert (deep= (selected "/srv/foo/bar/x" @["/srv"])
                @["/srv/foo" "/srv/foo/bar"]))
 
@@ -95,7 +95,7 @@
         "all anchors also includes unrelated anchors")
 (assert (deep= (selected-nested "/work/team/parent/deep" @["/work" "/work/team"])
                @["/work/team/parent"])
-        "a repository from any containing anchor can hold the path")
+        "a repository from any containing anchor can contain the path")
 
 (defn- scratch-dir
   "Create and resolve a fresh directory for one selection test."
