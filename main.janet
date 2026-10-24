@@ -7,6 +7,7 @@
 (import ./config)
 (import ./discover)
 (import ./filter)
+(import ./options)
 (import ./parallel)
 (import ./process)
 (import ./run)
@@ -43,14 +44,40 @@
     (all (fn [character] (= character (chr "V"))) (string/slice arg 1))
     false))
 
+(defn- argparse-option
+  "The argparse specification of the declared `option`, with its default from `defaults`."
+  [option defaults]
+  (def spec @{:kind (option :kind) :help (option :help)})
+  (each key [:short :value-name]
+    (when (option key)
+      (put spec key (option key))))
+  (when-let [default (get defaults (option :name))]
+    (put spec :default default))
+  (table/to-struct spec))
+
+(defn- spec-entries
+  ``The argparse entries, name and specification in turn, of the declared
+  `options`. The help option is left out: parse-args adds its own.``
+  [options defaults]
+  (def entries @[])
+  (each option options
+    (unless (= "help" (option :name))
+      (array/push entries (option :name) (argparse-option option defaults))))
+  entries)
+
+(defn command-spec
+  ``The argparse entries of the options `command` takes, as options declares
+  them. `defaults` holds the defaults only the program knows, by option name.``
+  [command defaults]
+  (spec-entries (options/for-command command) defaults))
+
 (def- help-option
   ``A plain flag standing in for the help option argparse adds itself. Its
   own stops parsing at the first h, and reports any mistake after it as help
   or not at all, so -hx would succeed. As a plain flag it lets every other
   option be checked first, and a mistake anywhere wins over the help.``
-  {:kind :flag
-   :short "h"
-   :help "Show this help message."})
+  (argparse-option (find (fn [option] (= "help" (option :name))) options/top-level)
+                   {}))
 
 (defn- flag-given-value
   ``The name of the first flag `args` hands a value with --name=VALUE, or nil.
@@ -211,49 +238,6 @@
     (explain-empty reason quiet))
   result)
 
-(defn- at-option
-  "The --at specification, shared by every selecting command."
-  []
-  {:kind :option
-   :short "C"
-   :value-name "PATH"
-   :default (os/cwd)
-   :help "Select repositories using PATH as the working location."})
-
-(defn- all-anchors-option
-  "The --all-anchors specification, shared by every selecting command."
-  []
-  {:kind :flag
-   :short "a"
-   :help "Consider repositories from every configuration anchor."})
-
-(defn- filter-option
-  ``The --filter specification, shared by every selecting command. Repeating
-  it pipes one filter into the next, after whatever the checkout rows filter.``
-  []
-  {:kind :accumulate
-   :short "f"
-   :value-name "NAME"
-   :help "Select only repositories kept by the named filter."})
-
-(defn- show-output-option
-  "Return the --show-output specification with default."
-  [default]
-  {:kind :option
-   :value-name "WHEN"
-   :default default
-   :help "Show command output: never, on-failure, or always."})
-
-(defn- jobs-option
-  "Return the --jobs specification with default, shared by running commands."
-  [&opt jobs]
-  (default jobs parallel/default-jobs)
-  {:kind :option
-   :short "j"
-   :value-name "N"
-   :default (string jobs)
-   :help "Run at most N repository operations at the same time."})
-
 (defn- scan-jobs
   ``Return the job count `count` names, or raise a descriptive error. It
   arrives from the command line as a string, and is weighed against the range
@@ -266,14 +250,14 @@
                    parallel/max-jobs)))
   parsed)
 
-(defn- parse-selection
-  "Parse the selection arguments shared by every selecting command."
-  [args description & spec]
+(defn- parse-command
+  ``Parse `args` with the options `command` declares, and `rest`, a
+  specification for what follows them, if any. `defaults` adds to --at, which
+  defaults to the working directory.``
+  [args command description defaults & rest]
   (parse-args args description
-              "at" (at-option)
-              "all-anchors" (all-anchors-option)
-              "filter" (filter-option)
-              ;spec))
+              ;(command-spec command (merge {"at" (os/cwd)} defaults))
+              ;rest))
 
 (defn- parsed-jobs
   "Return the validated --jobs count, or report the mistake and exit."
@@ -297,13 +281,6 @@
   (when failed
     (os/exit 1)))
 
-(def- state-option-specs
-  "The --dirty and --clean specifications, shared by the commands that act."
-  ["dirty" {:kind :flag
-            :help "Select only repositories with uncommitted changes."}
-   "clean" {:kind :flag
-            :help "Select only checked-out repositories without uncommitted changes."}])
-
 (defn- wanted-state
   "The state --dirty or --clean asks for, or nil. Asking for both is a mistake."
   [parsed]
@@ -318,9 +295,9 @@
   "Run herd clone with each repository's configured VCS."
   [args &opt settings jobs]
   (def parsed
-    (parse-selection args
-                     "Check out the configured repositories beneath a path."
-                     "jobs" (jobs-option jobs)))
+    (parse-command args "clone"
+                   "Check out the configured repositories beneath a path."
+                   {"jobs" (string (or jobs parallel/default-jobs))}))
   (def jobs (parsed-jobs parsed))
   (def selection (resolve-filters parsed settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
@@ -387,26 +364,8 @@
   [args &opt settings]
   (default settings config/default-repository-settings)
   (def parsed
-    (parse-selection args "Print the configured repositories beneath a path."
-                     "ok" {:kind :flag
-                           :help "Print configured repositories that are on disk."}
-                     "missing" {:kind :flag
-                                :help "Print configured repositories that are not on disk."}
-                     "extra" {:kind :flag
-                              :help "Print repositories on disk that no configuration defines."}
-                     "status" {:kind :flag
-                               :help (string "Print the status of each repository first: "
-                                             "ok, missing, blocked, or extra. "
-                                             "Without --ok, --missing or --extra, "
-                                             "print only what differs.")}
-                     "max-depth" {:kind :option
-                                  :value-name "N"
-                                  :help "Scan at most N directories below the path for extra repositories."}
-                     "hidden" {:kind :flag
-                               :help "Scan hidden directories for extra repositories."}
-                     "follow-links" {:kind :flag
-                                     :help "Follow symbolic links when scanning for extra repositories."}
-                     ;state-option-specs))
+    (parse-command args "list"
+                   "Print the configured repositories beneath a path." {}))
   (def wanted (wanted-state parsed))
   (def status (parsed "status"))
   (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
@@ -478,25 +437,23 @@
   (def show-output (or show-output run/default-show-output))
   (fn [args]
     (def parsed
-      (parse-selection args description
-                       "show-output" (show-output-option show-output)
-                       "jobs" (jobs-option jobs)
-                       ;state-option-specs))
+      (parse-command args "run" description
+                     {"show-output" show-output
+                      "jobs" (string (or jobs parallel/default-jobs))}))
     (run-configured-command command parsed settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
   [args &opt jobs settings]
   (def parsed
-    (parse-selection args
-                     (string "Run a command in each configured repository beneath a path.\n\n"
-                             " Usage: herd run [option] ... CMD [CMD-ARGS]...")
-                     "show-output" (show-output-option run/default-show-output)
-                     "jobs" (jobs-option jobs)
-                     ;state-option-specs
-                     :default {:kind :accumulate
-                               :short-circuit true
-                               :help "Command and arguments to run."}))
+    (parse-command args "run"
+                   (string "Run a command in each configured repository beneath a path.\n\n"
+                           " Usage: herd run [option] ... CMD [CMD-ARGS]...")
+                   {"show-output" run/default-show-output
+                    "jobs" (string (or jobs parallel/default-jobs))}
+                   :default {:kind :accumulate
+                             :short-circuit true
+                             :help "Command and arguments to run."}))
   (def command (rest-arguments parsed))
   (when (empty? command)
     (eprint "herd run needs a command")
@@ -588,9 +545,7 @@
   (def spec
     [(string "manage multiple git/jj repositories\n\n Commands:\n"
              (command-list commands))
-     "version" {:kind :flag
-                :short "V"
-                :help "Show the version and exit."}
+     ;(spec-entries options/top-level {})
      :default {:kind :accumulate
                :short-circuit true
                :help "Command to run."}])

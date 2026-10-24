@@ -23,6 +23,7 @@
          "discover.janet"
          "filter.janet"
          "location.janet"
+         "options.janet"
          "parallel.janet"
          "process.janet"
          "run.janet"

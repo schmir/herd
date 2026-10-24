@@ -1,6 +1,7 @@
 # Tests for the shell completion scripts.
 (use spork/test)
 (import ../completions)
+(import ../options)
 
 (start-suite "completions")
 
@@ -17,9 +18,32 @@
   (each shell completions/shells
     (def text (completions/script shell))
     (each command ["clone" "list" "run" "completions"]
-      (each [_ long] (completions/command-options command)
+      (each long (map (fn [option] (option :name)) (options/for-command command))
         (assert (string/find long text)
                 (string shell " offers --" long " for " command))))))
+
+(defn test-menus-describe-every-option
+  "The zsh and fish menus describe each option, in the short form where there is one."
+  []
+  (each shell ["zsh" "fish"]
+    (def text (completions/script shell))
+    (each command ["clone" "list" "run" "completions"]
+      (each option (options/for-command command)
+        (assert (string/find (or (option :summary) (option :help)) text)
+                (string shell " describes --" (option :name) " for " command))))
+    (each option options/top-level
+      (assert (string/find (option :help) text)
+              (string shell " describes the top-level --" (option :name))))))
+
+(defn test-every-shell-offers-the-top-level-options
+  "Bare herd offers --help and --version in every shell."
+  []
+  (each shell completions/shells
+    (def text (completions/script shell))
+    (each option options/top-level
+      (assert (or (string/find (string "--" (option :name)) text)
+                  (string/find (string " -l " (option :name)) text))
+              (string shell " offers --" (option :name))))))
 
 (defn test-command-lines
   "Commands are listed by name, each with its summary after a tab."
@@ -85,6 +109,8 @@
 (test-every-shell-has-a-script)
 (test-bash-skips-option-values)
 (test-scripts-offer-every-option)
+(test-menus-describe-every-option)
+(test-every-shell-offers-the-top-level-options)
 (test-command-lines)
 (test-filter-lines)
 (test-scripts-complete-the-command-after-run)
