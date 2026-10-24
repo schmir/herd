@@ -220,15 +220,15 @@
   ``Remove `strip-count` leading components and return a relative path. The
   `anchor` only names the row in the error, since a file read under several
   anchors strips a different number of components under each.``
-  [repository-path strip-count anchor]
+  [listed-path strip-count anchor]
   (if (zero? strip-count)
-    repository-path
+    listed-path
     (let [components (filter (fn [component] (not (empty? component)))
-                             (path/parts (path/normalize repository-path)))]
+                             (path/parts (path/normalize listed-path)))]
       (when (>= strip-count (length components))
         (error (string "the row anchored at " (describe anchor)
                        " cannot strip " strip-count " components from path "
-                       (describe repository-path) "; no components remain")))
+                       (describe listed-path) "; no components remain")))
       (string/join (drop strip-count components) path/sep))))
 
 (defn resolve-repository-paths
@@ -242,7 +242,7 @@
     (def options (repository-options placement))
     (with-dyns [:path-cwd (placement :path)]
       (each entry entries
-        (def repository-path
+        (def listed-path
           (strip-path-components (entry :path)
                                  (get placement :strip-components 0)
                                  (placement :path)))
@@ -251,24 +251,25 @@
         (array/push resolved
                     (merge settled
                            {:vcs (vcs/parse (settled :vcs))
-                            :path (path/abspath repository-path)
+                            :path (path/abspath listed-path)
                             :anchors @[(placement :path)]})))))
   resolved)
 
 (defn validate-repository-list
-  "Return the `rows` of a repository list unchanged, or raise an error describing their shape."
-  [rows]
-  (unless (indexed? rows)
+  ``Return the `entries` of a repository list unchanged, or raise an error
+  describing their shape.``
+  [entries]
+  (unless (indexed? entries)
     (error "expected a JSON array of repository objects"))
-  (for index 0 (length rows)
-    (def entry (rows index))
+  (for index 0 (length entries)
+    (def entry (entries index))
     (unless (dictionary? entry)
       (error (string "entry " index " is not a JSON object")))
     (each key [:path :ssh_url]
       (unless (string? (entry key))
         (error (string "entry " index " needs a string \"" key "\""))))
     (checkout/validate-repository-options entry (string "entry " index) `"vcs"`))
-  rows)
+  entries)
 
 (defn read-repository-list
   ``Read one repository list, resolving each repository into checkouts.
