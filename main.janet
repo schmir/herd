@@ -7,6 +7,7 @@
 (import ./completions)
 (import ./config)
 (import ./discover)
+(import ./filter)
 (import ./parallel)
 (import ./process)
 (import ./run)
@@ -540,8 +541,7 @@
                            args
                            (fn [] (merge (built-in-commands prepared)
                                          (prepared :commands)))
-                           (fn [] (merge (get settings :filters {})
-                                         (get settings :sh-filters {})))))
+                           (fn [] (filter/descriptions (get settings :filters {})))))
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args settings))
            :help "Print the configured repositories beneath a path."}

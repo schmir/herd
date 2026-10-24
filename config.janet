@@ -119,74 +119,6 @@
   (checkout/validate-checkout-options defaults ":defaults")
   defaults)
 
-(def filter-kinds
-  "What a filter can be: a JMESPath expression, or a shell command."
-  [:jp :sh])
-
-(defn- validate-filter-entry
-  ``Validate one `:filters` entry. A string is a JMESPath expression. A
-  dictionary says what it is: `{:jp expression}` or `{:sh command}`, exactly
-  one of them.``
-  [name entry]
-  (def label (string "filter " (describe name)))
-  (cond
-    (string? entry)
-    (when (empty? entry)
-      (error (string label " needs a non-empty expression")))
-
-    (dictionary? entry)
-    (do
-      (eachk key entry
-        (unless (index-of key filter-kinds)
-          (error (string label " has an unknown key " (describe key)))))
-      (def kinds (seq [kind :in filter-kinds :when (has-key? entry kind)] kind))
-      (unless (= 1 (length kinds))
-        (error (string label " needs exactly one of :jp and :sh")))
-      (def text (entry (first kinds)))
-      (unless (and (string? text) (not (empty? text)))
-        (error (string label " needs a non-empty string in " (describe (first kinds))))))
-
-    (error (string label " needs an expression, or a dictionary with :jp or :sh"))))
-
-(defn validate-filters
-  ``Validate the `:filters` registry and return it. It maps a filter name to
-  what it stands for, a JMESPath expression or a shell command; every
-  reference elsewhere names one of these, so a mistyped name is caught rather
-  than silently selecting nothing.``
-  [filters]
-  (unless (dictionary? filters)
-    (error ":filters must be a dictionary of names to filters"))
-  (eachp [name entry] filters
-    (unless (and (string? name) (not (empty? name)))
-      (error "filter names must be non-empty strings"))
-    (validate-filter-entry name entry))
-  filters)
-
-(defn- filters-of-kind
-  "The filters in the validated `filters` of one `kind`, name to text."
-  [filters kind]
-  (table/to-struct
-    (tabseq [[name entry] :pairs filters
-             :let [text (if (string? entry)
-                          (when (= kind :jp) entry)
-                          (entry kind))]
-             :when text]
-      name text)))
-
-(defn- reject-unknown-filters
-  ``Raise for a `:filter` that names a filter the registry does not define as
-  a JMESPath expression. A shell command cannot narrow a list, since it runs
-  in a checkout, so only the command line can use one.``
-  [settings where expressions commands]
-  (each name (get settings :filter [])
-    (cond
-      (get expressions name) nil
-      (get commands name)
-      (error (string where " names the command filter " (describe name)
-                     ", which only the command line can use"))
-      (error (string where " names an unknown filter " (describe name)))))
-  settings)
-
 (defn parse-settings
   ``Return the one settings value `source` holds, or an empty one when it
   holds none. Holding several is a mistake rather than a file to read the
@@ -202,7 +134,7 @@
 
 (def default-repository-settings
   "Repository settings used when the command config file is absent."
-  {:defaults {} :checkouts [] :filters {} :sh-filters {}})
+  {:defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
   ``Validate repository settings. The checkouts keep the order they were
@@ -217,19 +149,15 @@
     (seq [index :range [0 (length rows)]]
       (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
-  (def filters (validate-filters (get command-config :filters {})))
-  (def expressions (filters-of-kind filters :jp))
-  (def commands (filters-of-kind filters :sh))
+  (def filters (filter/validate-registry (get command-config :filters {})))
   (def defaults (validate-checkout-defaults (get command-config :defaults {})))
-  (reject-unknown-filters defaults ":defaults" expressions commands)
+  (filter/check-names filters (get defaults :filter []) ":defaults")
   (each checkout checkouts
-    (reject-unknown-filters checkout
-                            (string ":checkouts row for " (describe (checkout :from)))
-                            expressions commands))
+    (filter/check-names filters (get checkout :filter [])
+                        (string ":checkouts row for " (describe (checkout :from)))))
   {:defaults defaults
    :checkouts checkouts
-   :filters expressions
-   :sh-filters commands})
+   :filters filters})
 
 (defn checkouts-for-file
   ``Merge each checkout of `name` with the defaults. Return the defaults alone
@@ -348,9 +276,7 @@
         # its filters at every file, so only those need to explain themselves.
         (let [computed (entries/validate-config
                          (entries/parse-config
-                           (filter/filter-entries
-                             (filter/filter-entries source (anchor :filter) filters)
-                             names filters filter/command-filter-hint)))]
+                           (filter/narrow filters source (anchor :filter) names)))]
           (put selected chain computed)
           computed)))
     (array/concat resolved (resolve-repository-paths kept [anchor])))
