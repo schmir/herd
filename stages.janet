@@ -1,4 +1,6 @@
-# Telling whether a checked-out repository holds changes nobody has committed.
+# The stages that narrow a selection by what a checkout holds: whether it has
+# changes nobody has committed, and whether the checkout filters' commands
+# succeed in it.
 
 (import ./vcs)
 (import ./parallel)

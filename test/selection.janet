@@ -247,10 +247,10 @@
   (assert (deep= @["/srv/foo"]
                  (chosen {:at-path "/srv" :filter-values ["foo"]} filter-settings))
           "the filter keeps what it matches")
-  (assert (deep= {:kind :emptied-by-filters :names @["none"]}
+  (assert (deep= {:kind :emptied-by-filters :list-filters @["none"]}
                  (reason-of {:at-path "/srv" :filter-values ["none"]} filter-settings))
           "a filter that removes everything is named")
-  (assert (deep= {:kind :emptied-by-filters :names @[]}
+  (assert (deep= {:kind :emptied-by-filters :list-filters @[]}
                  (reason-of {:at-path "/srv"}
                             (config/configured-repository-settings
                               {:checkouts [{:from "repos.json" :anchor "/srv"
@@ -300,10 +300,10 @@
     (selection/select {:directory config-dir :at-path "/srv"
                        :filter-values ["foo" "marked" "test -d ." "foo"]}
                       mixed-settings))
-  (assert (deep= {:names @["foo" "foo"]
-                  :commands @["test -f marker" "test -d ."]
-                  :command-values @["marked" "test -d ."]}
-                 (result :filters))
+  (assert (deep= {:list-filters @["foo" "foo"]
+                  :checkout-commands @["test -f marker" "test -d ."]
+                  :checkout-values @["marked" "test -d ."]}
+                 (result :chosen))
           "names narrow the lists, and what runs in checkouts follows them")
   (assert (deep= @["/srv/foo"]
                  (map (fn [r] (r :path)) ((result :catalog) :repositories)))

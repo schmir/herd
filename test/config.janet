@@ -3,7 +3,7 @@
 (import spork/path)
 (import spork/sh)
 (import ../config)
-(import ../filter)
+(import ../named-filters)
 
 (start-suite "config")
 
@@ -547,10 +547,10 @@
 
 (let [settings (config/configured-repository-settings
                  {:filters {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}})]
-  (assert (and (filter/list-filter? (settings :filters) "a")
-               (filter/list-filter? (settings :filters) "b"))
+  (assert (and (named-filters/list-filter? (settings :filters) "a")
+               (named-filters/list-filter? (settings :filters) "b"))
           "strings and :jp filters are the JMESPath expressions")
-  (assert (= "true" (filter/checkout-filter-command (settings :filters) "c"))
+  (assert (= "true" (named-filters/checkout-filter-command (settings :filters) "c"))
           "shell filters keep their commands in the same registry")
   (assert (nil? (settings :sh-filters)) "there is one registry, not two"))
 (assert-error "a row cannot name a shell filter"

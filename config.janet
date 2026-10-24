@@ -3,7 +3,7 @@
 (import spork/json)
 (import spork/path)
 (import ./checkout)
-(import ./filter)
+(import ./named-filters)
 (import ./parallel)
 (import ./run)
 (import ./vcs)
@@ -152,13 +152,13 @@
     (seq [index :range [0 (length rows)]]
       (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
-  (def filters (filter/validate-registry (get settings-file :filters {})))
+  (def filters (named-filters/validate-registry (get settings-file :filters {})))
   (def defaults (validate-checkout-defaults (get settings-file :defaults {})))
-  (filter/check-names filters (get defaults :filter []) ":defaults")
+  (named-filters/require-list-filters filters (get defaults :filter []) ":defaults")
   (each checkout-row checkout-rows
-    (filter/check-names filters (get checkout-row :filter [])
-                        (string ":checkouts row for "
-                                (describe (checkout-row :from)))))
+    (named-filters/require-list-filters filters (get checkout-row :filter [])
+                                        (string ":checkouts row for "
+                                                (describe (checkout-row :from)))))
   {:defaults defaults
    :checkouts checkout-rows
    :filters filters})
@@ -299,7 +299,7 @@
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
                          (json/decode
-                           (filter/narrow filters source (placement :filter) names)
+                           (named-filters/narrow filters source (placement :filter) names)
                            true))]
           (put selected chain computed)
           computed)))

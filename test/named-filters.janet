@@ -4,10 +4,10 @@
 (import spork/json)
 (import spork/sh)
 (import ../config)
-(import ../filter)
+(import ../named-filters)
 (import ../process)
 
-(start-suite "filter")
+(start-suite "named-filters")
 
 (var fixture-count 0)
 
@@ -40,7 +40,7 @@
   (default status 0)
   (def bin (path/join dir "bin"))
   (sh/create-dirs bin)
-  (def script (path/join bin filter/filter-executable))
+  (def script (path/join bin named-filters/filter-executable))
   (spit script (string "#!/bin/sh\n" body "\nexit " status "\n"))
   (os/chmod script 8r755)
   bin)
@@ -107,85 +107,85 @@
   ~(assert (nil? (error-message (fn [] ,form))) ,message))
 
 (assert-error "the filter registry must be a dictionary"
-              (filter/validate-registry []))
+              (named-filters/validate-registry []))
 (assert-error "a filter needs an expression"
-              (filter/validate-registry {"active" 1}))
+              (named-filters/validate-registry {"active" 1}))
 (assert-error "a filter expression must not be empty"
-              (filter/validate-registry {"active" ""}))
+              (named-filters/validate-registry {"active" ""}))
 (assert-no-error "a filter names an expression"
-                 (filter/validate-registry {"active" "[?schedules]"}))
+                 (named-filters/validate-registry {"active" "[?schedules]"}))
 (assert-no-error "a filter can say it is JMESPath or a shell command"
-                 (filter/validate-registry {"a" {:jp "[?a]"} "b" {:sh "true"}}))
+                 (named-filters/validate-registry {"a" {:jp "[?a]"} "b" {:sh "true"}}))
 (assert-error "a filter dictionary needs :jp or :sh"
-              (filter/validate-registry {"a" {}}))
+              (named-filters/validate-registry {"a" {}}))
 (assert-error "a filter dictionary cannot be both"
-              (filter/validate-registry {"a" {:jp "[?a]" :sh "true"}}))
+              (named-filters/validate-registry {"a" {:jp "[?a]" :sh "true"}}))
 (assert-error "a filter dictionary rejects other keys"
-              (filter/validate-registry {"a" {:sh "true" :other 1}}))
+              (named-filters/validate-registry {"a" {:sh "true" :other 1}}))
 (assert-error "a shell filter must not be empty"
-              (filter/validate-registry {"a" {:sh ""}}))
+              (named-filters/validate-registry {"a" {:sh ""}}))
 (assert-error "a JMESPath filter must be a string"
-              (filter/validate-registry {"a" {:jp 1}}))
+              (named-filters/validate-registry {"a" {:jp 1}}))
 
 
 # --- the kinds a registry tells apart ---------------------------------------
 
 (def kinds-registry
-  (filter/validate-registry
+  (named-filters/validate-registry
     {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}))
 
-(assert (and (filter/list-filter? kinds-registry "a")
-             (filter/list-filter? kinds-registry "b"))
+(assert (and (named-filters/list-filter? kinds-registry "a")
+             (named-filters/list-filter? kinds-registry "b"))
         "a string and a :jp entry are list filters")
-(assert (not (filter/list-filter? kinds-registry "c"))
+(assert (not (named-filters/list-filter? kinds-registry "c"))
         "a :sh entry is not a list filter")
-(assert (not (filter/list-filter? kinds-registry "absent"))
+(assert (not (named-filters/list-filter? kinds-registry "absent"))
         "a name the registry lacks is not one either")
-(assert (= "true" (filter/checkout-filter-command kinds-registry "c"))
+(assert (= "true" (named-filters/checkout-filter-command kinds-registry "c"))
         "a :sh entry stands for its command")
-(assert (nil? (filter/checkout-filter-command kinds-registry "a"))
+(assert (nil? (named-filters/checkout-filter-command kinds-registry "a"))
         "a list filter stands for no command")
-(assert (nil? (filter/checkout-filter-command kinds-registry "absent"))
+(assert (nil? (named-filters/checkout-filter-command kinds-registry "absent"))
         "nor does a name the registry lacks")
-(assert (deep= @["a" "b" "c"] (filter/names kinds-registry))
+(assert (deep= @["a" "b" "c"] (named-filters/filter-names kinds-registry))
         "the names come sorted, whatever the kind")
 (assert (deep= {"a" "[?a]" "b" "[?b]" "c" "true"}
-               (filter/descriptions kinds-registry))
+               (named-filters/descriptions kinds-registry))
         "each name is described by its expression or command")
-(assert (empty? (filter/names {})) "an empty registry has no names")
+(assert (empty? (named-filters/filter-names {})) "an empty registry has no names")
 
 # --- check-names ----------------------------------------------------------
 
 (assert-no-error "list filters may be named by a row"
-                 (filter/check-names kinds-registry ["a" "b"] ":defaults"))
+                 (named-filters/require-list-filters kinds-registry ["a" "b"] ":defaults"))
 (assert-no-error "a row may name none"
-                 (filter/check-names kinds-registry [] ":defaults"))
+                 (named-filters/require-list-filters kinds-registry [] ":defaults"))
 (let [message (error-message
-                (fn [] (filter/check-names kinds-registry ["c"] ":defaults")))]
+                (fn [] (named-filters/require-list-filters kinds-registry ["c"] ":defaults")))]
   (assert (and message (string/find `names the command filter "c"` message)
                (string/find "only the command line" message))
           "a row cannot name a checkout filter, which runs in a checkout")
   (assert (string/has-prefix? ":defaults " message) "and the row is named first"))
 (let [message (error-message
-                (fn [] (filter/check-names kinds-registry ["a" "typo"]
-                                           ":checkouts row for \"w.json\"")))]
+                (fn [] (named-filters/require-list-filters kinds-registry ["a" "typo"]
+                                                           ":checkouts row for \"w.json\"")))]
   (assert (and message (string/find `names an unknown filter "typo"` message))
           "an unknown name is named, not the whole row"))
 
 # --- narrow ---------------------------------------------------------------
 
 (def narrow-registry
-  (filter/validate-registry {"row" "[?row]" "cli" {:jp "[?cli]"} "c" {:sh "true"}}))
+  (named-filters/validate-registry {"row" "[?row]" "cli" {:jp "[?cli]"} "c" {:sh "true"}}))
 
 (with-fixture dir
   (without-filter-program dir
-                          (assert (= entries (filter/narrow narrow-registry entries [] []))
+                          (assert (= entries (named-filters/narrow narrow-registry entries [] []))
                                   "naming no filter needs no filter program")))
 
 (with-fixture dir
   (def log (path/join dir "expressions"))
   (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
-    (filter/narrow narrow-registry entries ["row"] ["cli"])
+    (named-filters/narrow narrow-registry entries ["row"] ["cli"])
     (assert (deep= @["[?row]" "[?cli]"]
                    (string/split "\n" (string/trimr (slurp log))))
             "a row's filters narrow first, then those named with -f")))
@@ -193,12 +193,12 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo boom >&2" 1)
     (def own (error-message
-               (fn [] (filter/narrow narrow-registry entries ["row"] []))))
+               (fn [] (named-filters/narrow narrow-registry entries ["row"] []))))
     (assert (and (string/find `filter "row" failed` own)
                  (not (string/find "applied to every configured list" own)))
             "a row's own filter fails without the hint")
     (def named (error-message
-                 (fn [] (filter/narrow narrow-registry entries [] ["cli"]))))
+                 (fn [] (named-filters/narrow narrow-registry entries [] ["cli"]))))
     (assert (and (string/find `filter "cli" failed` named)
                  (string/find "applied to every configured list" named))
             "a filter named with -f fails with the hint")))
@@ -207,7 +207,7 @@
 
 (with-fixture dir
   (with-stub (stub-filter dir `echo '[{"path":"a","ssh_url":"git@example.com:a.git"}]'`)
-    (def kept (filter/apply-filter entries "keep-a" "[?path=='a']"))
+    (def kept (named-filters/apply-filter entries "keep-a" "[?path=='a']"))
     (assert (string? kept) "a filter answers with the JSON it wrote")
     (assert (deep= (paths kept) @["a"])
             "a filter narrows the list to what it selected")))
@@ -216,7 +216,7 @@
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
-    (filter/apply-filter entries "any" "@")
+    (named-filters/apply-filter entries "any" "@")
     # Byte for byte, not merely the same values once decoded: decoding and
     # re-encoding rounds numbers to what a double can hold and reorders
     # every object key, behind the expression's back.
@@ -228,12 +228,12 @@
     # An expression that is not a filter succeeds and answers null, which
     # would otherwise select nothing without saying why.
     (assert (string/find "did not select an array of repositories"
-                         (error-message (fn [] (filter/apply-filter entries "bare" "path"))))
+                         (error-message (fn [] (named-filters/apply-filter entries "bare" "path"))))
             "null output is refused rather than read as an empty selection")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
-    (def message (error-message (fn [] (filter/apply-filter entries "broken" "[?"))))
+    (def message (error-message (fn [] (named-filters/apply-filter entries "broken" "[?"))))
     (assert (string/find `filter "broken" failed` message)
             "a failing filter is named in the error")
     (assert (string/find "SyntaxError" message)
@@ -242,7 +242,7 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'not json'")
     (assert (string/find "produced unreadable output"
-                         (error-message (fn [] (filter/apply-filter entries "odd" "@"))))
+                         (error-message (fn [] (named-filters/apply-filter entries "odd" "@"))))
             "output that is not JSON is refused with the filter named")))
 
 # A filter that rejects its expression answers at once without reading the
@@ -252,18 +252,18 @@
   (with-stub (stub-filter dir "echo 'SyntaxError: Incomplete expression' >&2" 1)
     (assert (string/find "SyntaxError"
                          (error-message
-                           (fn [] (filter/apply-filter (large-entries) "broken" "[?"))))
+                           (fn [] (named-filters/apply-filter (large-entries) "broken" "[?"))))
             "a filter that never reads a large list still reports why")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo '[]'")
-    (assert (empty? (paths (filter/apply-filter (large-entries) "big" "[?false]")))
+    (assert (empty? (paths (named-filters/apply-filter (large-entries) "big" "[?false]")))
             "a list too large for a pipe buffer is filtered all the same")))
 
 (with-fixture dir
   (without-filter-program dir
-                          (assert (string/find (string "needs " filter/filter-executable " on PATH")
-                                               (error-message (fn [] (filter/apply-filter entries "any" "@"))))
+                          (assert (string/find (string "needs " named-filters/filter-executable " on PATH")
+                                               (error-message (fn [] (named-filters/apply-filter entries "any" "@"))))
                                   "a missing filter program is reported against the filter")))
 
 # The list is held in a file with no name, handed over as standard input.
@@ -275,7 +275,7 @@
                           (string `if [ -p /dev/stdin ]; then echo pipe > ` kind
                                   `; else echo file > ` kind "; fi\n"
                                   "echo '[]'"))
-    (filter/apply-filter entries "any" "@")
+    (named-filters/apply-filter entries "any" "@")
     (assert (= "file" (string/trimr (slurp kind)))
             "the filter reads a regular file, never a pipe")))
 
@@ -285,8 +285,8 @@
 # which the fixture directories above deliberately do not match.
 (with-fixture dir
   (with-stub (stub-filter dir "echo '[]'")
-    (filter/apply-filter entries "any" "@")
-    (filter/apply-filter (large-entries) "any" "@")
+    (named-filters/apply-filter entries "any" "@")
+    (named-filters/apply-filter (large-entries) "any" "@")
     (each place (distinct ["/tmp" (os/getenv "TMPDIR" "/tmp")])
       (assert (empty? (filter (fn [name] (and (string/has-prefix? "herd-filter-" name)
                                               (string/has-suffix? ".json" name)))
@@ -304,7 +304,7 @@
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
-    (filter/apply-filter awkward "any" "@")
+    (named-filters/apply-filter awkward "any" "@")
     (assert (= awkward (string (slurp copy)))
             "numbers and key order reach the filter untouched")))
 
@@ -314,14 +314,14 @@
   (without-filter-program dir
                           # Naming no filter must not reach for the program at all, so an
                           # unfiltered herd needs nothing installed.
-                          (assert (= entries (filter/filter-entries entries [] {}))
+                          (assert (= entries (named-filters/apply-filters entries [] {}))
                                   "naming no filter hands the source back untouched")))
 
 (with-fixture dir
   (def log (path/join dir "expressions"))
   (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
-    (filter/filter-entries entries ["first" "second"]
-                           {"first" "[?a]" "second" "[?b]"})
+    (named-filters/apply-filters entries ["first" "second"]
+                                 {"first" "[?a]" "second" "[?b]"})
     (assert (deep= @["[?a]" "[?b]"]
                    (string/split "\n" (string/trimr (slurp log))))
             "each named filter runs in turn, in the order named")))
@@ -334,8 +334,8 @@
   (with-stub (stub-filter dir
                           (string `wc -c >> ` sizes "\n"
                                   `echo '[{"path":"a","ssh_url":"u"}]'`))
-    (def kept (filter/filter-entries entries ["first" "second"]
-                                     {"first" "@" "second" "@"}))
+    (def kept (named-filters/apply-filters entries ["first" "second"]
+                                           {"first" "@" "second" "@"}))
     (def logged (map scan-number
                      (string/split "\n" (string/trimr (slurp sizes)))))
     (assert (= 2 (length logged)) "both filters ran")
@@ -350,12 +350,12 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo 'Invalid type for: <nil>' >&2" 1)
     (def named (error-message
-                 (fn [] (filter/apply-filter entries "cli" "@" filter/command-filter-hint))))
+                 (fn [] (named-filters/apply-filter entries "cli" "@" named-filters/command-filter-hint))))
     (assert (string/find "applied to every configured list" named)
             "a filter named on the command line explains itself")
     (assert (string/find "Invalid type" named)
             "and still carries what the filter reported")
-    (def own (error-message (fn [] (filter/apply-filter entries "row" "@"))))
+    (def own (error-message (fn [] (named-filters/apply-filter entries "row" "@"))))
     (assert (string/find "Invalid type" own)
             "a row's own filter reports what the filter said")
     (assert (not (string/find "applied to every configured list" own))
@@ -366,9 +366,9 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def message (error-message
-                   (fn [] (filter/filter-entries entries ["first" "second"]
-                                                 {"first" "ok" "second" "no"}
-                                                 filter/command-filter-hint))))
+                   (fn [] (named-filters/apply-filters entries ["first" "second"]
+                                                       {"first" "ok" "second" "no"}
+                                                       named-filters/command-filter-hint))))
     (assert (string/find `filter "second" failed` message)
             "the failing filter in the chain is the one named")
     (assert (string/find "applied to every configured list" message)
@@ -524,12 +524,12 @@
 # intersection. Two filter expressions commute, so naming them either way
 # round selects the same repositories. A slice does not: taking the first
 # entry of the active ones is not taking the active ones of the first entry.
-(when (process/find-executable filter/filter-executable)
+(when (process/find-executable named-filters/filter-executable)
   (let [listing
         (string `[{"path": "one", "ssh_url": "u", "active": false, "tier": 1},`
                 ` {"path": "two", "ssh_url": "u", "active": true, "tier": 1}]`)
         filters {"active" "[?active]" "tier" "[?tier == `1`]" "first" "[0:1]"}
-        selected (fn [& names] (paths (filter/filter-entries listing names filters)))]
+        selected (fn [& names] (paths (named-filters/apply-filters listing names filters)))]
     (assert (deep= (selected "active" "tier") (selected "tier" "active"))
             "filter expressions commute, so naming them either way round agrees")
     (assert (deep= @["two"] (selected "active" "first"))
@@ -540,7 +540,7 @@
 # --- against the real filter program --------------------------------------
 
 # Guarded, so the suite does not require the program to be installed.
-(when (process/find-executable filter/filter-executable)
+(when (process/find-executable named-filters/filter-executable)
   (with-fixture dir
     (def config (path/join dir "repos.json"))
     (def src (path/join dir "src"))

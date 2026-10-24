@@ -7,7 +7,7 @@
 (import ./completions)
 (import ./config)
 (import ./discover)
-(import ./filter)
+(import ./named-filters)
 (import ./options)
 (import ./parallel)
 (import ./process)
@@ -133,9 +133,9 @@
     # ever weighed, so say that rather than blaming the location.
     (unless quiet?
       (eprint "No configured repository is left by "
-              (if (empty? (reason :names))
+              (if (empty? (reason :list-filters))
                 (string "the filters in " config/settings-file-name)
-                (describe-filters (reason :names)))))
+                (describe-filters (reason :list-filters)))))
 
     :no-anchor-contains-path
     (unless quiet?
@@ -256,7 +256,7 @@
   (def jobs (jobs-from parsed))
   (def selection (resolve-filters parsed repository-settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
-  (when-let [value (first (selection :command-values))]
+  (when-let [value (first (selection :checkout-values))]
     (eprint "usage error: clone can only use the JMESPath filters in :filters, "
             "and " (describe value) " is not one")
     (os/exit 1))
@@ -356,7 +356,7 @@
     (when (if (= :ok status) want-ok? want-missing?)
       (emit status (repository :path) (repository :ssh_url))))
   (when discover?
-    (each repository (discover-extra parsed repository-settings ((result :filters) :names) configured)
+    (each repository (discover-extra parsed repository-settings ((result :chosen) :list-filters) configured)
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))
 
@@ -454,7 +454,7 @@
                            args
                            (fn [] (merge (built-in-subcommands config)
                                          (custom-commands config)))
-                           (fn [] (filter/descriptions (get repository-settings :filters {})))))
+                           (fn [] (named-filters/descriptions (get repository-settings :filters {})))))
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args repository-settings))
            :help "Print the configured repositories beneath a path."}
