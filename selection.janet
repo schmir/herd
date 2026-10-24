@@ -75,7 +75,7 @@
     {:kind :none-beneath-path :at-path (options :at-path)}))
 
 (defn- narrow-by-stages
-  ``Keep the `repositories` in the state `:wanted-state` of `options` asks for,
+  ``Keep the `repositories` in the `:requested-state` that `options` asks for,
   and where the checkout filter `commands` succeed. An interrupt during a stage
   ends the selection there, since what it kept is only some of what it would
   have. Return `{:repositories :interrupted?}`.``
@@ -84,8 +84,8 @@
   (var interrupted? false)
   (try
     (do
-      (when (options :wanted-state)
-        (def stage (stages/filter-by-state kept (options :wanted-state)
+      (when (options :requested-state)
+        (def stage (stages/filter-by-state kept (options :requested-state)
                                            (options :jobs)))
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?)))
@@ -130,7 +130,7 @@
                      (why-empty options list-filters settings repositories anchors)
                      {:kind :emptied-by-state
                       :of (length located)
-                      :wanted (options :wanted-state)
+                      :requested-state (options :requested-state)
                       :commands? (not (empty? commands))}))}))))
 
 (defn select
@@ -142,7 +142,7 @@
   containing the location. `:filter-values` are the values
   given with -f: a list filter narrows every repository list, and the rest
   are checkout filters or commands, which `:chosen` of the result lists.
-  `:wanted-state`, :dirty or :clean, and
+  `:requested-state`, :dirty or :clean, and
   the commands then narrow the repositories further, with `:jobs` at a time,
   and `:interrupted?` in the result says a stage was interrupted, in which case
   no repositories are picked. `:catalog-only?` loads the catalog and runs no
