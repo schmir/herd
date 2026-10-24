@@ -34,9 +34,9 @@
   "The command asking for the state is built for each VCS."
   []
   (assert (= ["git" "-C" "/r" "status" "--porcelain"]
-             (state/state-command "/r" :git)))
+             (state/state-command "/r" :vcs/git)))
   (assert (= ["jj" "-R" "/r" "log" "-r" "@" "--no-graph" "-T" "empty"]
-             (state/state-command "/r" :jj))))
+             (state/state-command "/r" :vcs/jj))))
 
 (defn test-repository-state
   "A repository is clean, or dirty with a modified or an untracked file."

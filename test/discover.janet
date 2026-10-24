@@ -44,12 +44,6 @@
 (sh/create-dirs (path/join root "loop"))
 (os/symlink (path/join root "loop") (path/join root "loop" "self"))
 
-(assert (= "jj" (discover/directory-vcs (path/join root "colocated")))
-        "a colocated checkout reports the VCS that drives it")
-(assert (= "git" (discover/directory-vcs (path/join root "worktree")))
-        "a worktree is recognised by its .git file")
-(assert (nil? (discover/directory-vcs (path/join root "plain")))
-        "a plain directory has no VCS")
 (assert (discover/repository? (path/join root "jj-repo")))
 (assert (not (discover/repository? (path/join root "plain"))))
 
@@ -59,13 +53,13 @@
                  "worktree"]
                (paths default-scan))
         "the walk finds every repository below the root, outermost first")
-(assert (deep= @[{:path (path/join root "git-repo") :vcs "git"}]
+(assert (deep= @[{:path (path/join root "git-repo") :vcs :vcs/git}]
                (filter (fn [repository] (= "git-repo" (path/basename (repository :path)))) default-scan))
-        "a repository is described by an absolute path and its VCS name")
-(assert (= "jj" ((first default-scan) :vcs))
+        "a repository is described by an absolute path and its VCS")
+(assert (= :vcs/jj ((first default-scan) :vcs))
         "a colocated repository is discovered as a jj repository")
 
-(assert (deep= @[{:path (path/join root "jj-repo") :vcs "jj"}]
+(assert (deep= @[{:path (path/join root "jj-repo") :vcs :vcs/jj}]
                (discover/find-repositories (path/join root "jj-repo")))
         "a root that is itself a repository is the only result")
 

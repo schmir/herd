@@ -6,6 +6,7 @@
 (import ./filter)
 (import ./parallel)
 (import ./run)
+(import ./vcs)
 
 (defn config-directory
   ``Directory holding the JSON repository lists and the command config file,
@@ -244,9 +245,11 @@
                                  (get anchor :strip-components 0)
                                  (anchor :path)))
         # Apply options from least to most specific: defaults, anchor, entry.
+        (def settled (merge checkout/default-checkout-options options entry))
         (array/push resolved
-                    (merge checkout/default-checkout-options options entry
-                           {:path (path/abspath repository-path)
+                    (merge settled
+                           {:vcs (vcs/parse (settled :vcs))
+                            :path (path/abspath repository-path)
                             :anchors @[(anchor :path)]})))))
   resolved)
 

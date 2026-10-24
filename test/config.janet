@@ -301,7 +301,7 @@
   (assert (deep= @["/anchor"] ((entries 0) :anchors))
           "resolved entries retain their configuration anchor")
   (assert (= "u" ((entries 0) :ssh_url)) "the rest of the entry survives")
-  (assert (= "jj" ((entries 0) :vcs))
+  (assert (= :vcs/jj ((entries 0) :vcs))
           "a checkout no level settles is a jj checkout"))
 
 (let [entries (config/resolve-repository-paths
@@ -332,8 +332,8 @@
                 [{:path "plain" :ssh_url "u"}
                  {:path "own" :ssh_url "u" :vcs "jj"}]
                 @[{:path "/anchor" :vcs "git"}])]
-  (assert (= "git" ((entries 0) :vcs)) "an anchor settles the VCS beneath it")
-  (assert (= "jj" ((entries 1) :vcs)) "an entry overrides the anchor it is under"))
+  (assert (= :vcs/git ((entries 0) :vcs)) "an anchor settles the VCS beneath it")
+  (assert (= :vcs/jj ((entries 1) :vcs)) "an entry overrides the anchor it is under"))
 
 (assert (empty? (config/resolve-repository-paths
                   [{:path "rel" :ssh_url "u"}
@@ -819,7 +819,7 @@
                          {:defaults {:vcs "jj"}
                           :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
                                       {:from "repos.json" :anchor "b"}]}))]
-    (assert (deep= @["git" "jj" "jj" "jj"] (map (fn [repository] (repository :vcs)) repositories))
+    (assert (deep= @[:vcs/git :vcs/jj :vcs/jj :vcs/jj] (map (fn [repository] (repository :vcs)) repositories))
             "each level overrides the one it sits inside"))
   (os/setenv "HOME" home)
   (sh/rm dir))

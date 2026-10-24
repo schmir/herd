@@ -1,6 +1,7 @@
 # Telling whether a checked-out repository holds changes nobody has committed.
 
 (import ./checkout)
+(import ./vcs)
 (import ./parallel)
 (import ./process)
 
@@ -11,34 +12,34 @@
   snapshotted.``
   [path vcs]
   (case vcs
-    :git ["git" "-C" path "status" "--porcelain"]
-    :jj ["jj" "-R" path "log" "-r" "@" "--no-graph" "-T" "empty"]))
+    :vcs/git ["git" "-C" path "status" "--porcelain"]
+    :vcs/jj ["jj" "-R" path "log" "-r" "@" "--no-graph" "-T" "empty"]))
 
 (defn- has-changes?
   "Whether `output` of the state command says the working copy has changes."
   [vcs output]
   (def text (string/trim (string output)))
   (case vcs
-    :git (not (empty? text))
+    :vcs/git (not (empty? text))
     # The working-copy commit is empty exactly when there is nothing to commit.
-    :jj (case text
-          "true" false
-          "false" true
-          (error (string "unexpected output from jj: " (describe text))))))
+    :vcs/jj (case text
+              "true" false
+              "false" true
+              (error (string "unexpected output from jj: " (describe text))))))
 
 (defn repository-state
   ``Say whether the repository has changes: :dirty or :clean, or nil when no
   working copy is checked out at its path. Raise when the VCS cannot say.``
   [repository]
-  (when-let [vcs (checkout/repository-vcs repository)]
-    (def [program & args] (state-command (repository :path) vcs))
+  (when-let [used (vcs/detect (repository :path))]
+    (def [program & args] (state-command (repository :path) used))
     (def executable (process/find-executable program))
     (unless executable
       (error (string "cannot find " program " to read the state")))
     (def result (process/capture-process [executable ;args]))
     (unless (zero? (result :status))
       (error (string program " failed: " (string/trim (string (result :err))))))
-    (if (has-changes? vcs (result :out)) :dirty :clean)))
+    (if (has-changes? used (result :out)) :dirty :clean)))
 
 (defn keep-repositories
   ``Keep the `repositories` for which `keep?` answers true, in their order.
@@ -78,7 +79,7 @@
   126 and 127 mean the shell could not run the command, which is a mistake
   rather than a repository that does not match, so they raise.``
   [repository command]
-  (if (checkout/repository-vcs repository)
+  (if (vcs/detect (repository :path))
     (with [devnull (file/open "/dev/null" :r)]
       (def result
         (process/capture-process

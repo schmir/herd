@@ -47,14 +47,14 @@
   [repository]
   (def root (repository :path))
   (def [program args]
-    (if (= "jj" (repository :vcs))
+    (if (= :vcs/jj (repository :vcs))
       ["jj" ["--ignore-working-copy" "-R" root "git" "remote" "list"]]
       ["git" ["-C" root "remote" "get-url" "origin"]]))
   (when-let [executable (process/find-executable program)]
     (def result (process/capture-process [executable ;args]))
     (when (zero? (result :status))
       (def out (string (result :out)))
-      (def url (if (= "jj" (repository :vcs))
+      (def url (if (= :vcs/jj (repository :vcs))
                  (origin-from-jj out)
                  (string/trim out)))
       (unless (or (nil? url) (empty? url)) url))))

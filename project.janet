@@ -29,4 +29,5 @@
          "run.janet"
          "selection.janet"
          "state.janet"
-         "survey.janet"])
+         "survey.janet"
+         "vcs.janet"])

@@ -31,10 +31,10 @@
                blocked-messages))
 
 (assert (deep= ["git-bin" "clone" "--" "url" "checkout"]
-               (clone/clone-process-command "git" "git-bin" "url" "checkout"))
+               (clone/clone-process-command :vcs/git "git-bin" "url" "checkout"))
         "git clone uses the native Git argument form")
 (assert (deep= ["jj-bin" "git" "clone" "--colocate" "--" "url" "checkout"]
-               (clone/clone-process-command "jj" "jj-bin" "url" "checkout"))
+               (clone/clone-process-command :vcs/jj "jj-bin" "url" "checkout"))
         "jj clone creates a colocated repository")
 
 (defn fake-vcs
