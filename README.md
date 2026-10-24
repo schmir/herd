@@ -362,7 +362,7 @@ extra	/home/you/src/scratch	git@github.com:you/scratch.git
 
 `missing` means nothing, or an empty directory, is at the configured path,
 and `blocked` means something else stands there, which `clone` leaves alone.
-`extra` lists the Git and Jujutsu repositories found by scanning the
+`extra` lists the Git and Jujutsu repositories found by discovery from the
 location that no repository list defines, whatever their anchor; their URL
 is the `origin` remote, empty when there is none. A repository a `-f` filter
 leaves out is still configured, but one a checkout row's own `:filter`
@@ -371,7 +371,7 @@ leaves out is reported as `extra`, since it is not meant to be there.
 `--ok`, `--missing` and `--extra` pick what to print instead: the configured
 repositories that are on disk, the ones that are not, and the `extra` ones.
 `herd list --status --ok --missing --extra` prints them all. Without
-`--status` they print the usual path and URL. The scan starts at the
+`--status` they print the usual path and URL. Discovery starts at the
 repository holding the location, or the location itself; it does not enter
 repositories or hidden directories, and does not follow symbolic links.
 `--max-depth N`, `--hidden` and `--follow-links` change that.

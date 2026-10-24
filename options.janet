@@ -45,11 +45,11 @@
                   "print only what differs.")
     :summary "Print the status of each repository first."}
    {:name "max-depth" :kind :option :value-name "N"
-    :help "Scan at most N directories below the path for extra repositories."}
+    :help "Discover extra repositories at most N directories below the path."}
    {:name "hidden" :kind :flag
-    :help "Scan hidden directories for extra repositories."}
+    :help "Include hidden directories when discovering extra repositories."}
    {:name "follow-links" :kind :flag
-    :help "Follow symbolic links when scanning for extra repositories."}])
+    :help "Follow symbolic links when discovering extra repositories."}])
 
 (def top-level
   "The options of bare herd."

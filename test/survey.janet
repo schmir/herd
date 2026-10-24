@@ -16,12 +16,12 @@
 (sh/create-dirs (path/join root "unmarked" "deep"))
 
 (assert (= (path/join root "repo")
-           (survey/scan-root (path/join root "repo" "lib" "deep")))
-        "a scan from inside a repository starts at that repository")
-(assert (= (path/join root "repo") (survey/scan-root (path/join root "repo"))))
+           (survey/discover-root (path/join root "repo" "lib" "deep")))
+        "a discovery from inside a repository starts at that repository")
+(assert (= (path/join root "repo") (survey/discover-root (path/join root "repo"))))
 (assert (= (path/join root "unmarked" "deep")
-           (survey/scan-root (path/join root "unmarked" "deep")))
-        "outside every repository the scan starts where it was asked to")
+           (survey/discover-root (path/join root "unmarked" "deep")))
+        "outside every repository the discovery starts where it was asked to")
 
 (def discovered
   [{:path (path/join root "repo") :vcs :vcs/git}
