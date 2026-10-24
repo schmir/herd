@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../discover)
+(import ../src/discover)
 
 (start-suite "discover")
 

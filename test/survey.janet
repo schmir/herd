@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../survey)
+(import ../src/survey)
 
 (start-suite "survey")
 
@@ -45,7 +45,7 @@
 
 # jj answers for a repository whose git is hidden inside .jj, which asking git
 # directly cannot reach, so only a jj repository asked through jj has an origin.
-(import ../process)
+(import ../src/process)
 (when (process/find-executable "jj")
   (def jj-repository (path/join dir "jj-only"))
   (sh/create-dirs dir)

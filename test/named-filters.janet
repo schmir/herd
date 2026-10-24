@@ -3,9 +3,9 @@
 (import spork/path)
 (import spork/json)
 (import spork/sh)
-(import ../config)
-(import ../named-filters)
-(import ../process)
+(import ../src/config)
+(import ../src/named-filters)
+(import ../src/process)
 
 (start-suite "named-filters")
 

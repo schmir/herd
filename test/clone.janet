@@ -2,9 +2,9 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../checkout)
-(import ../clone)
-(import ../process)
+(import ../src/checkout)
+(import ../src/clone)
+(import ../src/process)
 
 (start-suite "clone")
 

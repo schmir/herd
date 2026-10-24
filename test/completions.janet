@@ -1,7 +1,7 @@
 # Tests for the shell completion scripts.
 (use spork/test)
-(import ../completions)
-(import ../options)
+(import ../src/completions)
+(import ../src/options)
 
 (start-suite "completions")
 

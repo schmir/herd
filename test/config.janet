@@ -2,8 +2,8 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../config)
-(import ../named-filters)
+(import ../src/config)
+(import ../src/named-filters)
 
 (start-suite "config")
 

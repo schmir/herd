@@ -2,11 +2,11 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../arguments)
-(import ../clone)
-(import ../config)
-(import ../discover)
-(import ../main :as herd)
+(import ../src/arguments)
+(import ../src/clone)
+(import ../src/config)
+(import ../src/discover)
+(import ../src/main :as herd)
 
 (start-suite "arguments")
 
@@ -435,7 +435,7 @@
 
 # Every option the command line parses is one that options declares, and the
 # other way around, so the help, the parser and the scripts cannot drift.
-(import ../options)
+(import ../src/options)
 (each command ["clone" "list" "run" "completions"]
   (def spec (herd/command-spec command {"at" "." "jobs" "2" "show-output" "never"}))
   (def named (seq [i :range [0 (length spec) 2]] (spec i)))

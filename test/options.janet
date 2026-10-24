@@ -1,6 +1,6 @@
 # Tests for the declarations of the command line's options.
 (use spork/test)
-(import ../options)
+(import ../src/options)
 
 (start-suite "options")
 

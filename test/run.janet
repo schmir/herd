@@ -2,11 +2,11 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../config)
-(import ../location)
-(import ../process)
-(import ../run)
-(import ../main :as herd)
+(import ../src/config)
+(import ../src/location)
+(import ../src/process)
+(import ../src/run)
+(import ../src/main :as herd)
 
 (start-suite "run")
 

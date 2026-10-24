@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../stages)
+(import ../src/stages)
 
 (start-suite "stages")
 
