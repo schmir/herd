@@ -15,7 +15,7 @@
 
 (def existing (path/join dir "existing"))
 (sh/create-dirs (path/join existing ".git"))
-(assert (= :skipped (clone/clone-repository nil nil "unused" existing))
+(assert (= :present (clone/clone-repository nil nil "unused" existing))
         "an existing checkout does not start a process")
 
 (def occupied (path/join dir "occupied"))
@@ -108,7 +108,7 @@
 (def result
   (clone/clone-repositories [{:path existing :ssh_url "unused"}
                              {:path occupied :ssh_url "unused"}]))
-(assert (= 1 ((result :counts) :skipped)) "clone-repositories keeps outcome counts")
+(assert (= 1 ((result :counts) :present)) "clone-repositories keeps outcome counts")
 (assert (= 1 ((result :counts) :blocked)))
 (assert (= 0 ((result :counts) :failed)))
 

@@ -91,7 +91,7 @@
     (run/run-in-repositories
       [(repository dir)]
       {:command-git "touch selected-git"}))
-  (assert (= 1 ((result :counts) :skipped))
+  (assert (= 1 ((result :counts) :no-command))
           "a missing command for the repository VCS is skipped")
   (assert (= 0 ((result :counts) :failed))
           "a missing VCS-specific command is not a failure")
