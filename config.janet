@@ -96,19 +96,19 @@
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
   configuration file.``
-  [checkout where]
-  (unless (dictionary? checkout)
+  [checkout-row where]
+  (unless (dictionary? checkout-row)
     (error (string where " must be a dictionary")))
-  (eachk key checkout
+  (eachk key checkout-row
     (reject-unknown-setting where key [;checkout-row-keys ;checkout/checkout-keys]))
-  (def from (get checkout :from))
+  (def from (get checkout-row :from))
   (unless (and (string? from) (not (empty? from)))
     (error (string where " needs a :from naming a configuration file")))
-  (validate-anchor-setting checkout where)
-  (validate-filter-setting checkout where)
-  (validate-strip-components-setting checkout where)
-  (checkout/validate-checkout-options checkout where)
-  checkout)
+  (validate-anchor-setting checkout-row where)
+  (validate-filter-setting checkout-row where)
+  (validate-strip-components-setting checkout-row where)
+  (checkout/validate-checkout-options checkout-row where)
+  checkout-row)
 
 (defn validate-checkout-defaults
   "Validate `:defaults` and return them. Defaults cannot name a source."
@@ -140,7 +140,7 @@
   {:defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
-  ``Validate repository settings. The checkouts keep the order they were
+  ``Validate repository settings. The checkout rows keep the order they were
   written in.``
   [command-config]
   (unless (dictionary? command-config)
@@ -148,31 +148,32 @@
   (def rows (get command-config :checkouts []))
   (unless (indexed? rows)
     (error ":checkouts must be an array of rows"))
-  (def checkouts
+  (def checkout-rows
     (seq [index :range [0 (length rows)]]
       (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
   (def filters (filter/validate-registry (get command-config :filters {})))
   (def defaults (validate-checkout-defaults (get command-config :defaults {})))
   (filter/check-names filters (get defaults :filter []) ":defaults")
-  (each checkout checkouts
-    (filter/check-names filters (get checkout :filter [])
-                        (string ":checkouts row for " (describe (checkout :from)))))
+  (each checkout-row checkout-rows
+    (filter/check-names filters (get checkout-row :filter [])
+                        (string ":checkouts row for "
+                                (describe (checkout-row :from)))))
   {:defaults defaults
-   :checkouts checkouts
+   :checkouts checkout-rows
    :filters filters})
 
-(defn checkouts-for-file
-  ``Merge each checkout of `name` with the defaults. Return the defaults alone
+(defn checkout-rows-for-list
+  ``Merge each checkout row of `name` with the defaults. Return the defaults alone
   when none names the file.``
   [settings name]
   (def defaults (get settings :defaults {}))
   (def matching
-    (filter (fn [checkout] (= (checkout :from) name))
+    (filter (fn [checkout-row] (= (checkout-row :from) name))
             (get settings :checkouts [])))
   (if (empty? matching)
     @[(merge defaults)]
-    (map (fn [checkout] (merge defaults checkout)) matching)))
+    (map (fn [checkout-row] (merge defaults checkout-row)) matching)))
 
 (defn- checkout-options
   "Return only the checkout options set in `source`."
@@ -184,16 +185,16 @@
       (put options key value)))
   options)
 
-(defn config-anchors
+(defn resolve-checkout-rows
   ``Resolve one anchor for each checkout row and retain its options and its
   filter and path settings. Relative anchors use HOME. A missing anchor uses
   HOME for configured files and the file's parent otherwise. Keep configured
   paths because selection resolves symbolic links.``
-  [config-path directory checkouts]
+  [config-path directory checkout-rows]
   (def parent (path/abspath (path/parent config-path)))
   (def name (path/basename config-path))
-  (seq [checkout :in checkouts]
-    (def anchor (get checkout :anchor))
+  (seq [checkout-row :in checkout-rows]
+    (def anchor (get checkout-row :anchor))
     (def resolved
       (cond
         (nil? anchor)
@@ -209,10 +210,10 @@
             (path/abspath anchor))
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
-    (merge (checkout-options checkout)
+    (merge (checkout-options checkout-row)
            {:path resolved
-            :filter (get checkout :filter [])
-            :strip-components (get checkout :strip-components 0)})))
+            :filter (get checkout-row :filter [])
+            :strip-components (get checkout-row :strip-components 0)})))
 
 (defn- strip-path-components
   ``Remove `strip-count` leading components and return a relative path. The
@@ -230,27 +231,27 @@
       (string/join (drop strip-count components) path/sep))))
 
 (defn resolve-repository-paths
-  ``Resolve each entry once per anchor, stripping its leading components and
-  applying its checkout options. Entries without anchors produce no
-  checkouts. Unstripped absolute paths remain the same under all anchors so
+  ``Resolve each entry once per placement, stripping its leading components and
+  applying its checkout options. Entries without placements produce no
+  checkouts. Unstripped absolute paths remain the same under all placements so
   `merge-configs` can combine them.``
-  [entries anchors]
+  [entries placements]
   (def resolved @[])
-  (each anchor anchors
-    (def options (checkout-options anchor))
-    (with-dyns [:path-cwd (anchor :path)]
+  (each placement placements
+    (def options (checkout-options placement))
+    (with-dyns [:path-cwd (placement :path)]
       (each entry entries
         (def repository-path
           (strip-path-components (entry :path)
-                                 (get anchor :strip-components 0)
-                                 (anchor :path)))
-        # Apply options from least to most specific: defaults, anchor, entry.
+                                 (get placement :strip-components 0)
+                                 (placement :path)))
+        # Apply options from least to most specific: defaults, placement, entry.
         (def settled (merge checkout/default-checkout-options options entry))
         (array/push resolved
                     (merge settled
                            {:vcs (vcs/parse (settled :vcs))
                             :path (path/abspath repository-path)
-                            :anchors @[(anchor :path)]})))))
+                            :anchors @[(placement :path)]})))))
   resolved)
 
 (defn validate-repository-list
@@ -275,11 +276,11 @@
   Only the entries a filter kept are validated: a list may carry entries herd
   could not use, which is the point of filtering it. The file is decoded once,
   after the filters have had it, so what they see is the file itself.``
-  [config-path directory checkouts &opt filters names]
+  [config-path directory checkout-rows &opt filters names]
   (default filters {})
   (default names [])
   (def source (slurp config-path))
-  (def anchors (config-anchors config-path directory checkouts))
+  (def placements (resolve-checkout-rows config-path directory checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -287,8 +288,8 @@
   # two different chains spell the same key and hand a row the repositories
   # another row had selected.
   (def selected @{})
-  (each anchor anchors
-    (def chain [;(anchor :filter) ;names])
+  (each placement placements
+    (def chain [;(placement :filter) ;names])
     (def kept
       (if (has-key? selected chain)
         (get selected chain)
@@ -296,11 +297,11 @@
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
                          (json/decode
-                           (filter/narrow filters source (anchor :filter) names)
+                           (filter/narrow filters source (placement :filter) names)
                            true))]
           (put selected chain computed)
           computed)))
-    (array/concat resolved (resolve-repository-paths kept [anchor])))
+    (array/concat resolved (resolve-repository-paths kept [placement])))
   resolved)
 
 (defn merge-configs
@@ -352,7 +353,7 @@
   renamed list from silently using the defaults.``
   [config-paths settings]
   (def present (map path/basename config-paths))
-  (each name (distinct (map (fn [checkout] (checkout :from)) (get settings :checkouts [])))
+  (each name (distinct (map (fn [checkout-row] (checkout-row :from)) (get settings :checkouts [])))
     (unless (index-of name present)
       (error (string command-config-name ": :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
@@ -369,7 +370,7 @@
       [config-path
        (try
          (read-config config-path directory
-                      (checkouts-for-file settings (path/basename config-path))
+                      (checkout-rows-for-list settings (path/basename config-path))
                       (get settings :filters {})
                       names)
          ([err] (error (string config-path ": " err))))])))

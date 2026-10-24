@@ -13,6 +13,14 @@ checkout is the on-disk copy of a repository)
 repository list against. One list can be anchored at several directories.
 _Avoid_: Root, base directory
 
+**Checkout row**: One entry of `:checkouts` in `config.jdn`: it reads a
+repository list (`:from`) and places it under an anchor, with its own
+filters, stripped path components and checkout options. Not a checkout in
+the on-disk sense. _Avoid_: Row, source, mapping
+
+**Placement**: A checkout row with its anchor resolved to a directory, as
+the code reads a list through it. _Avoid_: Resolved anchor
+
 **Catalog**: Every repository that the configuration files define after
 their checkout rows and list filters have been applied. _Avoid_: Registry,
 inventory
