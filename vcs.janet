@@ -133,7 +133,7 @@
   (def executable (process/find-executable program))
   (unless executable
     (error (string "cannot find " program " to read the state")))
-  (def result (process/capture-process [executable ;args]))
+  (def result (process/capture [executable ;args]))
   (unless (zero? (result :status))
     (error (string program " failed: " (string/trim (string (result :err))))))
   (parse-state id (result :out)))
@@ -144,7 +144,7 @@
   [id path]
   (def [program & args] (remote-command id path))
   (when-let [executable (process/find-executable program)]
-    (def result (process/capture-process [executable ;args]))
+    (def result (process/capture [executable ;args]))
     (when (zero? (result :status))
       (def url (parse-remote id (result :out)))
       (unless (or (nil? url) (empty? url)) url))))

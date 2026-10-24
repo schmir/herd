@@ -141,7 +141,7 @@
     (file/seek input :set 0)
     # "--" keeps an expression that starts with a dash from reading as an
     # option.
-    (let [result (process/capture-process [executable "--" expression] : {:in input})
+    (let [result (process/capture [executable "--" expression] : {:in input})
           stdout (result :out)
           stderr (result :err)]
       (unless (zero? (result :status))

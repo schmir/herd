@@ -55,7 +55,7 @@
   rather than a repository that does not match, so they raise.``
   [repository command]
   (if (vcs/detect (repository :path))
-    (let [result (process/capture-process
+    (let [result (process/capture
                    ["sh" "-c" `cd "$1" && shift && exec "$@"`
                     "herd" (repository :path) "sh" "-c" command]
                    :p)]

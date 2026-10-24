@@ -291,18 +291,18 @@
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm dir))
 
-# Tests for capture-process, which every command runs its subprocesses through.
-(let [result (process/capture-process
+# Tests for capture, which every command runs its subprocesses through.
+(let [result (process/capture
                ["sh" "-c" "echo to stdout; echo to stderr >&2; exit 3"] :p)]
-  (assert (= 3 (result :status)) "capture-process reports the exit status")
+  (assert (= 3 (result :status)) "capture reports the exit status")
   (assert (= "to stdout\n" (string (result :out)))
-          "capture-process captures stdout")
+          "capture captures stdout")
   (assert (= "to stderr\n" (string (result :err)))
-          "capture-process captures stderr"))
+          "capture captures stderr"))
 
-(let [result (process/capture-process ["sh" "-c" "exec cat"] :p
-                                      {:in (file/open "/dev/null" :r)})]
-  (assert (zero? (result :status)) "capture-process passes a redirected stdin")
+(let [result (process/capture ["sh" "-c" "exec cat"] :p
+                              {:in (file/open "/dev/null" :r)})]
+  (assert (zero? (result :status)) "capture passes a redirected stdin")
   (assert (empty? (string (result :out)))
           "a command reading from /dev/null sees no input"))
 
@@ -310,14 +310,14 @@
 # pipe buffer holds would block forever on one that is only read afterwards,
 # so this hangs rather than fails if the draining ever regresses.
 (let [size 300000
-      result (process/capture-process
+      result (process/capture
                ["sh" "-c" (string "yes 0123456789 | head -c " size "; "
                                   "yes 9876543210 | head -c " size " >&2")]
                :p)]
   (assert (= size (length (result :out)))
-          "capture-process reads stdout past the pipe buffer")
+          "capture reads stdout past the pipe buffer")
   (assert (= size (length (result :err)))
-          "capture-process reads stderr past the pipe buffer"))
+          "capture reads stderr past the pipe buffer"))
 
 # Each captured process closes its pipes when it is done with them. Left to the
 # garbage collector, a run over a few hundred repositories exhausts the
@@ -332,10 +332,10 @@
     (gcsetinterval 0x7FFFFFFF)
     (gccollect)
     (def before (open-descriptors))
-    (for _ 0 40 (process/capture-process ["true"] :p))
+    (for _ 0 40 (process/capture ["true"] :p))
     (def after (open-descriptors))
     (assert (<= after (+ before 2))
-            (string "capture-process leaks no descriptors: " before " open "
+            (string "capture leaks no descriptors: " before " open "
                     "before 40 processes, " after " after"))))
 
 # An interrupt has to reach the built binary, not just the interpreter: the
