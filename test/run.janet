@@ -231,7 +231,7 @@
   (assert (deep= (map (fn [repository] (repository :path)) repositories)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")
-  (assert (= 2 (length (location/select-repositories-with-anchors
+  (assert (= 2 (length (location/locate-repositories-under-anchors
                          root repositories (location/containing-anchors root repositories))))
           "the fixture root selects both repositories")
   ((herd/custom-command-handler "touch fixed-command"

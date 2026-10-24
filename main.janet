@@ -158,7 +158,7 @@
   (when failed?
     (os/exit 1)))
 
-(defn- select-repositories
+(defn- select-or-exit
   ``Select the repositories `options` ask for, as selection/select does, and
   report for the CLI what stops the run or explains an empty selection. With
   `unconfigured-ok?`, a configuration directory without files does not end the
@@ -261,7 +261,7 @@
             "and " (describe value) " is not one")
     (os/exit 1))
   (def repositories
-    ((select-repositories (selection-options parsed) repository-settings) :repositories))
+    ((select-or-exit (selection-options parsed) repository-settings) :repositories))
   (def result (clone/clone-repositories repositories jobs))
   (print (result :summary))
   # A blocked repository was asked for and is still not checked out.
@@ -294,7 +294,7 @@
   (def everything
     (if (empty? names)
       configured
-      (((select-repositories {:catalog-only? true} repository-settings) :catalog)
+      (((select-or-exit {:catalog-only? true} repository-settings) :catalog)
         :repositories)))
   (def root (survey/discover-root (parsed "at")))
   # Selection accepts a path that is not a directory, such as a repository
@@ -337,7 +337,7 @@
   # well, since that can still turn up repositories. The disk discovery needs
   # the catalog, but a list of only the extra repositories selects none from it.
   (def result
-    (select-repositories
+    (select-or-exit
       (merge (selection-options parsed)
              {:wanted-state wanted
               :jobs parallel/default-jobs
@@ -369,7 +369,7 @@
                    (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (jobs-from parsed))
   (def repositories
-    ((select-repositories
+    ((select-or-exit
        (merge (selection-options parsed)
               {:wanted-state wanted
                :jobs jobs})

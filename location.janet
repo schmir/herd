@@ -68,7 +68,7 @@
   (filter (fn [anchor] (contains-path? anchor resolved-at-path))
           (configured-anchors repositories)))
 
-(defn select-repositories-with-anchors
+(defn locate-repositories-under-anchors
   ``Keep the repositories configured under one of the `selected-anchors` that
   are at `at-path`, beneath it or containing it.``
   [at-path repositories selected-anchors]
