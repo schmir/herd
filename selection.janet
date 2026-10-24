@@ -51,7 +51,7 @@
   [names settings]
   (or (not (empty? names))
       (not (empty? (get-in settings [:defaults :filter] [])))
-      (true? (some (fn [checkout] (not (empty? (get checkout :filter []))))
+      (true? (some (fn [checkout-row] (not (empty? (get checkout-row :filter []))))
                    (get settings :checkouts [])))))
 
 (defn- why-empty

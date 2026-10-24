@@ -42,7 +42,7 @@
   "Return the error from config anchor resolution, or nil if it succeeds."
   [config-path directory checkouts]
   (try
-    (do (config/config-anchors config-path directory checkouts) nil)
+    (do (config/resolve-checkout-rows config-path directory checkouts) nil)
     ([err] (string err))))
 
 (defn- anchor-paths
@@ -518,7 +518,7 @@
                  (map (fn [checkout] (checkout :anchor)) (settings :checkouts)))
           "rows are kept in the order they were written")
   (assert (deep= @["work" "/srv"]
-                 (map (fn [checkout] (checkout :anchor)) (config/checkouts-for-file settings "work.json")))
+                 (map (fn [checkout] (checkout :anchor)) (config/checkout-rows-for-list settings "work.json")))
           "a file reads only the rows that name it"))
 
 
@@ -579,7 +579,7 @@
                   :checkouts [{:from "work.json"}
                               {:from "work.json" :filter ["platform"]}
                               {:from "work.json" :filter []}]})
-      checkouts (config/checkouts-for-file settings "work.json")]
+      checkouts (config/checkout-rows-for-list settings "work.json")]
   (assert (deep= {"active" "[?a]" "platform" "[?b]"} (settings :filters))
           "the registry is carried with the settings")
   (assert (deep= ["active"] ((checkouts 0) :filter))
@@ -588,14 +588,14 @@
           "a row that names filters replaces the default ones")
   (assert (empty? ((checkouts 2) :filter))
           "and an empty array drops them without naming another"))
-# --- checkouts-for-file --------------------------------------------------------
+# --- checkout-rows-for-list --------------------------------------------------------
 
 (let [settings (config/configured-repository-settings
                  {:defaults {:anchor "src" :vcs "jj"}
                   :checkouts [{:from "work.json" :anchor "work"}
                               {:from "work.json" :anchor "/srv" :vcs "git"}]})
-      unmentioned (config/checkouts-for-file settings "other.json")
-      work (config/checkouts-for-file settings "work.json")]
+      unmentioned (config/checkout-rows-for-list settings "other.json")
+      work (config/checkout-rows-for-list settings "work.json")]
   (assert (= 1 (length unmentioned))
           "a file no row reads is checked out once")
   (assert (= "src" ((unmentioned 0) :anchor))
@@ -609,7 +609,7 @@
   (assert (= "git" ((work 1) :vcs))
           "and replaces the ones it does"))
 
-(let [checkouts (config/checkouts-for-file config/default-repository-settings "any.json")]
+(let [checkouts (config/checkout-rows-for-list config/default-repository-settings "any.json")]
   (assert (= 1 (length checkouts)) "without a configuration every file is read once")
   (assert (nil? ((checkouts 0) :anchor))
           "and settles no anchor, leaving its own location to decide"))
@@ -628,54 +628,54 @@
   (os/setenv "HOME" "/home/example")
   (assert (deep= @["/home/example"]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration @[{}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration @[{}])))
           "a file in the configuration directory anchors at home")
   (assert (deep= @["/home/example"]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/link.json")
-                                          configuration @[{}])))
+                   (config/resolve-checkout-rows (string configuration "/link.json")
+                                                 configuration @[{}])))
           "a JSON symlink uses its visible location")
   (assert (deep= @[(path/abspath elsewhere)]
                  (anchor-paths
-                   (config/config-anchors (string elsewhere "/linked.json")
-                                          configuration @[{}])))
+                   (config/resolve-checkout-rows (string elsewhere "/linked.json")
+                                                 configuration @[{}])))
           "a file outside the configuration directory anchors at its parent")
   (assert (deep= @["/home/example/work"]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration @[{:anchor "work"}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration @[{:anchor "work"}])))
           "a relative configured anchor resolves from home")
   (assert (deep= @["/home/example/work" "/srv/shared"]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration
-                                          @[{:anchor "work"}
-                                            {:anchor "/srv/shared"}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration
+                                                 @[{:anchor "work"}
+                                                   {:anchor "/srv/shared"}])))
           "every row is resolved in the order it was written")
   (assert (deep= @[]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration @[])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration @[])))
           "a file no row reads is anchored nowhere")
   (assert (deep= @["/missing/anchor"]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration
-                                          @[{:anchor "/missing/anchor"}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration
+                                                 @[{:anchor "/missing/anchor"}])))
           "an absolute configured anchor need not exist")
 
   # A row carries the checkout options it was merged with, and nothing else.
-  (let [anchors (config/config-anchors (string configuration "/real.json")
-                                       configuration
-                                       @[{:anchor "work" :vcs "git"}
-                                         {:anchor "/srv" :vcs "jj"}])]
+  (let [anchors (config/resolve-checkout-rows (string configuration "/real.json")
+                                              configuration
+                                              @[{:anchor "work" :vcs "git"}
+                                                {:anchor "/srv" :vcs "jj"}])]
     (assert (deep= @["/home/example/work" "/srv"] (anchor-paths anchors))
             "each row is resolved on its own")
     (assert (= "git" ((anchors 0) :vcs)) "keeping the options it settles")
     (assert (= "jj" ((anchors 1) :vcs)) "one row at a time"))
-  (let [anchors (config/config-anchors (string configuration "/real.json")
-                                       configuration @[{:anchor "work"}])]
+  (let [anchors (config/resolve-checkout-rows (string configuration "/real.json")
+                                              configuration @[{:anchor "work"}])]
     (assert (nil? ((anchors 0) :vcs))
             "a row settling no options carries none at all"))
 
@@ -683,16 +683,16 @@
   (os/link elsewhere (string dir "/link") true)
   (assert (deep= @[(string dir "/link/work")]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration
-                                          @[{:anchor (string dir "/link/work")}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration
+                                                 @[{:anchor (string dir "/link/work")}])))
           "a configured anchor is kept as it was written, symlinks and all")
 
   (os/setenv "HOME" nil)
   (assert (deep= @[(path/abspath configuration)]
                  (anchor-paths
-                   (config/config-anchors (string configuration "/real.json")
-                                          configuration @[{}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 configuration @[{}])))
           "the configuration directory is the default without home")
   (def message
     (config-error (string configuration "/real.json")
