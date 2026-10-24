@@ -53,7 +53,7 @@ Both `path` and `ssh_url` are required and must be strings. The optional
 `vcs` is `"jj"` or `"git"` and decides how `herd clone` checks that
 repository out; see [Checkout options](#checkout-options).
 
-Every configuration file is checked out under one or more **anchors**: the
+Every repository list is checked out under one or more **anchors**: the
 directories its relative paths resolve against. By default there is a single
 anchor, `$HOME`, or the configuration directory if `HOME` is not set.
 Absolute paths remain unchanged, whatever the anchors. The anchors also
@@ -97,7 +97,7 @@ names the JMESPath expressions and shell commands that
 [select repositories](#filters).
 
 `:checkouts` is where the repository lists are anchored. Each row reads one
-configuration file, named by `:from` as it is named in the configuration
+repository list, named by `:from` as it is named in the configuration
 directory, and anchors its repositories at one directory. `:defaults` holds
 what every row starts from, so a row naming one setting keeps the rest, and
 a list no row reads is checked out once from the defaults alone — dropping a
@@ -117,8 +117,8 @@ row above anchors `work.json` at `$HOME/work` and an entry such as
 `team/api` resolves to `$HOME/work/team/api`. An absolute anchor is used
 exactly as written and need not exist yet. A row that names no anchor at all
 falls back to `:defaults`, and without those to `$HOME` — or to the
-configuration file's own directory, when the file is not in the
-configuration directory.
+repository list's own directory, when the file is not in the configuration
+directory.
 
 Several rows reading the same file describe the same set of repositories
 checked out under each of their anchors. `team/api` above names both
@@ -136,7 +136,7 @@ relative: `/srv/team/repo` stripped by one component becomes `team/repo`
 beneath the row's anchor. Removing the complete path, or more components
 than it contains, is an error.
 
-A configuration file may itself be a symlink. It is still anchored by its
+A repository list may itself be a symlink. It is still anchored by its
 visible location in the configuration directory, which is also the name
 `:from` knows it by, so point its rows at the directory tree it describes
 when the list lives next to that tree.
@@ -363,11 +363,10 @@ extra	/home/you/src/scratch	git@github.com:you/scratch.git
 `missing` means nothing, or an empty directory, is at the configured path,
 and `blocked` means something else stands there, which `clone` leaves alone.
 `extra` lists the Git and Jujutsu repositories found by scanning the
-location that no configuration file defines, whatever their anchor; their
-URL is the `origin` remote, empty when there is none. A repository a `-f`
-filter leaves out is still configured, but one a checkout row's own
-`:filter` leaves out is reported as `extra`, since it is not meant to be
-there.
+location that no repository list defines, whatever their anchor; their URL
+is the `origin` remote, empty when there is none. A repository a `-f` filter
+leaves out is still configured, but one a checkout row's own `:filter`
+leaves out is reported as `extra`, since it is not meant to be there.
 
 `--ok`, `--missing` and `--extra` pick what to print instead: the configured
 repositories that are on disk, the ones that are not, and the `extra` ones.
@@ -483,9 +482,9 @@ herd list -C "$HOME/src/acme"
 herd run -C "$HOME/src/acme/api" jj log -r @
 ```
 
-Use `-a` or `--all-anchors` to consider every configuration file regardless
-of its anchor. To operate on all configured repositories, combine it with
-the filesystem root:
+Use `-a` or `--all-anchors` to consider every repository list regardless of
+its anchor. To operate on all configured repositories, combine it with the
+filesystem root:
 
 ```sh
 herd list --all-anchors -C /

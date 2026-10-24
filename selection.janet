@@ -96,7 +96,7 @@
   (def names (filters :names))
   (def catalog (config/load-repository-catalog directory settings names))
   (cond
-    (empty? (catalog :paths))
+    (empty? (catalog :repository-lists))
     {:repositories [] :catalog catalog :filters filters
      :reason {:kind :unconfigured :directory directory}}
 
@@ -133,7 +133,7 @@
   `options` holds `:at-path`, the working location, and `:directory`, where the
   configuration lives. `:all-anchors?` considers every anchor, not just those
   containing the location. `:filter-values` are the values
-  given with -f: a list filter narrows every configuration file, and the rest
+  given with -f: a list filter narrows every repository list, and the rest
   are checkout filters or commands, which `:filters` of the result lists. `:wanted-state`, :dirty or :clean, and
   the commands then narrow the repositories further, with `:jobs` at a time,
   and `:interrupted?` in the result says a stage was interrupted, in which case

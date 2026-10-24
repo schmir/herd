@@ -69,7 +69,7 @@ An option another command has is unknown to list.
 Nothing configured yet is not a failure.
 
   $ herd list
-  No configuration files in $ROOT/home/.config/herd
+  No repository lists in $ROOT/home/.config/herd
 
 Without XDG_CONFIG_HOME and HOME there is nowhere to look.
 
@@ -132,11 +132,11 @@ A flag is only looked for where options are read: the value of an option
 and the command run passes on are left alone.
 
   $ herd list --at --all-anchors=no
-  No configuration files in $ROOT/home/.config/herd
+  No repository lists in $ROOT/home/.config/herd
   $ herd run true --help=x | tail -1
-  No configuration files in $ROOT/home/.config/herd
+  No repository lists in $ROOT/home/.config/herd
   $ herd run -j 1 -- true --version=x | tail -1
-  No configuration files in $ROOT/home/.config/herd
+  No repository lists in $ROOT/home/.config/herd
 
 Every --jobs that is not a positive integer in range is refused.
 
@@ -147,7 +147,7 @@ Every --jobs that is not a positive integer in range is refused.
   Invalid --jobs: expected a positive integer no greater than 2147483647
   [1]
 
-Naming a configuration file on the command line is not how herd is told
+Naming a repository list on the command line is not how herd is told
 about one.
 
   $ echo '[]' > extra.json
