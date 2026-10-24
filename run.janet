@@ -53,9 +53,7 @@
     (dictionary? command)
     (if-let [used (vcs/detect (repository :path))]
       (do
-        (def key (case used
-                   :vcs/git :command-git
-                   :vcs/jj :command-jj))
+        (def key (vcs/command-key used))
         (def selected (get command key))
         (if (nil? selected)
           nil

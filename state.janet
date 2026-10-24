@@ -1,45 +1,15 @@
 # Telling whether a checked-out repository holds changes nobody has committed.
 
-(import ./checkout)
 (import ./vcs)
 (import ./parallel)
 (import ./process)
-
-(defn state-command
-  ``The command that reports whether the working copy of the repository at
-  `path` has changes, for a repository using `vcs`. jj is not told to leave
-  the working copy alone, since it would then miss edits it has not yet
-  snapshotted.``
-  [path vcs]
-  (case vcs
-    :vcs/git ["git" "-C" path "status" "--porcelain"]
-    :vcs/jj ["jj" "-R" path "log" "-r" "@" "--no-graph" "-T" "empty"]))
-
-(defn- has-changes?
-  "Whether `output` of the state command says the working copy has changes."
-  [vcs output]
-  (def text (string/trim (string output)))
-  (case vcs
-    :vcs/git (not (empty? text))
-    # The working-copy commit is empty exactly when there is nothing to commit.
-    :vcs/jj (case text
-              "true" false
-              "false" true
-              (error (string "unexpected output from jj: " (describe text))))))
 
 (defn repository-state
   ``Say whether the repository has changes: :dirty or :clean, or nil when no
   working copy is checked out at its path. Raise when the VCS cannot say.``
   [repository]
   (when-let [used (vcs/detect (repository :path))]
-    (def [program & args] (state-command (repository :path) used))
-    (def executable (process/find-executable program))
-    (unless executable
-      (error (string "cannot find " program " to read the state")))
-    (def result (process/capture-process [executable ;args]))
-    (unless (zero? (result :status))
-      (error (string program " failed: " (string/trim (string (result :err))))))
-    (if (has-changes? used (result :out)) :dirty :clean)))
+    (vcs/state used (repository :path))))
 
 (defn keep-repositories
   ``Keep the `repositories` for which `keep?` answers true, in their order.

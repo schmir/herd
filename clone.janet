@@ -7,14 +7,6 @@
 (import ./process)
 (import ./vcs)
 
-(defn clone-process-command
-  "Return the process command that clones url to path with vcs."
-  [vcs executable url path]
-  (case vcs
-    :vcs/git [executable "clone" "--" url path]
-    :vcs/jj [executable "git" "clone" "--colocate" "--" url path]
-    (error (string "unsupported VCS " (describe vcs)))))
-
 (defn staging-path
   ``Return where a clone of `target` is written before it is moved into
   place: a hidden sibling, so the move stays on one file system.``
@@ -66,8 +58,8 @@
         (def result
           (clone-into-place
             (fn [staging]
-              (clone-process-command (or vcs vcs/default)
-                                     executable url staging))
+              (vcs/clone-command (or vcs vcs/default)
+                                 executable url staging))
             env path))
         (if (zero? (result :status))
           (do

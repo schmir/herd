@@ -30,14 +30,6 @@
   (git path "commit" "-q" "--allow-empty" "-m" "init")
   {:path path})
 
-(defn test-state-command
-  "The command asking for the state is built for each VCS."
-  []
-  (assert (= ["git" "-C" "/r" "status" "--porcelain"]
-             (state/state-command "/r" :vcs/git)))
-  (assert (= ["jj" "-R" "/r" "log" "-r" "@" "--no-graph" "-T" "empty"]
-             (state/state-command "/r" :vcs/jj))))
-
 (defn test-repository-state
   "A repository is clean, or dirty with a modified or an untracked file."
   []
@@ -115,7 +107,6 @@
                  (paths (state/filter-by-commands repositories ["test -f a" "test -f b"])))
           "all commands must pass"))
 
-(test-state-command)
 (test-command-matches)
 (test-filter-by-commands)
 (test-repository-state)
