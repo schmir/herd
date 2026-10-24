@@ -22,12 +22,12 @@
   2147483647)
 
 (defn jobs?
-  ``Whether `count` is a usable number of operations to run at the same time.
-  The count bounds the slot loop in progress-lines, where a non-integer never
-  ends it, so every caller weighs a count against this before any clamping
-  could hide a bad one.``
-  [count]
-  (and (int? count) (pos? count)))
+  ``Whether `job-count` is a usable number of operations to run at the same
+  time. The count bounds the slot loop in progress-lines, where a
+  non-integer never ends it, so every caller weighs a count against this
+  before any clamping could hide a bad one.``
+  [job-count]
+  (and (int? job-count) (pos? job-count)))
 
 (defn- require-jobs
   "Return `jobs` unchanged, or raise when it is not a usable count."
