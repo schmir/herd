@@ -27,6 +27,6 @@
          "parallel.janet"
          "process.janet"
          "run.janet"
-         "select.janet"
+         "selection.janet"
          "state.janet"
          "survey.janet"])

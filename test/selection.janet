@@ -3,7 +3,8 @@
 (import spork/path)
 (import spork/sh)
 (import ../location)
-(import ../select)
+(import ../config)
+(import ../selection)
 
 (start-suite "selection")
 
@@ -59,15 +60,6 @@
 
 (assert (empty? (location/select-repositories-with-anchors "/srv" [] @["/srv"])))
 (assert (empty? (selected "/elsewhere" @[])))
-
-(let [selected (select/by-location
-                 "/srv/foo" repositories
-                 (location/containing-anchors "/srv/foo" repositories))]
-  (assert (deep= @["/srv/foo" "/srv/foo/bar"]
-                 (map (fn [repository] (repository :path)) selected))
-          "the selection boundary returns repositories below the location"))
-(assert (empty? (select/by-location "/srv/foo" repositories @[]))
-        "no selected anchor selects nothing")
 
 (def nested
   [{:path "/work/one" :ssh_url "one" :anchors @["/work"]}
@@ -142,8 +134,173 @@
           "resolving does not make an unrelated anchor contain the location")
   (sh/rm dir))
 
-(defn- git-selection
-  "Run Git for the by-state fixture with isolated commit identity."
+# The selection module takes what the command line asked for and says which
+# repositories that picks, and why when it picks none.
+
+(def config-dir (path/join (os/getenv "TMPDIR" "/tmp")
+                           (string "herd-selection-test-" (os/getpid))))
+(sh/rm config-dir)
+(sh/create-dirs config-dir)
+(spit (path/join config-dir "repos.json")
+      (string "[{\"path\": \"/srv/foo\", \"ssh_url\": \"foo\"},"
+              " {\"path\": \"/srv/foo/bar\", \"ssh_url\": \"bar\"},"
+              " {\"path\": \"/srv/other\", \"ssh_url\": \"other\"}]"))
+
+(def srv-settings
+  (config/configured-repository-settings
+    {:checkouts [{:from "repos.json" :anchor "/srv"}]}))
+
+(defn- chosen
+  "The paths of what selecting with `options` picks, in order."
+  [options &opt settings]
+  (def result (selection/select (merge {:directory config-dir} options)
+                                (or settings srv-settings)))
+  (map (fn [repository] (repository :path)) (result :repositories)))
+
+(defn test-selects-beneath-the-working-location
+  "A working location picks the configured repositories beneath it."
+  []
+  (def result (selection/select {:directory config-dir :at "/srv/foo"}
+                                srv-settings))
+  (assert (deep= @["/srv/foo" "/srv/foo/bar"]
+                 (map (fn [repository] (repository :path))
+                      (result :repositories))))
+  (assert (nil? (result :reason)) "a selection that is not empty needs no reason"))
+
+(test-selects-beneath-the-working-location)
+
+(defn test-all-anchors-ignore-the-working-location-anchor
+  "Considering every anchor reaches a location no anchor contains."
+  []
+  (assert (empty? (chosen {:at "/"})) "no anchor contains the filesystem root")
+  (assert (deep= @["/srv/foo" "/srv/foo/bar" "/srv/other"]
+                 (chosen {:at "/" :all-anchors? true}))
+          "every anchor is considered"))
+
+(test-all-anchors-ignore-the-working-location-anchor)
+
+(defn- reason-of
+  "The reason selecting with `options` picks nothing, or nil."
+  [options &opt settings]
+  ((selection/select (merge {:directory config-dir} options)
+                     (or settings srv-settings)) :reason))
+
+(defn test-reason-for-an-empty-location
+  "An empty selection says whether the anchors or the location are to blame."
+  []
+  (assert (deep= {:kind :no-anchor-contains-path :at "/"}
+                 (reason-of {:at "/"}))
+          "standing outside every anchor")
+  (assert (deep= {:kind :none-beneath-path :at "/srv/fo"}
+                 (reason-of {:at "/srv/fo"}))
+          "standing where no repository is")
+  (assert (nil? (reason-of {:at "/srv"})) "a selection needs no reason"))
+
+(test-reason-for-an-empty-location)
+
+(def filter-settings
+  (config/configured-repository-settings
+    {:checkouts [{:from "repos.json" :anchor "/srv"}]
+     :filters {"foo" "[?ssh_url=='foo']" "none" "[?ssh_url=='nothing']"}}))
+
+(def empty-dir (path/join config-dir "empty"))
+(sh/create-dirs empty-dir)
+(spit (path/join empty-dir "empty.json") "[]")
+
+(defn test-list-filters-narrow-the-catalog
+  "A list filter named with -f narrows the repositories before location."
+  []
+  (assert (deep= @["/srv/foo"]
+                 (chosen {:at "/srv" :filter-values ["foo"]} filter-settings))
+          "the filter keeps what it matches")
+  (assert (deep= {:kind :emptied-by-filters :names @["none"]}
+                 (reason-of {:at "/srv" :filter-values ["none"]} filter-settings))
+          "a filter that removes everything is named")
+  (assert (deep= {:kind :emptied-by-filters :names @[]}
+                 (reason-of {:at "/srv"}
+                            (config/configured-repository-settings
+                              {:checkouts [{:from "repos.json" :anchor "/srv"
+                                            :filter ["none"]}]
+                               :filters {"none" "[?ssh_url=='nothing']"}})))
+          "a checkout row's filter is blamed when no name was given")
+  (assert (deep= {:kind :empty-catalog}
+                 (reason-of {:at "/srv" :directory empty-dir}
+                            config/default-repository-settings))
+          "nothing configured, nothing filtered"))
+
+(test-list-filters-narrow-the-catalog)
+
+(defn test-nothing-configured
+  "A directory without configuration files is a state, not a failure."
+  []
+  (def bare-dir (path/join config-dir "bare"))
+  (sh/create-dirs bare-dir)
+  (def result (selection/select {:at "/srv" :directory bare-dir}
+                                config/default-repository-settings))
+  (assert (deep= {:kind :unconfigured :directory bare-dir} (result :reason)))
+  (assert (empty? (result :repositories)))
+  (assert (empty? ((result :catalog) :paths)) "the catalog is still there to read"))
+
+(defn test-no-configuration-directory
+  "Without XDG_CONFIG_HOME and HOME there is nowhere to look."
+  []
+  (def xdg (os/getenv "XDG_CONFIG_HOME"))
+  (def home (os/getenv "HOME"))
+  (os/setenv "XDG_CONFIG_HOME" nil)
+  (os/setenv "HOME" nil)
+  (def result (selection/select {:at "/srv"} config/default-repository-settings))
+  (os/setenv "XDG_CONFIG_HOME" xdg)
+  (os/setenv "HOME" home)
+  (assert (deep= {:kind :no-config-directory} (result :reason)))
+  (assert (empty? (result :repositories))))
+
+(def mixed-settings
+  (config/configured-repository-settings
+    {:checkouts [{:from "repos.json" :anchor "/srv"}]
+     :filters {"foo" "[?ssh_url=='foo']" "marked" {:sh "test -f marker"}}}))
+
+(defn test-filter-values-are-classified
+  "-f takes a list filter, a checkout filter's name, or a command, in order."
+  []
+  (def result
+    (selection/select {:directory config-dir :at "/srv"
+                       :filter-values ["foo" "marked" "test -d ." "foo"]}
+                      mixed-settings))
+  (assert (deep= {:names @["foo" "foo"]
+                  :commands @["test -f marker" "test -d ."]
+                  :command-values @["marked" "test -d ."]}
+                 (result :filters))
+          "names narrow the lists, and what runs in checkouts follows them")
+  (assert (deep= @["/srv/foo"]
+                 (map (fn [r] (r :path)) ((result :catalog) :repositories)))
+          "only the list filters narrow what is loaded"))
+
+(defn test-mistyped-filter
+  "A single word that is neither a filter nor a program is most likely a typo."
+  []
+  (def result
+    (selection/select {:directory config-dir :at "/srv"
+                       :filter-values ["fooo"]}
+                      mixed-settings))
+  (assert (deep= {:kind :mistyped-filter :value "fooo"
+                  :known @["foo" "marked"]}
+                 (result :reason)))
+  (assert (empty? (result :repositories)))
+  (assert (nil? (result :catalog)) "nothing is loaded for a mistake in the arguments")
+  (assert (not= :mistyped-filter
+                (get-in (selection/select {:directory config-dir :at "/srv"
+                                           :filter-values ["true"]}
+                                          mixed-settings)
+                        [:reason :kind]))
+          "a word naming a program is a command"))
+
+(test-filter-values-are-classified)
+(test-mistyped-filter)
+(def work-dir (path/join config-dir "work"))
+(sh/create-dirs work-dir)
+
+(defn- git
+  "Run git in `directory`, failing the test when it fails."
   [directory & args]
   (def env (merge (os/environ)
                   @{"GIT_CONFIG_GLOBAL" "/dev/null"
@@ -152,42 +309,122 @@
   (assert (zero? (os/execute ["git" "-C" directory ;args] :pe env))
           (string "git " (string/join args " ") " succeeds")))
 
-(let [scratch (scratch-dir "herd-selection-state-test")
-      root (path/join scratch "root")
-      first (string root "/first")
-      second (string root "/second")]
-  (var stages 0)
-  (sh/create-dirs first)
-  (sh/create-dirs second)
-  (git-selection first "init" "-q")
-  (git-selection first "commit" "-q" "--allow-empty" "-m" "init")
-  (git-selection second "init" "-q")
-  (git-selection second "commit" "-q" "--allow-empty" "-m" "init")
-  (spit (string first "/marker") "")
-  (def kept
-    (select/by-state [{:path first} {:path second}]
-                     :dirty ["test -f marker"] 1
-                     (fn [] (++ stages))))
-  (assert (deep= @[first] (map (fn [repository] (repository :path)) kept))
-          "by-state keeps repositories that pass every shell command")
-  (assert (= 2 stages)
-          "by-state reports each completed selection stage")
-  (def both [{:path first} {:path second}])
-  (def paths (fn [repositories] (map (fn [r] (r :path)) repositories)))
-  (set stages 0)
-  (assert (deep= @[second] (paths (select/by-state both :clean [] 1
-                                                   (fn [] (++ stages)))))
-          "a state alone keeps the repositories in that state")
-  (assert (= 1 stages) "a state alone is one stage")
-  (set stages 0)
-  (assert (deep= @[first] (paths (select/by-state both nil ["test -f marker"] 1
-                                                  (fn [] (++ stages)))))
-          "commands alone keep the repositories where they succeed")
-  (assert (= 1 stages) "commands alone are one stage")
-  (assert (deep= @[first second] (paths (select/by-state both nil [] 1)))
-          "no state and no commands keeps everything")
-  (assert (deep= @[first] (paths (select/by-state both nil ["test -f marker"] 1)))
-          "the after-stage callback is optional")
-  (sh/rm scratch))
+(defn- make-checkout
+  "Create a Git repository with one commit under the work directory."
+  [name]
+  (def checkout (path/join work-dir name))
+  (sh/create-dirs checkout)
+  (git checkout "init" "-q")
+  (git checkout "commit" "-q" "--allow-empty" "-m" "init")
+  checkout)
 
+(def work-config-dir (path/join config-dir "work-config"))
+(sh/create-dirs work-config-dir)
+(make-checkout "clean")
+(spit (path/join (make-checkout "dirty") "marker") "")
+(spit (path/join work-config-dir "work.json")
+      (string "[{\"path\": \"clean\", \"ssh_url\": \"c\", \"vcs\": \"git\"},"
+              " {\"path\": \"dirty\", \"ssh_url\": \"d\", \"vcs\": \"git\"}]"))
+
+(def work-settings
+  (config/configured-repository-settings
+    {:checkouts [{:from "work.json" :anchor work-dir}]}))
+
+(defn- work-select
+  "Select in the work repositories with `options`."
+  [options]
+  (selection/select (merge {:directory work-config-dir :at work-dir :jobs 1}
+                           options)
+                    work-settings))
+
+(defn- work-paths
+  "The names of the work repositories a selection picked."
+  [result]
+  (map (fn [repository] (path/basename (repository :path)))
+       (result :repositories)))
+
+(defn test-state-and-commands-narrow-the-selection
+  "The state and the checkout filters keep what they match, one stage after another."
+  []
+  (assert (deep= @["clean" "dirty"] (work-paths (work-select {}))))
+  (assert (deep= @["dirty"] (work-paths (work-select {:wanted-state :dirty}))))
+  (assert (deep= @["clean"] (work-paths (work-select {:wanted-state :clean}))))
+  (assert (deep= @["dirty"]
+                 (work-paths (work-select {:filter-values ["test -f marker"]}))))
+  (assert (empty? (work-paths (work-select {:wanted-state :clean
+                                            :filter-values ["test -f marker"]})))
+          "the stages combine")
+  (assert (deep= {:kind :emptied-by-state :of 2 :wanted :clean :commands? true}
+                 ((work-select {:wanted-state :clean
+                                :filter-values ["test -f marker"]}) :reason))
+          "what the stages emptied is named")
+  (assert (deep= {:kind :emptied-by-state :of 2 :wanted nil :commands? true}
+                 ((work-select {:filter-values ["false"]}) :reason))
+          "a command that matches nowhere is named")
+  (def nowhere (path/join work-dir "nowhere"))
+  (assert (deep= {:kind :none-beneath-path :at nowhere}
+                 ((work-select {:at nowhere :wanted-state :dirty}) :reason))
+          "nothing was left for the stages to empty"))
+
+(defn test-after-stage-runs-between-stages
+  "The caller hears of each stage that completed, so it can stop between them."
+  []
+  (var stages 0)
+  (work-select {:after-stage (fn [] (++ stages))})
+  (assert (= 0 stages) "no stage was asked for")
+  (work-select {:wanted-state :dirty :after-stage (fn [] (++ stages))})
+  (assert (= 1 stages) "the state stage")
+  (work-select {:wanted-state :dirty :filter-values ["true"]
+                :after-stage (fn [] (++ stages))})
+  (assert (= 3 stages) "both stages"))
+
+(defn test-unreadable-repository-stops-the-selection
+  "A failing stage raises something a caller can tell from a bad configuration."
+  []
+  (def broken (make-checkout "broken"))
+  (spit (path/join broken ".git" "HEAD") "garbage")
+  (def broken-config-dir (path/join config-dir "broken-config"))
+  (sh/create-dirs broken-config-dir)
+  (spit (path/join broken-config-dir "work.json")
+        "[{\"path\": \"broken\", \"ssh_url\": \"b\", \"vcs\": \"git\"}]")
+  (def failure
+    (try (do (selection/select {:directory broken-config-dir :at work-dir
+                                :wanted-state :dirty :jobs 1}
+                               work-settings)
+           nil)
+      ([err] err)))
+  (assert (and (dictionary? failure) (string? (failure :stage-error)))
+          "the stage's own message is kept")
+  (def bad-configuration
+    (try (do (selection/select {:directory config-dir :at "/srv"}
+                               (config/configured-repository-settings
+                                 {:checkouts [{:from "gone.json" :anchor "/srv"}]}))
+           nil)
+      ([err] err)))
+  (assert (string? bad-configuration) "a configuration error stays a string")
+  (sh/rm broken))
+
+(defn test-catalog-only-picks-nothing
+  "Asking for the catalog alone runs no stage, whatever the filters ask."
+  []
+  (var stages 0)
+  (def result
+    (work-select {:catalog-only? true :wanted-state :dirty
+                  :filter-values ["false"] :after-stage (fn [] (++ stages))}))
+  (assert (= 0 stages) "no stage ran")
+  (assert (empty? (result :repositories)) "nothing is picked")
+  (assert (nil? (result :reason)) "so there is nothing to explain")
+  (assert (deep= @["clean" "dirty"]
+                 (map (fn [repository] (path/basename (repository :path)))
+                      ((result :catalog) :repositories)))
+          "the catalog is whole"))
+
+(test-catalog-only-picks-nothing)
+(test-state-and-commands-narrow-the-selection)
+(test-unreadable-repository-stops-the-selection)
+(test-after-stage-runs-between-stages)
+(test-nothing-configured)
+(test-no-configuration-directory)
+
+(sh/rm config-dir)
 (end-suite)
