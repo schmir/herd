@@ -5,10 +5,10 @@
 (import ./location)
 (import ./vcs)
 
-(defn scan-root
-  ``Return the directory a scan from `at-path` starts at: the innermost
+(defn discover-root
+  ``Return the directory a discovery from `at-path` starts at: the innermost
   repository holding `at-path`, or `at-path` itself. Selection picks the
-  configured repositories holding the working location, so the scan has to
+  configured repositories holding the working location, so the discovery has to
   reach them too.``
   [at-path]
   (var directory (path/abspath at-path))

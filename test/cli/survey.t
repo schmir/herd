@@ -53,7 +53,7 @@ Inside an extra repository, that repository is found, however deep.
   $ herd list --extra -C src/scratch/lib/deep
   $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
-The scan does not enter repositories, so a checkout nested inside one is not
+Discovery does not enter repositories, so a checkout nested inside one is not
 reported.
 
   $ git init -q src/api/vendor/lib
@@ -84,7 +84,7 @@ meant to be there.
   $ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ rm -r "$CONFIG/config.jdn" src/web
 
---max-depth limits the scan, with the path itself at depth zero.
+--max-depth limits the discovery, with the path itself at depth zero.
 
   $ herd list --extra --max-depth 1
   $ herd list --extra --max-depth 2
@@ -102,7 +102,7 @@ Hidden directories are skipped unless --hidden asks for them.
   $ROOT/home/src/bare\t (esc)
   $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
-The scan options mean nothing without a scan.
+The discovery options mean nothing without discovery.
 
   $ herd list --hidden
   usage error: --hidden applies only when extra repositories are listed, by --extra or a plain --status
@@ -111,7 +111,7 @@ The scan options mean nothing without a scan.
   usage error: --max-depth applies only when extra repositories are listed, by --extra or a plain --status
   [1]
 
-A path that is not a directory has nothing beneath it to scan, so only
+A path that is not a directory has nothing beneath it to discover, so only
 the configured side is reported there.
 
   $ herd list --extra -C nowhere

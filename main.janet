@@ -115,8 +115,8 @@
 (defn- explain-empty
   ``Say why `reason` says a selection is empty. Unless the reason is that the
   state or the shell commands emptied it, `quiet?` leaves it out: where the
-  disk is scanned as well, an empty selection would mislead, since the scan can
-  still turn up repositories.``
+  disk is searched as well, an empty selection would mislead, since the
+  discovery can still turn up repositories.``
   [reason quiet?]
   # Since --at defaults to the current directory, standing in the wrong place
   # otherwise looks like a broken configuration.
@@ -203,7 +203,7 @@
     (explain-empty reason quiet?))
   result)
 
-(defn- scan-jobs
+(defn- parse-jobs
   ``Return the job count `count` names, or raise a descriptive error. It
   arrives from the command line as a string, and is weighed against the range
   parallel/run-repositories accepts, so an out-of-range count fails here with
@@ -224,10 +224,10 @@
               ;(command-spec command (merge {"at" (os/cwd)} defaults))
               ;rest))
 
-(defn- parsed-jobs
+(defn- jobs-from
   "Return the validated --jobs count, or report the mistake and exit."
   [parsed]
-  (exit-on-error "Invalid --jobs: " (fn [] (scan-jobs (parsed "jobs")))))
+  (exit-on-error "Invalid --jobs: " (fn [] (parse-jobs (parsed "jobs")))))
 
 (defn- selection-options
   "The selection options `parsed` holds: where, from which anchors, and by which -f."
@@ -253,7 +253,7 @@
     (parse-command args "clone"
                    "Check out the configured repositories beneath a path."
                    {"jobs" (string (or jobs parallel/default-jobs))}))
-  (def jobs (parsed-jobs parsed))
+  (def jobs (jobs-from parsed))
   (def selection (resolve-filters parsed repository-settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
   (when-let [value (first (selection :command-values))]
@@ -269,10 +269,10 @@
     result (pos? (+ ((result :counts) :failed) ((result :counts) :blocked)))))
 
 (def- discovery-options
-  "The list options that shape the scan of the disk, by name."
+  "The list options that shape the discovery on disk, by name."
   ["max-depth" "hidden" "follow-links"])
 
-(defn- scan-max-depth
+(defn- parse-max-depth
   ``Return the depth --max-depth names, nil when it is not given, or raise a
   descriptive error.``
   [depth]
@@ -282,23 +282,23 @@
       (error "expected a non-negative integer"))
     parsed))
 
-(defn- extra-on-disk
-  ``Scan the disk from `--at` and return the repositories no repository list
-  defines, whatever their anchor or the filters named on the command line.
-  A checkout row's own filter does count: a repository it leaves out is not
-  meant to be there.``
+(defn- discover-extra
+  ``Discover repositories on disk from `--at` and return the ones no
+  repository list defines, whatever their anchor or the filters named on the
+  command line. A checkout row's own filter does count: a repository it
+  leaves out is not meant to be there.``
   [parsed repository-settings names configured]
   (def max-depth
     (exit-on-error "Invalid --max-depth: "
-                   (fn [] (scan-max-depth (parsed "max-depth")))))
+                   (fn [] (parse-max-depth (parsed "max-depth")))))
   (def everything
     (if (empty? names)
       configured
       (((select-repositories {:catalog-only? true} repository-settings) :catalog)
         :repositories)))
-  (def root (survey/scan-root (parsed "at")))
+  (def root (survey/discover-root (parsed "at")))
   # Selection accepts a path that is not a directory, such as a repository
-  # not cloned yet, and there is nothing beneath it to scan.
+  # not cloned yet, and there is nothing beneath it to discover.
   (def discovered
     (if (= :directory (os/stat root :mode))
       (discover/find-repositories root
@@ -326,16 +326,16 @@
   # there to show what differs.
   (def want-ok? (if picked? (parsed "ok") (not show-status?)))
   (def want-missing? (if picked? (parsed "missing") true))
-  (def scan? (if picked? (parsed "extra") show-status?))
-  (unless scan?
+  (def discover? (if picked? (parsed "extra") show-status?))
+  (unless discover?
     (when-let [name (find parsed discovery-options)]
       (eprint "usage error: --" name " applies only when extra "
               "repositories are listed, by --extra or a plain --status")
       (os/exit 1)))
   (def show-configured? (or want-ok? want-missing?))
-  # Explaining an empty selection would mislead when the disk is scanned as
-  # well, since that can still turn up repositories. The disk scan needs the
-  # catalog, but a list of only the extra repositories selects none from it.
+  # Explaining an empty selection would mislead when the disk is searched as
+  # well, since that can still turn up repositories. The disk discovery needs
+  # the catalog, but a list of only the extra repositories selects none from it.
   (def result
     (select-repositories
       (merge (selection-options parsed)
@@ -343,8 +343,8 @@
               :jobs parallel/default-jobs
               :catalog-only? (not show-configured?)})
       repository-settings
-      :unconfigured-ok? scan?
-      :quiet? scan?))
+      :unconfigured-ok? discover?
+      :quiet? discover?))
   (def configured ((result :catalog) :repositories))
   (def selected (result :repositories))
   (defn emit [status & fields]
@@ -355,8 +355,8 @@
                   (checkout/checkout-status repository)))
     (when (if (= :ok status) want-ok? want-missing?)
       (emit status (repository :path) (repository :ssh_url))))
-  (when scan?
-    (each repository (extra-on-disk parsed repository-settings ((result :filters) :names) configured)
+  (when discover?
+    (each repository (discover-extra parsed repository-settings ((result :filters) :names) configured)
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))
 
@@ -367,7 +367,7 @@
   (def show-output
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
-  (def jobs (parsed-jobs parsed))
+  (def jobs (jobs-from parsed))
   (def repositories
     ((select-repositories
        (merge (selection-options parsed)
