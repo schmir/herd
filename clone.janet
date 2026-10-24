@@ -19,7 +19,7 @@
   path, and move the result to path once the VCS succeeds, so path only ever
   holds a finished clone. Return what capture-process did, with a failed
   move as a nonzero status.``
-  [command-for env path]
+  [command-for path]
   # A link to an empty directory is filled through: the clone replaces the
   # directory it leads to, and the link is kept.
   (def target (if (= :link (os/lstat path :mode)) (os/realpath path) path))
@@ -27,7 +27,7 @@
   # What a crashed clone left behind, which the VCS would refuse to clone
   # into.
   (sh/rm staging)
-  (def result (process/capture-process (command-for staging) : env))
+  (def result (process/capture-process (command-for staging)))
   (if (zero? (result :status))
     (try
       (do
@@ -45,7 +45,7 @@
   ``Clone a repository with vcs unless it is already checked out, or
   something that is not a repository stands in its way.
   Return :skipped, :blocked, :cloned, or :failed.``
-  [executable env report url path &opt vcs]
+  [executable report url path &opt vcs]
   (case (checkout/checkout-status {:path path})
     "ok" :skipped
     "blocked"
@@ -60,7 +60,7 @@
             (fn [staging]
               (vcs/clone-command (or vcs vcs/default)
                                  executable url staging))
-            env path))
+            path))
         (if (zero? (result :status))
           (do
             (report "Clone complete: " path)
@@ -81,30 +81,26 @@
   (def executables
     (tabseq [name :in (vcs/names)]
       (vcs/parse name) (process/find-executable name)))
-  # Clones must never inherit the terminal: several run at once, and a VCS
-  # or SSH prompt on a shared stdin would interleave or hang the whole run.
-  (with [devnull (file/open "/dev/null" :r)]
-    (def env {:in devnull})
-    (parallel/run-repositories
-      repositories
-      [[:cloned "cloned"]
-       [:skipped "already checked out"]
-       [:blocked "blocked"]
-       [:failed "failed"]]
-      (fn [repository report]
-        # Each checkout has its final VCS after loading.
-        (def selected-vcs (get repository :vcs vcs/default))
-        (def executable (get executables selected-vcs))
-        # Only a clone needs the VCS, so a repository that will not be
-        # cloned is reported as what it is rather than as a missing VCS.
-        (if (or executable
-                (not= "missing" (checkout/checkout-status repository)))
-          (clone-repository executable env report
-                            (repository :ssh_url)
-                            (repository :path)
-                            selected-vcs)
-          (do
-            (report "Clone failed: " (repository :path) ": "
-                    (vcs/name selected-vcs) " was not found on PATH")
-            :failed)))
-      jobs)))
+  (parallel/run-repositories
+    repositories
+    [[:cloned "cloned"]
+     [:skipped "already checked out"]
+     [:blocked "blocked"]
+     [:failed "failed"]]
+    (fn [repository report]
+      # Each checkout has its final VCS after loading.
+      (def selected-vcs (get repository :vcs vcs/default))
+      (def executable (get executables selected-vcs))
+      # Only a clone needs the VCS, so a repository that will not be
+      # cloned is reported as what it is rather than as a missing VCS.
+      (if (or executable
+              (not= "missing" (checkout/checkout-status repository)))
+        (clone-repository executable report
+                          (repository :ssh_url)
+                          (repository :path)
+                          selected-vcs)
+        (do
+          (report "Clone failed: " (repository :path) ": "
+                  (vcs/name selected-vcs) " was not found on PATH")
+          :failed)))
+    jobs))

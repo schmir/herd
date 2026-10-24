@@ -24,13 +24,22 @@
   `flags` and `env` are os/spawn's, except that stdout and stderr are always
   pipes this reads: a child writing more than a pipe buffer holds would block
   forever on one nobody drains, so both are drained while it runs rather than
-  after it exits. The process is closed on the way out, which closes those
-  pipes; left to the garbage collector instead, a run over a few hundred
-  repositories can hold open more descriptors than the process is allowed.``
+  after it exits. Unless `env` gives it an `:in`, the child finds standard
+  input closed, since runs go on in parallel and a child sharing the terminal
+  would interleave or hang the others. The process is closed on the way out,
+  which closes those pipes; left to the garbage collector instead, a run over
+  a few hundred repositories can hold open more descriptors than the process
+  is allowed.``
   [args &opt flags env]
   (default flags :)
   (default env {})
-  (with [process (os/spawn args flags (merge env {:out :pipe :err :pipe}))]
+  (with [process (os/spawn args flags
+                           (merge {:in :pipe} env {:out :pipe :err :pipe}))]
+    # The child has its end of whatever it reads. Ours is closed at once, which
+    # is what ends the input of a child that was given a pipe, and spawn leaves
+    # open a stream for one that was given a file.
+    (when-let [input (process :in)]
+      (:close input))
     (def stdout @"")
     (def stderr @"")
     (ev/gather

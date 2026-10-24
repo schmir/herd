@@ -15,14 +15,14 @@
 
 (def existing (path/join dir "existing"))
 (sh/create-dirs (path/join existing ".git"))
-(assert (= :skipped (clone/clone-repository nil nil nil "unused" existing))
+(assert (= :skipped (clone/clone-repository nil nil "unused" existing))
         "an existing checkout does not start a process")
 
 (def occupied (path/join dir "occupied"))
 (sh/create-dirs occupied)
 (spit (path/join occupied "file") "present")
 (var blocked-messages @[])
-(assert (= :blocked (clone/clone-repository nil nil
+(assert (= :blocked (clone/clone-repository nil
                                             (fn [& args] (array/push blocked-messages (string ;args)))
                                             "unused" occupied))
         "something that is not a repository blocks the clone")
@@ -44,12 +44,11 @@
 # Writes the marker, then dies as a crashed or killed clone would.
 (def dying-vcs (fake-vcs "dying" `mkdir -p "$dest/.git"; exit 9`))
 
-(with [devnull (file/open "/dev/null" :r)]
-  (def env {:in devnull :out :pipe :err :pipe})
+(do
   (var messages @[])
   (def success (path/join dir "success"))
   (assert (= :cloned
-             (clone/clone-repository cloning-vcs env
+             (clone/clone-repository cloning-vcs
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" success)))
   (assert (= 1 (length messages)) "a successful clone reports completion")
@@ -60,7 +59,7 @@
 
   (def empty (path/join dir "empty"))
   (sh/create-dirs empty)
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+  (assert (= :cloned (clone/clone-repository cloning-vcs (fn [&]) "unused"
                                              empty))
           "an empty directory is cloned into")
   (assert (= :directory (os/stat (path/join empty ".git") :mode)))
@@ -69,7 +68,7 @@
   (def link (path/join dir "link"))
   (sh/create-dirs link-target)
   (os/symlink "link-target" link)
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+  (assert (= :cloned (clone/clone-repository cloning-vcs (fn [&]) "unused"
                                              link))
           "a link to an empty directory is cloned through")
   (assert (= :link (os/lstat link :mode)) "the link is kept")
@@ -77,20 +76,20 @@
 
   (def leftover (path/join dir "leftover"))
   (sh/create-dirs (path/join (clone/staging-path leftover) ".git"))
-  (assert (= :cloned (clone/clone-repository cloning-vcs env (fn [&]) "unused"
+  (assert (= :cloned (clone/clone-repository cloning-vcs (fn [&]) "unused"
                                              leftover))
           "what an earlier crashed clone staged does not stop the next one")
 
   (set messages @[])
   (def failure (path/join dir "failure"))
   (assert (= :failed
-             (clone/clone-repository (process/find-executable "false") env
+             (clone/clone-repository (process/find-executable "false")
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" failure)))
   (assert (= 1 (length messages)) "a failed clone reports its path")
 
   (def crashed (path/join dir "crashed"))
-  (assert (= :failed (clone/clone-repository dying-vcs env (fn [&]) "unused"
+  (assert (= :failed (clone/clone-repository dying-vcs (fn [&]) "unused"
                                              crashed)))
   (assert (= "missing" (checkout/checkout-status {:path crashed}))
           "a clone that dies half-written does not pass for a checkout")
@@ -100,7 +99,7 @@
   (set messages @[])
   (def vanished (path/join dir "vanished"))
   (assert (= :failed
-             (clone/clone-repository (process/find-executable "true") env
+             (clone/clone-repository (process/find-executable "true")
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" vanished))
           "a VCS that succeeds without writing a clone has failed")
