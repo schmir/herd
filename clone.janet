@@ -44,10 +44,10 @@
 (defn clone-repository
   ``Clone a repository with `vcs-id` unless it is already checked out, or
   something that is not a repository stands in its way.
-  Return :skipped, :blocked, :cloned, or :failed.``
+  Return :present, :blocked, :cloned, or :failed.``
   [executable report url path &opt vcs-id]
   (case (checkout/checkout-status {:path path})
-    :ok :skipped
+    :ok :present
     :blocked
     (do
       (report "Clone blocked: " path
@@ -76,7 +76,7 @@
 
 (defn clone-repositories
   ``Clone repositories with their selected VCS and limit concurrent processes.
-  Return what parallel/for-each-repository does, with the cloned, skipped,
+  Return what parallel/for-each-repository does, with the cloned, present,
   blocked, and failed counts.``
   [repositories &opt jobs]
   (def executables
@@ -85,7 +85,7 @@
   (parallel/for-each-repository
     repositories
     [[:cloned "cloned"]
-     [:skipped "already checked out"]
+     [:present "already checked out"]
      [:blocked "blocked"]
      [:failed "failed"]]
     (fn [repository report]

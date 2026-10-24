@@ -99,7 +99,7 @@
                        "always" true))
             (report (format-command-result repository status stdout stderr)))
           (if succeeded :succeeded :failed))
-        :skipped)
+        :no-command)
       :not-checked-out)
     ([err]
       (unless (= "never" show-output)
@@ -117,7 +117,7 @@
 
 (defn run-in-repositories
   ``Run a command in parallel and return what parallel/for-each-repository does,
-  with the succeeded, failed, skipped, and not-checked-out counts.``
+  with the succeeded, failed, no-command, and not-checked-out counts.``
   [repositories command &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
@@ -126,7 +126,7 @@
     repositories
     [[:succeeded "succeeded"]
      [:failed "failed"]
-     [:skipped "skipped"]
+     [:no-command "skipped"]
      [:not-checked-out "not checked out"]]
     (fn [repository report]
       (run-in-repository repository command
