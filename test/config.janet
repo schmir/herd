@@ -3,7 +3,6 @@
 (import spork/path)
 (import spork/sh)
 (import ../config)
-(import ../entries)
 (import ../filter)
 (import ../main :as herd)
 
@@ -60,24 +59,24 @@
 # --- validate-config ------------------------------------------------------
 
 (assert-error "a bare object is not a configuration"
-              (entries/validate-config {:path "a" :ssh_url "b"}))
-(assert-error "entries must be objects" (entries/validate-config [42]))
-(assert-error "path is required" (entries/validate-config [{:ssh_url "b"}]))
-(assert-error "ssh_url is required" (entries/validate-config [{:path "a"}]))
-(assert-error "path must be a string" (entries/validate-config [{:path 1 :ssh_url "b"}]))
+              (config/validate-repository-list {:path "a" :ssh_url "b"}))
+(assert-error "entries must be objects" (config/validate-repository-list [42]))
+(assert-error "path is required" (config/validate-repository-list [{:ssh_url "b"}]))
+(assert-error "ssh_url is required" (config/validate-repository-list [{:path "a"}]))
+(assert-error "path must be a string" (config/validate-repository-list [{:path 1 :ssh_url "b"}]))
 (assert-error "vcs must be a string"
-              (entries/validate-config [{:path "a" :ssh_url "b" :vcs :jj}]))
+              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs :jj}]))
 (assert-error "vcs cannot be false"
-              (entries/validate-config [{:path "a" :ssh_url "b" :vcs false}]))
+              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs false}]))
 (assert-error "vcs must be git or jj"
-              (entries/validate-config [{:path "a" :ssh_url "b" :vcs "svn"}]))
+              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "svn"}]))
 (assert-no-error "a well formed entry passes"
-                 (entries/validate-config [{:path "a" :ssh_url "b"}]))
+                 (config/validate-repository-list [{:path "a" :ssh_url "b"}]))
 (assert-no-error "a repository can select Git"
-                 (entries/validate-config [{:path "a" :ssh_url "b" :vcs "git"}]))
+                 (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "git"}]))
 (assert-no-error "a repository can select jj"
-                 (entries/validate-config [{:path "a" :ssh_url "b" :vcs "jj"}]))
-(assert-no-error "an empty configuration is valid" (entries/validate-config []))
+                 (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "jj"}]))
+(assert-no-error "an empty configuration is valid" (config/validate-repository-list []))
 
 # --- custom commands ------------------------------------------------------
 

@@ -1,11 +1,11 @@
 # Tests for narrowing repository lists with named filters.
 (use spork/test)
 (import spork/path)
+(import spork/json)
 (import spork/sh)
 (import ../config)
 (import ../filter)
 (import ../process)
-(import ../entries)
 
 (start-suite "filter")
 
@@ -92,7 +92,7 @@
 (defn- paths
   "The paths in a filter's answer, so assertions read as plain lists."
   [answer]
-  (map (fn [repository] (repository :path)) (entries/parse-config answer)))
+  (map (fn [repository] (repository :path)) (json/decode answer true)))
 
 # --- validate-registry ----------------------------------------------------
 
