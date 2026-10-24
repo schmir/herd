@@ -26,6 +26,20 @@
     resolved
     (bare-path (path/join resolved ;(reverse missing)))))
 
+(defn- caching-comparable-path
+  ``A function that gives the `comparable-path` of a path, asking the
+  filesystem once for each distinct path it is given. A catalog has a few
+  anchors that every repository repeats, and resolving each again for every
+  repository is most of what a selection costs. It lasts as long as the call
+  that made it, so a link that changes between runs is never remembered.``
+  []
+  (def known @{})
+  (fn [path]
+    (or (get known path)
+        (let [resolved (comparable-path path)]
+          (put known path resolved)
+          resolved))))
+
 (defn- holds-path?
   ``Whether `ancestor` is `descendant` or holds it somewhere below. Compares
   whole segments, so /srv/foobar is not held by /srv/foo.``
@@ -39,9 +53,10 @@
   under, each once, in the order they are first seen.``
   [repositories]
   (def found @[])
+  (def resolved-anchor (caching-comparable-path))
   (each repository repositories
     (each anchor (get repository :anchors [])
-      (def candidate (comparable-path anchor))
+      (def candidate (resolved-anchor anchor))
       (unless (some (fn [known] (= candidate known)) found)
         (array/push found candidate))))
   found)
@@ -58,10 +73,11 @@
   are at `at-path`, beneath it or holding it.``
   [at-path repositories selected-anchors]
   (def comparable-at-path (comparable-path at-path))
+  (def resolved-anchor (caching-comparable-path))
   (filter (fn [repository]
             (def candidate (comparable-path (repository :path)))
             (and (some (fn [repository-anchor]
-                         (def normalized (comparable-path repository-anchor))
+                         (def normalized (resolved-anchor repository-anchor))
                          (some (fn [anchor] (= normalized anchor))
                                selected-anchors))
                        (get repository :anchors []))
