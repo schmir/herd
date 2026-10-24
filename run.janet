@@ -78,7 +78,7 @@
     # checked out rather than as a place to run the command.
     (if (= :ok (checkout/checkout-status repository))
       (if-let [selected (argv-for-repository repository command)]
-        (let [result (process/capture-process
+        (let [result (process/capture
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`
                         "herd" (repository :path) ;selected]
                        :p)

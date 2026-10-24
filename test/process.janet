@@ -7,7 +7,7 @@
 (defn test-a-child-reads-no-input-by-default
   "A child that nobody gave input to finds nothing to read, rather than the terminal."
   []
-  (def result (process/capture-process ["cat"] :p))
+  (def result (process/capture ["cat"] :p))
   (assert (= "" (string (result :out))) "cat reads an empty standard input")
   (assert (zero? (result :status))))
 
@@ -18,7 +18,7 @@
     (file/write input "given")
     (file/flush input)
     (file/seek input :set 0)
-    (def result (process/capture-process ["cat"] :p {:in input}))
+    (def result (process/capture ["cat"] :p {:in input}))
     (assert (= "given" (string (result :out))))))
 
 (defn test-no-descriptor-outlives-a-capture
@@ -32,8 +32,8 @@
     (gccollect)
     (with [input (file/open "/dev/null" :r)]
       (def before (open-descriptors))
-      (for _ 0 20 (process/capture-process ["true"] :p))
-      (for _ 0 20 (process/capture-process ["true"] :p {:in input}))
+      (for _ 0 20 (process/capture ["true"] :p))
+      (for _ 0 20 (process/capture ["true"] :p {:in input}))
       (assert (<= (open-descriptors) (+ before 2))
               "forty captures leave no descriptor behind"))))
 

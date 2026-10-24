@@ -19,7 +19,7 @@
               candidate)))
         (string/split ":" (os/getenv "PATH" ""))))
 
-(defn capture-process
+(defn capture
   ``Run `args` to completion and return what it did as `{:status :out :err}`.
   `flags` and `env` are os/spawn's, except that stdout and stderr are always
   pipes this reads: a child writing more than a pipe buffer holds would block
