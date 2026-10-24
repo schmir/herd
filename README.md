@@ -51,7 +51,7 @@ repositories:
 
 Both `path` and `ssh_url` are required and must be strings. The optional
 `vcs` is `"jj"` or `"git"` and decides how `herd clone` checks that
-repository out; see [Checkout options](#checkout-options).
+repository out; see [Repository options](#repository-options).
 
 Every repository list is checked out under one or more **anchors**: the
 directories its relative paths resolve against. By default there is a single
@@ -61,7 +61,7 @@ decide which repositories a command considers; see [Selection](#selection).
 
 You can split repositories across any number of JSON files; files are loaded
 in name order. Duplicate paths are accepted only when their URLs and their
-checkout options agree.
+repository options agree.
 
 A repository list holds nothing but repositories, so whatever writes one
 needs to know nothing else. Where a list is anchored and how its
@@ -141,7 +141,7 @@ visible location in the configuration directory, which is also the name
 `:from` knows it by, so point its rows at the directory tree it describes
 when the list lives next to that tree.
 
-### Checkout options
+### Repository options
 
 `:vcs` decides how `herd clone` checks a repository out: `"jj"` for a
 colocated Git/Jujutsu working copy, `"git"` for a plain Git one. It can be
@@ -377,7 +377,7 @@ repositories or hidden directories, and does not follow symbolic links.
 `--max-depth N`, `--hidden` and `--follow-links` change that.
 
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
-plain Git ones, following the checkout options in force for each:
+plain Git ones, following the repository options in force for each:
 
 ```sh
 herd clone

@@ -46,7 +46,7 @@
     ([err] (string err))))
 
 (defn- anchor-paths
-  "Return the paths of resolved anchors, dropping their checkout options."
+  "Return the paths of resolved anchors, dropping their repository options."
   [anchors]
   (map (fn [repository] (repository :path)) anchors))
 
@@ -665,7 +665,7 @@
                                                  @[{:anchor "/missing/anchor"}])))
           "an absolute configured anchor need not exist")
 
-  # A row carries the checkout options it was merged with, and nothing else.
+  # A row carries the repository options it was merged with, and nothing else.
   (let [anchors (config/resolve-checkout-rows (string configuration "/real.json")
                                               configuration
                                               @[{:anchor "work" :vcs "git"}

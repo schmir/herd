@@ -351,9 +351,9 @@
     (print ;(if show-status? [state "\t"] []) (string/join fields "\t")))
   (each repository selected
     (def state (if (and want-ok? want-missing? (not show-status?))
-                 "ok"
+                 :ok
                  (checkout/checkout-status repository)))
-    (when (if (= "ok" state) want-ok? want-missing?)
+    (when (if (= :ok state) want-ok? want-missing?)
       (emit state (repository :path) (repository :ssh_url))))
   (when scan?
     (each repository (extra-on-disk parsed repository-settings ((result :filters) :names) configured)

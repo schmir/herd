@@ -100,14 +100,14 @@
   (unless (dictionary? checkout-row)
     (error (string where " must be a dictionary")))
   (eachk key checkout-row
-    (reject-unknown-setting where key [;checkout-row-keys ;checkout/checkout-keys]))
+    (reject-unknown-setting where key [;checkout-row-keys ;checkout/option-keys]))
   (def from (get checkout-row :from))
   (unless (and (string? from) (not (empty? from)))
     (error (string where " needs a :from naming a repository list")))
   (validate-anchor-setting checkout-row where)
   (validate-filter-setting checkout-row where)
   (validate-strip-components-setting checkout-row where)
-  (checkout/validate-checkout-options checkout-row where)
+  (checkout/validate-repository-options checkout-row where)
   checkout-row)
 
 (defn validate-checkout-defaults
@@ -116,10 +116,10 @@
   (unless (dictionary? defaults)
     (error ":defaults must be a dictionary"))
   (eachk key defaults
-    (reject-unknown-setting ":defaults" key [:anchor :filter ;checkout/checkout-keys]))
+    (reject-unknown-setting ":defaults" key [:anchor :filter ;checkout/option-keys]))
   (validate-anchor-setting defaults ":defaults")
   (validate-filter-setting defaults ":defaults")
-  (checkout/validate-checkout-options defaults ":defaults")
+  (checkout/validate-repository-options defaults ":defaults")
   defaults)
 
 (defn parse-settings-file
@@ -175,11 +175,11 @@
     @[(merge defaults)]
     (map (fn [checkout-row] (merge defaults checkout-row)) matching)))
 
-(defn- checkout-options
-  "Return only the checkout options set in `source`."
+(defn- repository-options
+  "Return only the repository options set in `source`."
   [source]
   (def options @{})
-  (each key checkout/checkout-keys
+  (each key checkout/option-keys
     (def value (get source key))
     (unless (nil? value)
       (put options key value)))
@@ -210,7 +210,7 @@
             (path/abspath anchor))
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
-    (merge (checkout-options checkout-row)
+    (merge (repository-options checkout-row)
            {:path resolved
             :filter (get checkout-row :filter [])
             :strip-components (get checkout-row :strip-components 0)})))
@@ -232,13 +232,13 @@
 
 (defn resolve-repository-paths
   ``Resolve each entry once per placement, stripping its leading components and
-  applying its checkout options. Entries without placements produce no
+  applying its repository options. Entries without placements produce no
   checkouts. Unstripped absolute paths remain the same under all placements so
   `merge-repository-lists` can combine them.``
   [entries placements]
   (def resolved @[])
   (each placement placements
-    (def options (checkout-options placement))
+    (def options (repository-options placement))
     (with-dyns [:path-cwd (placement :path)]
       (each entry entries
         (def repository-path
@@ -246,7 +246,7 @@
                                  (get placement :strip-components 0)
                                  (placement :path)))
         # Apply options from least to most specific: defaults, placement, entry.
-        (def settled (merge checkout/default-checkout-options options entry))
+        (def settled (merge checkout/default-repository-options options entry))
         (array/push resolved
                     (merge settled
                            {:vcs (vcs/parse (settled :vcs))
@@ -266,7 +266,7 @@
     (each key [:path :ssh_url]
       (unless (string? (entry key))
         (error (string "entry " index " needs a string \"" key "\""))))
-    (checkout/validate-checkout-options entry (string "entry " index) `"vcs"`))
+    (checkout/validate-repository-options entry (string "entry " index) `"vcs"`))
   rows)
 
 (defn read-repository-list
@@ -307,7 +307,7 @@
 (defn merge-repository-lists
   ``Concatenate `[list-path repositories]` pairs into one repository list.
   Two files may name the same checkout only when they agree on the URL and on
-  every checkout option; letting them disagree would make the result depend
+  every repository option; letting them disagree would make the result depend
   on the reading order.``
   [lists]
   (def seen @{})
@@ -316,20 +316,20 @@
     (each repository repositories
       (def previous (get seen (repository :path)))
       # Weigh whichever options there are rather than naming one of them, so
-      # that a checkout option added later is compared without this having to
+      # that a repository option added later is compared without this having to
       # be remembered and revisited.
       (def disagreement
         (when previous
           (find (fn [key]
                   (not= (get-in previous [:options key]) (get repository key)))
-                checkout/checkout-keys)))
+                checkout/option-keys)))
       (cond
         (nil? previous)
         (do
           (put seen (repository :path)
                {:source list-path
                 :ssh_url (repository :ssh_url)
-                :options (checkout-options repository)
+                :options (repository-options repository)
                 :anchors (repository :anchors)})
           (array/push merged repository))
 
