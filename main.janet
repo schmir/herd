@@ -347,14 +347,14 @@
       :quiet? scan?))
   (def configured ((result :catalog) :repositories))
   (def selected (result :repositories))
-  (defn emit [state & fields]
-    (print ;(if show-status? [state "\t"] []) (string/join fields "\t")))
+  (defn emit [status & fields]
+    (print ;(if show-status? [status "\t"] []) (string/join fields "\t")))
   (each repository selected
-    (def state (if (and want-ok? want-missing? (not show-status?))
-                 :ok
-                 (checkout/checkout-status repository)))
-    (when (if (= :ok state) want-ok? want-missing?)
-      (emit state (repository :path) (repository :ssh_url))))
+    (def status (if (and want-ok? want-missing? (not show-status?))
+                  :ok
+                  (checkout/checkout-status repository)))
+    (when (if (= :ok status) want-ok? want-missing?)
+      (emit status (repository :path) (repository :ssh_url))))
   (when scan?
     (each repository (extra-on-disk parsed repository-settings ((result :filters) :names) configured)
       (emit "extra" (repository :path)
