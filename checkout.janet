@@ -1,15 +1,12 @@
 # The checkout a repository is given: what chooses one, and what is on disk.
 
 (import spork/path)
-
-(def default-vcs
-  "The VCS used for repositories that do not select one."
-  "jj")
+(import ./vcs)
 
 (def default-checkout-options
   ``Default checkout options. Their keys define the options that each
   configuration level accepts.``
-  {:vcs default-vcs})
+  {:vcs (vcs/name vcs/default)})
 
 (def checkout-keys
   "Checkout option names accepted at each configuration level."
@@ -22,18 +19,10 @@
   (default spelling ":vcs")
   (def vcs (get options :vcs :unset))
   (unless (= :unset vcs)
-    (unless (and (string? vcs) (or (= "git" vcs) (= "jj" vcs)))
-      (error (string where " has an invalid " spelling
-                     "; expected \"git\" or \"jj\""))))
+    (unless (vcs/known? vcs)
+      (error (string where " has an invalid " spelling "; expected "
+                     (string/join (map describe (vcs/names)) " or ")))))
   options)
-
-(defn repository-vcs
-  "Return the VCS identified by repository metadata, or nil."
-  [repository]
-  (def root (repository :path))
-  (cond
-    (os/lstat (path/join root ".jj") :mode) :jj
-    (os/lstat (path/join root ".git") :mode) :git))
 
 (defn- vacant?
   "Whether nothing, or an empty directory, is at `path`."
@@ -53,6 +42,6 @@
   over and the other commands must not mistake for a checkout.``
   [repository]
   (cond
-    (repository-vcs repository) "ok"
+    (vcs/detect (repository :path)) "ok"
     (vacant? (repository :path)) "missing"
     "blocked"))

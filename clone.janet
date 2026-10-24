@@ -5,14 +5,15 @@
 (import ./checkout)
 (import ./parallel)
 (import ./process)
+(import ./vcs)
 
 (defn clone-process-command
   "Return the process command that clones url to path with vcs."
   [vcs executable url path]
   (case vcs
-    "git" [executable "clone" "--" url path]
-    "jj" [executable "git" "clone" "--colocate" "--" url path]
-    (error (string "unsupported VCS " vcs))))
+    :vcs/git [executable "clone" "--" url path]
+    :vcs/jj [executable "git" "clone" "--colocate" "--" url path]
+    (error (string "unsupported VCS " (describe vcs)))))
 
 (defn staging-path
   ``Return where a clone of `target` is written before it is moved into
@@ -65,7 +66,7 @@
         (def result
           (clone-into-place
             (fn [staging]
-              (clone-process-command (or vcs checkout/default-vcs)
+              (clone-process-command (or vcs vcs/default)
                                      executable url staging))
             env path))
         (if (zero? (result :status))
@@ -85,8 +86,9 @@
   ``Clone repositories with their selected VCS and limit concurrent processes.
   Return the cloned, skipped, blocked, and failed counts.``
   [repositories &opt jobs]
-  (def executables {"git" (process/find-executable "git")
-                    "jj" (process/find-executable "jj")})
+  (def executables
+    (tabseq [name :in (vcs/names)]
+      (vcs/parse name) (process/find-executable name)))
   # Clones must never inherit the terminal: several run at once, and a VCS
   # or SSH prompt on a shared stdin would interleave or hang the whole run.
   (with [devnull (file/open "/dev/null" :r)]
@@ -99,7 +101,7 @@
        [:failed "failed"]]
       (fn [repository report]
         # Each checkout has its final VCS after loading.
-        (def selected-vcs (get repository :vcs checkout/default-vcs))
+        (def selected-vcs (get repository :vcs vcs/default))
         (def executable (get executables selected-vcs))
         # Only a clone needs the VCS, so a repository that will not be
         # cloned is reported as what it is rather than as a missing VCS.
@@ -111,6 +113,6 @@
                             selected-vcs)
           (do
             (report "Clone failed: " (repository :path) ": "
-                    selected-vcs " was not found on PATH")
+                    (vcs/name selected-vcs) " was not found on PATH")
             :failed)))
       jobs)))

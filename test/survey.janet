@@ -24,10 +24,10 @@
         "outside every repository the scan starts where it was asked to")
 
 (def discovered
-  [{:path (path/join root "repo") :vcs "git"}
-   {:path (path/join root "other") :vcs "jj"}])
+  [{:path (path/join root "repo") :vcs :vcs/git}
+   {:path (path/join root "other") :vcs :vcs/jj}])
 
-(assert (deep= @[{:path (path/join root "other") :vcs "jj"}]
+(assert (deep= @[{:path (path/join root "other") :vcs :vcs/jj}]
                (survey/extra-repositories
                  discovered [{:path (path/join root "repo")}]))
         "a configured repository is not extra")
@@ -39,9 +39,28 @@
 (sh/create-dirs (path/join dir "link-target"))
 (os/symlink (path/join dir "link-target") (path/join root "link"))
 (assert (deep= @[] (survey/extra-repositories
-                     [{:path (path/join root "link") :vcs "git"}]
+                     [{:path (path/join root "link") :vcs :vcs/git}]
                      [{:path (path/join dir "link-target")}]))
         "a symbolic link names the repository it leads to")
+
+# jj answers for a repository whose git is hidden inside .jj, which asking git
+# directly cannot reach, so only a jj repository asked through jj has an origin.
+(import ../process)
+(when (process/find-executable "jj")
+  (def jj-repository (path/join dir "jj-only"))
+  (sh/create-dirs dir)
+  (assert (zero? (os/execute ["jj" "git" "init" "--no-colocate" jj-repository]
+                             :p {:out (file/open "/dev/null" :w)
+                                 :err (file/open "/dev/null" :w)}))
+          "jj makes the repository")
+  (assert (zero? (os/execute ["jj" "-R" jj-repository "git" "remote" "add"
+                              "origin" "git@example.com:jj-only.git"]
+                             :p {:out (file/open "/dev/null" :w)
+                                 :err (file/open "/dev/null" :w)}))
+          "and gives it an origin")
+  (assert (= "git@example.com:jj-only.git"
+             (survey/remote-url {:path jj-repository :vcs :vcs/jj}))
+          "the origin of a jj repository is read through jj"))
 
 (sh/rm dir)
 (end-suite)

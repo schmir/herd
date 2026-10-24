@@ -1,27 +1,12 @@
 # Finding the git and jj repositories that lie below a directory.
 
 (import spork/path)
-
-(def markers
-  "VCS markers in precedence order. jj controls colocated repositories."
-  [["jj" ".jj"] ["git" ".git"]])
-
-(def marker-names
-  "Marker names that the walk must not enter."
-  (map (fn [marker] (marker 1)) markers))
-
-(defn directory-vcs
-  ``Return the VCS marked in `directory`, or nil.
-  A `.git` marker can be a file or a directory.``
-  [directory]
-  (some (fn [[vcs marker]]
-          (when (os/lstat (path/join directory marker) :mode) vcs))
-        markers))
+(import ./vcs)
 
 (defn repository?
   "Whether `directory` is the root of a git or jj repository."
   [directory]
-  (not (nil? (directory-vcs directory))))
+  (not (nil? (vcs/detect directory))))
 
 (defn- require-max-depth
   "Return `max-depth`, or raise unless it is nil or a non-negative integer."
@@ -35,7 +20,7 @@
   [directory hidden follow-links]
   (def names (try (os/dir directory) ([_] @[])))
   (sort (seq [name :in names
-              :when (not (index-of name marker-names))
+              :when (not (index-of name (vcs/marker-names)))
               :when (or hidden (not (string/has-prefix? "." name)))
               :let [child (path/join directory name)
                     mode (os/lstat child :mode)]
@@ -78,10 +63,10 @@
   (while (not (empty? stack))
     (def [directory depth] (array/pop stack))
     (unless (revisited? directory)
-      (def vcs (directory-vcs directory))
-      (when vcs
-        (array/push found {:path directory :vcs vcs}))
-      (when (and (or nested (nil? vcs))
+      (def detected (vcs/detect directory))
+      (when detected
+        (array/push found {:path directory :vcs detected}))
+      (when (and (or nested (nil? detected))
                  (or (nil? max-depth) (< depth max-depth)))
         (each child (reverse (child-directories directory hidden follow-links))
           (array/push stack [child (inc depth)])))))

@@ -3,6 +3,7 @@
 (import ./checkout)
 (import ./parallel)
 (import ./process)
+(import ./vcs)
 
 (def default-show-output
   "When to show command output, unless another default is set."
@@ -50,11 +51,11 @@
     ["sh" "-c" command]
 
     (dictionary? command)
-    (if-let [vcs (checkout/repository-vcs repository)]
+    (if-let [used (vcs/detect (repository :path))]
       (do
-        (def key (case vcs
-                   :git :command-git
-                   :jj :command-jj))
+        (def key (case used
+                   :vcs/git :command-git
+                   :vcs/jj :command-jj))
         (def selected (get command key))
         (if (nil? selected)
           nil
