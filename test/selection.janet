@@ -134,6 +134,40 @@
           "resolving does not make an unrelated anchor contain the location")
   (sh/rm dir))
 
+# Many repositories share a few anchors, and an anchor may be spelled through a
+# link in some of them and not in others. Each spelling stands for one anchor,
+# and every repository under it is found whichever spelling it was given.
+(let [dir (scratch-dir "herd-selection-shared-test")
+      real (string dir "/real/work")
+      alias (string dir "/link/work")]
+  (sh/create-dirs real)
+  (os/link (string dir "/real") (string dir "/link") true)
+  (def shared
+    (seq [i :range [0 500]]
+      (def spelled (if (even? i) real alias))
+      {:path (string spelled "/team" (% i 5) "/repo" i)
+       :ssh_url "u"
+       :anchors @[spelled]}))
+  (assert (deep= @[real] (location/configured-anchors shared))
+          "two spellings of one anchor are listed once")
+  (assert (deep= @[real] (location/containing-anchors alias shared))
+          "and either spelling of the working location finds it")
+  (def everything
+    (location/select-repositories-with-anchors
+      real shared (location/containing-anchors real shared)))
+  (assert (= 500 (length everything))
+          "every repository under the anchor is selected, whichever spelling it has")
+  (def team
+    (location/select-repositories-with-anchors
+      (string alias "/team3") shared (location/containing-anchors alias shared)))
+  (assert (= 100 (length team))
+          "a subdirectory selects those beneath it, through either spelling")
+  (assert (empty? (location/select-repositories-with-anchors
+                    (string dir "/real/elsewhere") shared
+                    (location/containing-anchors (string dir "/real/elsewhere") shared)))
+          "a location outside the anchor selects none")
+  (sh/rm dir))
+
 # The selection module takes what the command line asked for and says which
 # repositories that picks, and why when it picks none.
 
