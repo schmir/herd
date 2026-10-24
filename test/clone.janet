@@ -91,7 +91,7 @@
   (def crashed (path/join dir "crashed"))
   (assert (= :failed (clone/clone-repository dying-vcs (fn [&]) "unused"
                                              crashed)))
-  (assert (= "missing" (checkout/checkout-status {:path crashed}))
+  (assert (= :missing (checkout/checkout-status {:path crashed}))
           "a clone that dies half-written does not pass for a checkout")
   (assert (nil? (os/lstat (clone/staging-path crashed)))
           "a failed clone leaves no staging directory")

@@ -76,7 +76,7 @@
   (try
     # A blocked path holds no working copy to run in, so it counts as not
     # checked out rather than as a place to run the command.
-    (if (= "ok" (checkout/checkout-status repository))
+    (if (= :ok (checkout/checkout-status repository))
       (if-let [selected (command-for-repository repository command)]
         (let [result (process/capture-process
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`

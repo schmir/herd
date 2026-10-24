@@ -3,17 +3,17 @@
 (import spork/path)
 (import ./vcs)
 
-(def default-checkout-options
-  ``Default checkout options. Their keys define the options that each
+(def default-repository-options
+  ``Default repository options. Their keys define the options that each
   configuration level accepts.``
   {:vcs (vcs/name vcs/default)})
 
-(def checkout-keys
-  "Checkout option names accepted at each configuration level."
-  (keys default-checkout-options))
+(def option-keys
+  "Repository option names accepted at each configuration level."
+  (keys default-repository-options))
 
-(defn validate-checkout-options
-  ``Validate checkout options and return `options`. Use `where` and the
+(defn validate-repository-options
+  ``Validate repository options and return `options`. Use `where` and the
   format-specific `spelling` in errors.``
   [options where &opt spelling]
   (default spelling ":vcs")
@@ -36,12 +36,12 @@
     false))
 
 (defn checkout-status
-  ``Say what is on disk at a repository's path: "ok" for a git or jj
-  repository, "missing" for nothing or an empty directory, which is what
-  clone fills, and "blocked" for anything else, which clone cannot check out
+  ``Say what is on disk at a repository's path: `:ok` for a git or jj
+  repository, `:missing` for nothing or an empty directory, which is what
+  clone fills, and `:blocked` for anything else, which clone cannot check out
   over and the other commands must not mistake for a checkout.``
   [repository]
   (cond
-    (vcs/detect (repository :path)) "ok"
-    (vacant? (repository :path)) "missing"
-    "blocked"))
+    (vcs/detect (repository :path)) :ok
+    (vacant? (repository :path)) :missing
+    :blocked))

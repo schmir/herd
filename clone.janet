@@ -47,8 +47,8 @@
   Return :skipped, :blocked, :cloned, or :failed.``
   [executable report url path &opt vcs]
   (case (checkout/checkout-status {:path path})
-    "ok" :skipped
-    "blocked"
+    :ok :skipped
+    :blocked
     (do
       (report "Clone blocked: " path
               " holds something that is not a repository")
@@ -95,7 +95,7 @@
       # Only a clone needs the VCS, so a repository that will not be
       # cloned is reported as what it is rather than as a missing VCS.
       (if (or executable
-              (not= "missing" (checkout/checkout-status repository)))
+              (not= :missing (checkout/checkout-status repository)))
         (clone-repository executable report
                           (repository :ssh_url)
                           (repository :path)

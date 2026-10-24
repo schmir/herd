@@ -22,14 +22,14 @@ rows, job count and custom commands. _Avoid_: Command config
 
 **Checkout row**: One entry of `:checkouts` in `config.jdn`: it reads a
 repository list (`:from`) and places it under an anchor, with its own
-filters, stripped path components and checkout options. Not a checkout in
+filters, stripped path components and repository options. Not a checkout in
 the on-disk sense. _Avoid_: Row, source, mapping
 
 **Placement**: A checkout row with its anchor resolved to a directory, as
 the code reads a list through it. _Avoid_: Resolved anchor
 
-**Catalog**: Every repository that the repository lists define after
-their checkout rows and list filters have been applied. _Avoid_: Registry,
+**Catalog**: Every repository that the repository lists define after their
+checkout rows and list filters have been applied. _Avoid_: Registry,
 inventory
 
 **Selection**: The repositories a command acts on, chosen from the catalog
