@@ -1,8 +1,8 @@
 # Reading the configuration directory into the repositories it describes.
 
+(import spork/json)
 (import spork/path)
 (import ./checkout)
-(import ./entries)
 (import ./filter)
 
 (defn config-directory
@@ -248,6 +248,21 @@
                             :anchors @[(anchor :path)]})))))
   resolved)
 
+(defn validate-repository-list
+  "Return the `rows` of a repository list unchanged, or raise an error describing their shape."
+  [rows]
+  (unless (indexed? rows)
+    (error "expected a JSON array of repository objects"))
+  (for index 0 (length rows)
+    (def entry (rows index))
+    (unless (dictionary? entry)
+      (error (string "entry " index " is not a JSON object")))
+    (each key [:path :ssh_url]
+      (unless (string? (entry key))
+        (error (string "entry " index " needs a string \"" key "\""))))
+    (checkout/validate-checkout-options entry (string "entry " index) `"vcs"`))
+  rows)
+
 (defn read-config
   ``Read one configuration file, resolving each repository into checkouts.
   A row filters before its anchor is applied, so each row can describe a
@@ -274,9 +289,10 @@
         (get selected chain)
         # A row aimed its own filters at this file; the command line aimed
         # its filters at every file, so only those need to explain themselves.
-        (let [computed (entries/validate-config
-                         (entries/parse-config
-                           (filter/narrow filters source (anchor :filter) names)))]
+        (let [computed (validate-repository-list
+                         (json/decode
+                           (filter/narrow filters source (anchor :filter) names)
+                           true))]
           (put selected chain computed)
           computed)))
     (array/concat resolved (resolve-repository-paths kept [anchor])))

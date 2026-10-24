@@ -21,7 +21,6 @@
          "completions.janet"
          "config.janet"
          "discover.janet"
-         "entries.janet"
          "filter.janet"
          "location.janet"
          "parallel.janet"

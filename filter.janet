@@ -1,6 +1,6 @@
-# Narrowing a repository list with the JMESPath expressions it is named by.
+# The named filters, and narrowing a repository list with them.
 
-(import ./entries)
+(import spork/json)
 (import ./process)
 
 (def filter-executable
@@ -153,7 +153,7 @@
       # without saying why. What travels on is what the filter wrote.
       (def answered
         (try
-          (entries/parse-config stdout)
+          (json/decode stdout true)
           ([err] (error (string (filter-where name)
                                 " produced unreadable output: " err)))))
       (unless (indexed? answered)
