@@ -8,7 +8,7 @@
   (def trimmed (string/trimr path "/"))
   (if (empty? trimmed) "/" trimmed))
 
-(defn comparable-path
+(defn resolved-path
   ``Absolute `path` with the symlinks resolved in as much of it as exists.
   Selection weighs configured paths against a working directory, which the
   system already gave us resolved, so both sides have to name the same
@@ -26,8 +26,8 @@
     resolved
     (bare-path (path/join resolved ;(reverse missing)))))
 
-(defn- caching-comparable-path
-  ``A function that gives the `comparable-path` of a path, asking the
+(defn- caching-resolved-path
+  ``A function that gives the `resolved-path` of a path, asking the
   filesystem once for each distinct path it is given. A catalog has a few
   anchors that every repository repeats, and resolving each again for every
   repository is most of what a selection costs. It lasts as long as the call
@@ -36,7 +36,7 @@
   (def known @{})
   (fn [path]
     (or (get known path)
-        (let [resolved (comparable-path path)]
+        (let [resolved (resolved-path path)]
           (put known path resolved)
           resolved))))
 
@@ -49,11 +49,11 @@
                           descendant)))
 
 (defn configured-anchors
-  ``Return the comparable form of every anchor the `repositories` are configured
+  ``Return the resolved form of every anchor the `repositories` are configured
   under, each once, in the order they are first seen.``
   [repositories]
   (def found @[])
-  (def resolved-anchor (caching-comparable-path))
+  (def resolved-anchor (caching-resolved-path))
   (each repository repositories
     (each anchor (get repository :anchors [])
       (def candidate (resolved-anchor anchor))
@@ -64,23 +64,23 @@
 (defn containing-anchors
   "Return each configured anchor that contains `at-path`."
   [at-path repositories]
-  (def comparable-at-path (comparable-path at-path))
-  (filter (fn [anchor] (holds-path? anchor comparable-at-path))
+  (def resolved-at-path (resolved-path at-path))
+  (filter (fn [anchor] (holds-path? anchor resolved-at-path))
           (configured-anchors repositories)))
 
 (defn select-repositories-with-anchors
   ``Keep the repositories configured under one of the `selected-anchors` that
   are at `at-path`, beneath it or holding it.``
   [at-path repositories selected-anchors]
-  (def comparable-at-path (comparable-path at-path))
-  (def resolved-anchor (caching-comparable-path))
+  (def resolved-at-path (resolved-path at-path))
+  (def resolved-anchor (caching-resolved-path))
   (filter (fn [repository]
-            (def candidate (comparable-path (repository :path)))
+            (def candidate (resolved-path (repository :path)))
             (and (some (fn [repository-anchor]
                          (def normalized (resolved-anchor repository-anchor))
                          (some (fn [anchor] (= normalized anchor))
                                selected-anchors))
                        (get repository :anchors []))
-                 (or (holds-path? comparable-at-path candidate)
-                     (holds-path? candidate comparable-at-path))))
+                 (or (holds-path? resolved-at-path candidate)
+                     (holds-path? candidate resolved-at-path))))
           repositories))

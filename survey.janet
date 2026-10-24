@@ -29,8 +29,8 @@
   anchor or filter keeps would read as extra.``
   [discovered configured]
   (def known (tabseq [repository :in configured]
-               (location/comparable-path (repository :path)) true))
-  (filter (fn [repository] (not (get known (location/comparable-path (repository :path))))) discovered))
+               (location/resolved-path (repository :path)) true))
+  (filter (fn [repository] (not (get known (location/resolved-path (repository :path))))) discovered))
 
 (defn remote-url
   ``Return the URL of the origin remote of a discovered repository, or nil
