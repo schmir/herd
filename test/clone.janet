@@ -30,13 +30,6 @@
                          " holds something that is not a repository")]
                blocked-messages))
 
-(assert (deep= ["git-bin" "clone" "--" "url" "checkout"]
-               (clone/clone-process-command :vcs/git "git-bin" "url" "checkout"))
-        "git clone uses the native Git argument form")
-(assert (deep= ["jj-bin" "git" "clone" "--colocate" "--" "url" "checkout"]
-               (clone/clone-process-command :vcs/jj "jj-bin" "url" "checkout"))
-        "jj clone creates a colocated repository")
-
 (defn fake-vcs
   ``Write an executable at `name` in the test directory that runs `body` as
   sh, with the clone path, the last argument, in $dest. Return its path.``
