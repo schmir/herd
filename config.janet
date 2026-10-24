@@ -4,6 +4,8 @@
 (import spork/path)
 (import ./checkout)
 (import ./filter)
+(import ./parallel)
+(import ./run)
 
 (defn config-directory
   ``Directory holding the JSON repository lists and the command config file,
@@ -380,3 +382,110 @@
   {:directory directory
    :paths config-paths
    :repositories (load-config config-paths directory settings names)})
+
+(defn- configured-jobs
+  "Return the configured job count, or the default when it is not set."
+  [command-config]
+  (unless (dictionary? command-config)
+    (error "expected a JDN dictionary"))
+  (def jobs (get command-config :jobs parallel/default-jobs))
+  (unless (parallel/jobs? jobs)
+    (error (string ":jobs must be a positive integer no greater than "
+                   parallel/max-jobs)))
+  jobs)
+
+(def- custom-command-keys
+  "Keys a custom-command definition may contain."
+  [:command :command-git :command-jj :description :show-output])
+
+(def- default-command-definitions
+  ``Custom commands herd defines itself, written as they would be in :commands
+  of config.jdn. A definition of the same name there replaces one.``
+  {"diff" {:command-git "git diff HEAD"
+           :command-jj "jj diff"
+           :description "Show working copy changes in configured repositories beneath a path."
+           :show-output "always"}
+   "fetch" {:command-git "git fetch"
+            :command-jj "jj git fetch"
+            :description "Fetch Git remotes in configured repositories beneath a path."}})
+
+(defn- command-from-definition
+  "Validate one custom-command definition and return its :command, :description, and :show-output."
+  [name definition reserved]
+  (unless (and (string? name) (not (empty? name)))
+    (error "custom command names must be non-empty strings"))
+  (defn fail [message]
+    (error (string "custom command \"" name "\" " message)))
+  (when (index-of name reserved)
+    (fail "conflicts with a built-in command"))
+  (unless (dictionary? definition)
+    (fail "must be a dictionary"))
+  (eachk key definition
+    (unless (index-of key custom-command-keys)
+      (fail (string "has an unknown key " (describe key)))))
+  (def command (get definition :command))
+  (def command-git (get definition :command-git))
+  (def command-jj (get definition :command-jj))
+  (def resolved
+    (if (not (nil? command))
+      (do
+        (unless (string? command)
+          (fail "needs a string :command"))
+        (when (or (not (nil? command-git)) (not (nil? command-jj)))
+          (fail "cannot combine :command with VCS-specific commands"))
+        command)
+      (do
+        (when (and (nil? command-git) (nil? command-jj))
+          (fail "needs :command, :command-git, or :command-jj"))
+        (unless (or (nil? command-git) (string? command-git))
+          (fail "needs a string :command-git"))
+        (unless (or (nil? command-jj) (string? command-jj))
+          (fail "needs a string :command-jj"))
+        {:command-git command-git :command-jj command-jj})))
+  (def description (get definition :description))
+  (unless (string? description)
+    (fail "needs a string :description"))
+  (def show-output (get definition :show-output run/default-show-output))
+  (try
+    (run/require-show-output show-output)
+    ([err]
+      (fail (string "has an invalid :show-output; " err))))
+  {:command resolved :description description :show-output show-output})
+
+(defn prepare-settings
+  ``Validate the raw settings of config.jdn and return `{:settings :jobs
+  :commands}`: the repository settings, the job count, and each custom command
+  by name with its `:command`, `:description` and `:show-output`. `reserved`
+  names the commands a custom command may not replace. The commands herd
+  defines itself are there unless the settings define one of the same name.``
+  [command-config reserved]
+  (def jobs (configured-jobs command-config))
+  (def settings (configured-repository-settings command-config))
+  (def definitions (get command-config :commands {}))
+  (unless (dictionary? definitions)
+    (error ":commands must be a dictionary"))
+  (def commands @{})
+  (eachp [name definition] (merge default-command-definitions definitions)
+    (put commands name (command-from-definition name definition reserved)))
+  {:settings settings :jobs jobs :commands commands})
+
+(defn command-config-path
+  "Return the path of config.jdn, or nil without a configuration directory."
+  []
+  (when-let [directory (config-directory)]
+    (path/join directory command-config-name)))
+
+(defn load-settings
+  ``Read and validate config.jdn in `directory`, as `prepare-settings` does
+  with `reserved`. Without the file, or without a directory to look in, the
+  settings are the defaults. Errors from the file name it.``
+  [directory reserved]
+  (def file (when directory (path/join directory command-config-name)))
+  (def stat (when file (os/stat file)))
+  (cond
+    (nil? stat) (prepare-settings {} reserved)
+    (not= :file (stat :mode))
+    (error (string file " is not a file"))
+    (try
+      (prepare-settings (parse-settings (slurp file)) reserved)
+      ([err] (error (string file ": " err))))))
