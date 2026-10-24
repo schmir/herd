@@ -17,9 +17,9 @@
   format-specific `spelling` in errors.``
   [options where &opt spelling]
   (default spelling ":vcs")
-  (def vcs (get options :vcs :unset))
-  (unless (= :unset vcs)
-    (unless (vcs/known? vcs)
+  (def vcs-name (get options :vcs :unset))
+  (unless (= :unset vcs-name)
+    (unless (vcs/known? vcs-name)
       (error (string where " has an invalid " spelling "; expected "
                      (string/join (map describe (vcs/names)) " or ")))))
   options)

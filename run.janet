@@ -51,9 +51,9 @@
     ["sh" "-c" command]
 
     (dictionary? command)
-    (if-let [used (vcs/detect (repository :path))]
+    (if-let [vcs-id (vcs/detect (repository :path))]
       (do
-        (def key (vcs/command-key used))
+        (def key (vcs/command-key vcs-id))
         (def selected (get command key))
         (if (nil? selected)
           nil

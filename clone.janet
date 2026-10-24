@@ -42,10 +42,10 @@
       result)))
 
 (defn clone-repository
-  ``Clone a repository with vcs unless it is already checked out, or
+  ``Clone a repository with `vcs-id` unless it is already checked out, or
   something that is not a repository stands in its way.
   Return :skipped, :blocked, :cloned, or :failed.``
-  [executable report url path &opt vcs]
+  [executable report url path &opt vcs-id]
   (case (checkout/checkout-status {:path path})
     :ok :skipped
     :blocked
@@ -58,7 +58,7 @@
         (def result
           (clone-into-place
             (fn [staging]
-              (vcs/clone-command (or vcs vcs/default)
+              (vcs/clone-command (or vcs-id vcs/default)
                                  executable url staging))
             path))
         (if (zero? (result :status))
@@ -90,8 +90,8 @@
      [:failed "failed"]]
     (fn [repository report]
       # Each checkout has its final VCS after loading.
-      (def selected-vcs (get repository :vcs vcs/default))
-      (def executable (get executables selected-vcs))
+      (def vcs-id (get repository :vcs vcs/default))
+      (def executable (get executables vcs-id))
       # Only a clone needs the VCS, so a repository that will not be
       # cloned is reported as what it is rather than as a missing VCS.
       (if (or executable
@@ -99,9 +99,9 @@
         (clone-repository executable report
                           (repository :ssh_url)
                           (repository :path)
-                          selected-vcs)
+                          vcs-id)
         (do
           (report "Clone failed: " (repository :path) ": "
-                  (vcs/name selected-vcs) " was not found on PATH")
+                  (vcs/name vcs-id) " was not found on PATH")
           :failed)))
     jobs))
