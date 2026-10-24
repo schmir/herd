@@ -16,6 +16,7 @@
   :entry "main.janet"
   :deps ["build/access.so"
          "build/access.meta.janet"
+         "arguments.janet"
          "checkout.janet"
          "clone.janet"
          "completions.janet"

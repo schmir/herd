@@ -2,12 +2,100 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
+(import ../arguments)
 (import ../clone)
 (import ../config)
 (import ../discover)
 (import ../main :as herd)
 
 (start-suite "arguments")
+
+# --- the fix-ups for what argparse lets through --------------------------
+
+(def spec
+  ``The kinds of option the cases below are weighed against, as argparse is
+  given them: a flag, a valued option, and one that may repeat.``
+  {"all-anchors" {:kind :flag :short "a"}
+   "at" {:kind :option :short "C"}
+   "filter" {:kind :accumulate :short "f"}
+   "help" {:kind :flag :short "h"}})
+
+(def positional-spec
+  "The same, with a command's own arguments after the options."
+  (merge spec {:default {:kind :accumulate :short-circuit true}}))
+
+(defn- given-value
+  "The flag that `args` hands a value, or nil."
+  [args &opt options]
+  (arguments/flag-given-value ["herd" ;args] (or options spec)))
+
+(defn test-a-flag-given-a-value-is-found
+  "--flag=VALUE names the flag, since argparse would drop the value."
+  []
+  (assert (= "all-anchors" (given-value ["--all-anchors=no"])))
+  (assert (= "all-anchors" (given-value ["--all-anchors="]))
+          "an empty value is still a value")
+  (assert (= "help" (given-value ["--help=x"])) "help is a flag too")
+  (assert (= "all-anchors" (given-value ["--at" "." "--all-anchors=no"]))
+          "it is found after the options before it")
+  (assert (nil? (given-value ["--all-anchors"])) "a flag given none is fine"))
+
+(defn test-an-option-may-be-given-a-value
+  "--option=VALUE is how a valued option takes its value."
+  []
+  (assert (nil? (given-value ["--at=/srv"])))
+  (assert (nil? (given-value ["--filter=a" "--filter=b"])))
+  (assert (nil? (given-value ["--unknown=x"])) "argparse reports what it does not know"))
+
+(defn test-a-value-is-not-an-option
+  "What an option takes as its value is not read as an option itself."
+  []
+  (assert (nil? (given-value ["--at" "--all-anchors=no"]))
+          "the argument after --at is its value")
+  (assert (nil? (given-value ["-C" "--all-anchors=no"]))
+          "and after -C")
+  (assert (nil? (given-value ["-aC" "--all-anchors=no"]))
+          "and after a cluster that ends in an option taking one")
+  (assert (= "all-anchors" (given-value ["-a" "--all-anchors=no"]))
+          "but a flag in a cluster takes none"))
+
+(defn test-options-end-where-argparse-stops-reading-them
+  "After `--`, and after the first positional where that ends them, nothing is an option."
+  []
+  (assert (nil? (given-value ["--" "--all-anchors=no"])) "after --")
+  (assert (= "all-anchors" (given-value ["--all-anchors=no" "--"])) "before --")
+  (assert (nil? (given-value ["true" "--all-anchors=no"] positional-spec))
+          "after the command herd runs")
+  (assert (= "all-anchors"
+             (given-value ["--all-anchors=no" "true"] positional-spec))
+          "before it")
+  (assert (= "all-anchors"
+             (given-value ["true" "--all-anchors=no"]
+                          (merge spec {:default {:kind :accumulate}})))
+          "where positionals do not end the options, it is found after one"))
+
+(defn test-the-version-is-asked-for-by-the-first-argument-alone
+  "Only a first argument that is all about the version asks for it."
+  []
+  (defn asked [& args] (arguments/version-requested? ["herd" ;args]))
+  (assert (asked "--version"))
+  (assert (asked "-V"))
+  (assert (asked "-VV") "a cluster of nothing but V")
+  (assert (not (asked)) "no arguments")
+  (assert (not (asked "-hV")) "-hV wants the help argparse prints")
+  (assert (not (asked "-Vx")) "-Vx is a mistake")
+  (assert (not (asked "--version=x")) "argparse is left to refuse the value")
+  (assert (not (asked "--versions")))
+  (assert (not (asked "list" "--version")) "a command owns its own options")
+  (assert (not (asked "--" "--version")))
+  (assert (not (asked "-")) "a lone hyphen is a word, not a flag")
+  (assert (not (asked "")) "an empty argument is not one"))
+
+(test-a-flag-given-a-value-is-found)
+(test-an-option-may-be-given-a-value)
+(test-a-value-is-not-an-option)
+(test-options-end-where-argparse-stops-reading-them)
+(test-the-version-is-asked-for-by-the-first-argument-alone)
 
 (def executable (path/join (os/cwd) "build/herd"))
 
