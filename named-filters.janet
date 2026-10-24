@@ -30,7 +30,7 @@
   dictionary says what it is: `{:jp expression}` or `{:sh command}`, exactly
   one of them.``
   [name entry]
-  (def label (string "filter " (describe name)))
+  (def label (filter-where name))
   (cond
     (string? entry)
     (when (empty? entry)
@@ -86,7 +86,7 @@
   [registry name]
   (text-of-kind (get registry name) :sh))
 
-(defn names
+(defn filter-names
   "Every filter name in `registry`, sorted."
   [registry]
   (sorted (keys registry)))
@@ -98,7 +98,7 @@
     (tabseq [[name entry] :pairs registry]
       name (or (text-of-kind entry :jp) (text-of-kind entry :sh)))))
 
-(defn check-names
+(defn require-list-filters
   ``Raise unless every one of `names`, a row's `:filter`, is a list filter in
   `registry`. A checkout filter cannot narrow a list, since it runs in a
   checkout, so only the command line can use one. `where` says whose names
@@ -163,18 +163,18 @@
       # travels on to the next filter and must not be quietly mutable.
       (string stdout))))
 
-(defn filter-entries
+(defn apply-filters
   ``Return the JSON `source` narrowed by each filter in `names`, in order.
   They run as a pipeline, each reading what the one before it answered with,
   the way piping one filter program into another does. Several `[?…]`
   expressions therefore intersect and commute; anything else, a slice or a
   projection, depends on its place in the order. Naming none hands back the
   source untouched, and the `hint` is carried to whichever of them fails.``
-  [source names filters &opt hint]
+  [source names registry &opt hint]
   (var narrowed source)
   (each name names
-    (set narrowed (apply-filter narrowed name (list-filter-expression filters name)
-                                hint)))
+    (set narrowed (apply-filter narrowed name
+                                (list-filter-expression registry name) hint)))
   narrowed)
 
 (defn narrow
@@ -183,5 +183,5 @@
   A row aimed its own filters at this one file; the command line aimed its
   filters at every file, so only those explain themselves when they fail.``
   [registry source row-names command-line-names]
-  (filter-entries (filter-entries source row-names registry)
-                  command-line-names registry command-filter-hint))
+  (apply-filters (apply-filters source row-names registry)
+                 command-line-names registry command-filter-hint))

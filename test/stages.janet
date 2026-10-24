@@ -1,13 +1,13 @@
-# Tests for telling a repository's working copy state.
+# Tests for the stages that narrow a selection by the checkouts' contents.
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../state)
+(import ../stages)
 
-(start-suite "state")
+(start-suite "stages")
 
 (def dir (path/join (os/getenv "TMPDIR" "/tmp")
-                    (string "herd-state-test-" (os/getpid))))
+                    (string "herd-stages-test-" (os/getpid))))
 (sh/rm dir)
 (sh/create-dirs dir)
 
@@ -34,22 +34,22 @@
   "A repository is clean, or dirty with a modified or an untracked file."
   []
   (def repository (make-repository "one"))
-  (assert (= :clean (state/repository-state repository)) "a new repository is clean")
+  (assert (= :clean (stages/repository-state repository)) "a new repository is clean")
   (spit (path/join (repository :path) "notes") "text")
-  (assert (= :dirty (state/repository-state repository)) "an untracked file is a change")
+  (assert (= :dirty (stages/repository-state repository)) "an untracked file is a change")
   (git (repository :path) "add" "notes")
   (git (repository :path) "commit" "-q" "-m" "notes")
-  (assert (= :clean (state/repository-state repository)) "committing cleans it")
+  (assert (= :clean (stages/repository-state repository)) "committing cleans it")
   (spit (path/join (repository :path) "notes") "changed")
-  (assert (= :dirty (state/repository-state repository)) "a modified file is a change"))
+  (assert (= :dirty (stages/repository-state repository)) "a modified file is a change"))
 
 (defn test-no-working-copy-has-no-state
   "A path with nothing to ask has no state."
   []
-  (assert (nil? (state/repository-state {:path (path/join dir "absent")}))
+  (assert (nil? (stages/repository-state {:path (path/join dir "absent")}))
           "a missing path has none")
   (sh/create-dirs (path/join dir "empty"))
-  (assert (nil? (state/repository-state {:path (path/join dir "empty")}))
+  (assert (nil? (stages/repository-state {:path (path/join dir "empty")}))
           "an empty directory has none"))
 
 (defn test-filter-by-state
@@ -61,12 +61,12 @@
   (def missing {:path (path/join dir "absent")})
   (def all [;repositories missing])
   (assert (deep= (map (fn [r] (r :path)) [(repositories 1) (repositories 3)])
-                 (map (fn [r] (r :path)) ((state/filter-by-state all :dirty) :repositories)))
+                 (map (fn [r] (r :path)) ((stages/filter-by-state all :dirty) :repositories)))
           "dirty keeps the changed ones in order")
   (assert (deep= (map (fn [r] (r :path)) [(repositories 0) (repositories 2)])
-                 (map (fn [r] (r :path)) ((state/filter-by-state all :clean) :repositories)))
+                 (map (fn [r] (r :path)) ((stages/filter-by-state all :clean) :repositories)))
           "clean keeps the unchanged ones, and not the missing one")
-  (assert (not ((state/filter-by-state all :clean) :interrupted?))
+  (assert (not ((stages/filter-by-state all :clean) :interrupted?))
           "a run nobody interrupted says so"))
 
 (defn test-filter-by-state-raises-when-unreadable
@@ -74,23 +74,23 @@
   []
   (def broken (make-repository "broken"))
   (spit (path/join (broken :path) ".git" "HEAD") "garbage")
-  (assert (try (do (state/filter-by-state [broken] :dirty) false) ([_] true))
+  (assert (try (do (stages/filter-by-state [broken] :dirty) false) ([_] true))
           "an unreadable repository raises"))
 
 (defn test-command-matches
   "A command matches by its exit status, run inside the repository."
   []
   (def repository (make-repository "where"))
-  (assert (state/command-matches? repository "true") "exit 0 matches")
-  (assert (not (state/command-matches? repository "false")) "exit 1 does not")
-  (assert (not (state/command-matches? repository "test -f marker"))
+  (assert (stages/command-matches? repository "true") "exit 0 matches")
+  (assert (not (stages/command-matches? repository "false")) "exit 1 does not")
+  (assert (not (stages/command-matches? repository "test -f marker"))
           "the file is not there yet")
   (spit (path/join (repository :path) "marker") "")
-  (assert (state/command-matches? repository "test -f marker")
+  (assert (stages/command-matches? repository "test -f marker")
           "the command runs in the repository")
-  (assert (not (state/command-matches? {:path (path/join dir "absent")} "true"))
+  (assert (not (stages/command-matches? {:path (path/join dir "absent")} "true"))
           "a missing path never matches, and runs nothing")
-  (assert (try (do (state/command-matches? repository "no-such-command-here") false)
+  (assert (try (do (stages/command-matches? repository "no-such-command-here") false)
             ([_] true))
           "a command the shell cannot find raises"))
 
@@ -103,10 +103,10 @@
   (spit (path/join ((repositories 2) :path) "a") "")
   (def paths (fn [rs] (map (fn [r] (r :path)) rs)))
   (assert (deep= (paths [(repositories 0) (repositories 2)])
-                 (paths ((state/filter-by-commands repositories ["test -f a"]) :repositories)))
+                 (paths ((stages/filter-by-commands repositories ["test -f a"]) :repositories)))
           "one command keeps those that pass it")
   (assert (deep= (paths [(repositories 0)])
-                 (paths ((state/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
+                 (paths ((stages/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
           "all commands must pass"))
 
 (test-command-matches)
