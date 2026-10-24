@@ -3,6 +3,7 @@
 (import spork/path)
 (import spork/sh)
 (import ../clone)
+(import ../config)
 (import ../discover)
 (import ../main :as herd)
 
@@ -143,9 +144,9 @@
      {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
               :show-output "always"}}`)
-  (assert (= command-config (herd/command-config-path))
+  (assert (= command-config (config/command-config-path))
           "the JDN configuration uses the XDG configuration directory")
-  (assert (get-in (herd/load-command-config command-config)
+  (assert (get-in (config/load-settings (path/parent command-config) herd/built-in-command-names)
                   [:commands "mark"])
           "the JDN configuration loads a custom command")
   (def top-help (invoke ["--help"]))
@@ -321,5 +322,27 @@
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
   (sh/rm directory))
+
+# Validated custom commands become handlers beside the built-in ones.
+(assert (deep= @["clone" "completions" "list" "run"]
+               (sorted herd/built-in-command-names))
+        "the reserved names are the built-in commands")
+(let [commands (herd/custom-commands
+                 (config/prepare-settings
+                   {:commands
+                    {"check" {:command "true" :description "Check repositories."}
+                     "both" {:command-git "git status"
+                             :command-jj "jj status"
+                             :description "Check by VCS."}}}
+                   herd/built-in-command-names))]
+  (assert (= "Check repositories." (get-in commands ["check" :help]))
+          "a custom command retains its description")
+  (assert (function? (get-in commands ["check" :run]))
+          "a custom command provides a handler")
+  (assert (function? (get-in commands ["both" :run]))
+          "a VCS-specific custom command provides a handler")
+  (each name ["diff" "fetch"]
+    (assert (function? (get-in commands [name :run]))
+            (string name " is a default custom command with a handler"))))
 
 (end-suite)

@@ -4,7 +4,6 @@
 (import spork/sh)
 (import ../config)
 (import ../filter)
-(import ../main :as herd)
 
 (start-suite "config")
 
@@ -80,154 +79,140 @@
 
 # --- custom commands ------------------------------------------------------
 
+(def reserved ["clone" "completions" "list" "run"])
+
+(defn- prepare
+  "Validate the raw settings `raw`, with the reserved command names."
+  [raw]
+  (config/prepare-settings raw reserved))
+
+(defn- command-of
+  "The validated custom command `name`, defined by `definition`."
+  [name definition]
+  (get-in (prepare {:commands {name definition}}) [:commands name]))
+
 (assert-error "custom command JDN must be a dictionary"
-              (herd/prepare-command-config []))
+              (prepare []))
 (assert-error "the custom command collection must be a dictionary"
-              (herd/prepare-command-config {:commands []}))
+              (prepare {:commands []}))
 (assert-error "a custom command cannot replace a built-in command"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"run" {:command "true" :description "Conflict."}}}))
-(assert (deep= @["clone" "completions" "list" "run"]
-               (sorted herd/built-in-command-names))
-        "the reserved names are the built-in commands")
-(each name herd/built-in-command-names
+(each name reserved
   (assert-error (string "a custom command cannot replace " name)
-                (herd/prepare-command-config
+                (prepare
                   {:commands {name {:command "true" :description "Conflict."}}})))
 (each name ["diff" "fetch"]
-  (let [prepared (herd/prepare-command-config {})]
-    (assert (function? (get-in prepared [:commands name :run]))
-            (string name " is a default custom command"))
-    (assert (string? (get-in prepared [:commands name :help]))
-            (string name " has a description")))
-  (let [prepared (herd/prepare-command-config
+  (let [prepared (prepare {})]
+    (assert (string? (get-in prepared [:commands name :description]))
+            (string name " is a default custom command with a description")))
+  (let [prepared (prepare
                    {:commands {name {:command "true" :description "Mine."}}})]
-    (assert (= "Mine." (get-in prepared [:commands name :help]))
+    (assert (= "Mine." (get-in prepared [:commands name :description]))
             (string "a configured " name " replaces the default"))))
-(assert (= "Mine." (get-in (herd/prepare-command-config
-                             {:commands {"extra" {:command "true"
-                                                  :description "Mine."}}})
-                           [:commands "extra" :help]))
+(assert (= "Mine." (get (command-of "extra" {:command "true"
+                                             :description "Mine."})
+                        :description))
         "a configured command is added beside the defaults")
 (assert-error "a custom command needs a shell command"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"check" {:description "Check repositories."}}}))
 (def missing-command-message
   (try
     (do
-      (herd/prepare-command-config
-        {:commands {"check" {:description "Check repositories."}}})
+      (prepare {:commands {"check" {:description "Check repositories."}}})
       nil)
     ([err] (string err))))
 (assert (string/find ":command, :command-git, or :command-jj"
                      missing-command-message)
         "a missing command lists the valid fields")
 (assert-error "a custom command needs a description"
-              (herd/prepare-command-config
-                {:commands {"check" {:command "true"}}}))
+              (prepare {:commands {"check" {:command "true"}}}))
 (assert-no-error "a custom command can be jj-only"
-                 (herd/prepare-command-config
+                 (prepare
                    {:commands {"check"
                                {:command-jj "jj status"
                                 :description "Check repositories."}}}))
 (assert-no-error "a custom command can be Git-only"
-                 (herd/prepare-command-config
+                 (prepare
                    {:commands {"check"
                                {:command-git "git status"
                                 :description "Check repositories."}}}))
 (assert-error "a custom command cannot have an unknown key"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"check"
                             {:command-git "git status"
                              :comand-jj "jj status"
                              :description "Check repositories."}}}))
 (each condition ["never" "on-failure" "always"]
   (assert-no-error (string "a custom command accepts show-output " condition)
-                   (herd/prepare-command-config
+                   (prepare
                      {:commands {"check" {:command "true"
                                           :description "Check repositories."
                                           :show-output condition}}})))
 (assert-error "a custom command show-output condition must be a string"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"check" {:command "true"
                                      :description "Check repositories."
                                      :show-output :always}}}))
 (assert-error "a custom command show-output condition must be known"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"check" {:command "true"
                                      :description "Check repositories."
                                      :show-output "sometimes"}}}))
 (assert-error "a command cannot mix common and VCS-specific forms"
-              (herd/prepare-command-config
+              (prepare
                 {:commands {"check"
                             {:command "status"
                              :command-git "git status"
                              :command-jj "jj status"
                              :description "Check repositories."}}}))
-(assert (= 6 (herd/configured-jobs {})) "six jobs is the default")
-(assert (= 3 (herd/configured-jobs {:jobs 3})) "a job count can be configured")
+(assert (= 6 ((prepare {}) :jobs)) "six jobs is the default")
+(assert (= 3 ((prepare {:jobs 3}) :jobs)) "a job count can be configured")
 (each invalid [0 -2 1.5 "4" :four 2147483648]
   (assert-error (string "a configured job count rejects " (describe invalid))
-                (herd/configured-jobs {:jobs invalid})))
-(assert-error "the job configuration must be a dictionary"
-              (herd/configured-jobs []))
+                (prepare {:jobs invalid})))
 
-(let [prepared
-      (herd/prepare-command-config
-        {:commands {"check" {:command "true"
-                             :description "Check repositories."}}})]
-  (assert (= "Check repositories." (get-in prepared [:commands "check" :help]))
+(let [command (command-of "check" {:command "true"
+                                   :description "Check repositories."})]
+  (assert (= "Check repositories." (command :description))
           "a custom command retains its description")
-  (assert (function? (get-in prepared [:commands "check" :run]))
-          "a custom command provides a handler"))
-
-(let [prepared
-      (herd/prepare-command-config
-        {:commands
-         {"check" {:command-git "git status"
-                   :command-jj "jj status"
-                   :description "Check repositories."}}})]
-  (assert (function? (get-in prepared [:commands "check" :run]))
-          "a VCS-specific custom command provides a handler"))
+  (assert (= "true" (command :command)) "and its command")
+  (assert (= "on-failure" (command :show-output))
+          "and settles the output to show when none is configured"))
 
 (assert (deep= {:command-git "git status" :command-jj "jj status"}
-               (get (herd/command-from-definition
-                      "check"
-                      {:command-git "git status"
-                       :command-jj "jj status"
-                       :description "Check."})
+               (get (command-of "check"
+                                {:command-git "git status"
+                                 :command-jj "jj status"
+                                 :description "Check."})
                     :command))
         "VCS-specific configuration becomes a per-repository command")
 (assert (deep= {:command-jj "jj status"}
-               (get (herd/command-from-definition
-                      "check" {:command-jj "jj status" :description "Check."})
+               (get (command-of "check"
+                                {:command-jj "jj status" :description "Check."})
                     :command))
         "a VCS-specific command can support only jj")
 (assert-error "a definition needs a description"
-              (herd/command-from-definition "check" {:command "true"}))
+              (command-of "check" {:command "true"}))
 (assert-error "a definition show-output condition must be known"
-              (herd/command-from-definition
-                "check" {:command "true"
-                         :description "Check."
-                         :show-output "sometimes"}))
+              (command-of "check" {:command "true"
+                                   :description "Check."
+                                   :show-output "sometimes"}))
 
 (assert-error "a custom command name must be a non-empty string"
-              (herd/command-from-definition "" {:command "true" :description "x"}))
-(assert-error "a custom command cannot replace a built-in command name"
-              (herd/command-from-definition
-                "run" {:command "true" :description "x"}))
+              (command-of "" {:command "true" :description "x"}))
 (assert-error "a custom command definition must be a dictionary"
-              (herd/command-from-definition "check" "true"))
+              (command-of "check" "true"))
 (assert-error "a custom command definition cannot have an unknown key"
-              (herd/command-from-definition
-                "check" {:command "true" :comand-jj "jj status"}))
+              (command-of "check" {:command "true" :comand-jj "jj status"}))
 
 (let [dir (fixture)
       config-path (path/join dir "config.jdn")]
   (spit config-path `(error "this code must not run")`)
   (def message
     (try
-      (do (herd/load-command-config config-path) nil)
+      (do (config/load-settings dir reserved) nil)
       ([err] (string err))))
   (assert (and message (string/find "expected a JDN dictionary" message))
           "loading JDN parses an expression as data instead of running it")
@@ -236,10 +221,42 @@
 (let [dir (fixture)
       config-path (path/join dir "config.jdn")]
   (spit config-path `{:defaults {:vcs "git"}}`)
-  (assert (= "git" (get-in (herd/load-command-config config-path)
+  (assert (= "git" (get-in (config/load-settings dir reserved)
                            [:settings :defaults :vcs]))
           "the default VCS is loaded from config.jdn")
   (sh/rm dir))
+
+# --- load-settings --------------------------------------------------------
+
+(let [dir (fixture)]
+  (def loaded (config/load-settings dir reserved))
+  (assert (= 6 (loaded :jobs)) "an absent file reads as the defaults")
+  (assert (get-in loaded [:commands "diff"]) "with the default commands")
+  (assert (empty? (get-in loaded [:settings :checkouts])) "and no checkouts")
+  (def unconfigured (config/load-settings nil reserved))
+  (assert (= 6 (unconfigured :jobs)) "no directory to read is no settings either")
+  (sh/create-dirs (path/join dir "config.jdn"))
+  (def message
+    (try (do (config/load-settings dir reserved) nil) ([err] (string err))))
+  (assert (and message (string/find "is not a file" message)
+               (string/find (path/join dir "config.jdn") message))
+          "a directory where the file belongs is named")
+  (sh/rm dir))
+
+(let [dir (fixture)]
+  (spit (path/join dir "config.jdn") "{:jobs 0}")
+  (def message
+    (try (do (config/load-settings dir reserved) nil) ([err] (string err))))
+  (assert (and message (string/has-prefix? (path/join dir "config.jdn") message)
+               (string/find ":jobs must be a positive integer" message))
+          "a mistake in the file is reported with the file's path first")
+  (sh/rm dir))
+
+(let [xdg (os/getenv "XDG_CONFIG_HOME")]
+  (os/setenv "XDG_CONFIG_HOME" "/xdg")
+  (assert (= "/xdg/herd/config.jdn" (config/command-config-path))
+          "the file is config.jdn in the configuration directory")
+  (os/setenv "XDG_CONFIG_HOME" xdg))
 
 # --- parse-settings -------------------------------------------------------
 
@@ -257,7 +274,7 @@
                 `{:commands {"hi" {:command "echo hi" :description "say hi"}}}`))
   (def message
     (try
-      (do (herd/load-command-config config-path) nil)
+      (do (config/load-settings dir reserved) nil)
       ([err] (string err))))
   (assert (and message (string/find "2 top-level values" message))
           "settings split across two dictionaries are refused, not truncated")
@@ -266,7 +283,7 @@
 (let [dir (fixture)
       config-path (path/join dir "config.jdn")]
   (spit config-path "# nothing configured yet\n")
-  (def settings (get (herd/load-command-config config-path) :settings))
+  (def settings (get (config/load-settings dir reserved) :settings))
   (assert (and (empty? (settings :defaults))
                (empty? (settings :checkouts))
                (empty? (settings :filters)))
