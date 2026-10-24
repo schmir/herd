@@ -139,13 +139,13 @@
 
     :no-anchor-contains-path
     (unless quiet
-      (eprint "No configuration anchor contains " (reason :at)
+      (eprint "No configuration anchor contains " (reason :at-path)
               "; use -a/--all-anchors to consider every anchor"))
 
     :none-beneath-path
     (unless quiet
       (eprint "None of the configured repositories under the selected "
-              "anchors are beneath " (reason :at) " or hold it"))))
+              "anchors are beneath " (reason :at-path) " or hold it"))))
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when `result`, of a run or a selection,
@@ -232,7 +232,7 @@
 (defn- selection-options
   "The selection options `parsed` holds: where, from which anchors, and by which -f."
   [parsed]
-  {:at (parsed "at")
+  {:at-path (parsed "at")
    :all-anchors? (parsed "all-anchors")
    :filter-values (or (parsed "filter") [])})
 

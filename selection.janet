@@ -64,9 +64,9 @@
     (empty? repositories) {:kind :empty-catalog}
 
     (empty? anchors)
-    {:kind :no-anchor-contains-path :at (options :at)}
+    {:kind :no-anchor-contains-path :at-path (options :at-path)}
 
-    {:kind :none-beneath-path :at (options :at)}))
+    {:kind :none-beneath-path :at-path (options :at-path)}))
 
 (defn- narrow-by-state
   ``Keep the `repositories` in the state `:wanted-state` of `options` asks for,
@@ -107,9 +107,9 @@
       (def repositories (catalog :repositories))
       (def anchors (if (options :all-anchors?)
                      (location/configured-anchors repositories)
-                     (location/containing-anchors (options :at) repositories)))
+                     (location/containing-anchors (options :at-path) repositories)))
       (def located (location/select-repositories-with-anchors
-                     (options :at) repositories anchors))
+                     (options :at-path) repositories anchors))
       (def commands (filters :commands))
       (def narrowed (narrow-by-state options located commands))
       (def selected (narrowed :repositories))
@@ -130,7 +130,7 @@
   ``Select the repositories that `options` ask for from the catalog `settings`
   describe.
 
-  `options` holds `:at`, the working location, and `:directory`, where the
+  `options` holds `:at-path`, the working location, and `:directory`, where the
   configuration lives. `:all-anchors?` considers every anchor, not just those
   containing the location. `:filter-values` are the values
   given with -f: a list filter narrows every configuration file, and the rest
