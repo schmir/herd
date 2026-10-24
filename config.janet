@@ -186,10 +186,11 @@
   options)
 
 (defn resolve-checkout-rows
-  ``Resolve one anchor for each checkout row and retain its options and its
-  filter and path settings. Relative anchors use HOME. A missing anchor uses
-  HOME for configured files and the file's parent otherwise. Keep configured
-  paths because selection resolves symbolic links.``
+  ``Resolve each checkout row into a placement: its anchor resolved to a
+  directory, with its repository options, filter and strip count. Relative
+  anchors use HOME. A missing anchor uses HOME for configured files and the
+  file's parent otherwise. Keep configured paths because selection
+  resolves symbolic links.``
   [list-path directory checkout-rows]
   (def parent (path/abspath (path/parent list-path)))
   (def name (path/basename list-path))
