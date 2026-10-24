@@ -48,8 +48,8 @@
   (default live? (os/isatty stderr))
   (require-jobs jobs)
   (def counts @{})
-  (each outcome outcomes
-    (put counts (outcome 0) 0))
+  (each [key] outcomes
+    (put counts key 0))
   @{:total total
     :jobs jobs
     :outcomes outcomes
@@ -88,10 +88,10 @@
   [progress]
   (var completed 0)
   (def fields @[])
-  (each outcome (progress :outcomes)
-    (def outcome-count (get (progress :counts) (outcome 0)))
+  (each [key label] (progress :outcomes)
+    (def outcome-count (get (progress :counts) key))
     (+= completed outcome-count)
-    (array/push fields (string outcome-count " " (outcome 1))))
+    (array/push fields (string outcome-count " " label)))
   [completed (string/join fields ", ")])
 
 (defn progress-lines
@@ -159,9 +159,10 @@
                     (os/exit interrupt-exit-code))
                   (put progress :interrupted? true))))
 
-(defn run-repositories
+(defn for-each-repository
   ``Run `operation` for each repository with at most `jobs` active callbacks.
-  The callback receives the repository and a reporter, and returns an outcome
+  `outcomes` lists the `[key label]` pairs a repository can end in. The
+  callback receives the repository and a reporter, and returns an outcome
   key. Errors and unknown outcomes count as :failed. The live progress block
   is drawn when stderr is a terminal, unless `live?` is given: false keeps the
   run silent, apart from what it reports.
@@ -171,7 +172,7 @@
   repositories it had not begun were left alone, and the counts as a line,
   "2 succeeded, 1 failed", in the order the outcomes were declared.``
   [repositories outcomes operation &opt jobs live?]
-  (unless (some (fn [outcome] (= :failed (outcome 0))) outcomes)
+  (unless (some (fn [[key]] (= :failed key)) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
   # Only an absent count falls back, so a supplied bad one still raises.
