@@ -100,17 +100,17 @@
           (string/join (map describe names) " and ")))
 
 (defn- exit-unconfigured
-  ``Say that `catalog` read no configuration files, and exit successfully.
+  ``Say that `catalog` read no repository lists, and exit successfully.
   Nothing configured yet is a normal state, not a failure: exiting non-zero
   would make `just run` print a traceback over an unremarkable message.``
   [catalog]
-  (eprint "No configuration files in " (catalog :directory))
+  (eprint "No repository lists in " (catalog :directory))
   (os/exit 0))
 
 (defn- resolve-filters
   "Sort what `parsed` was given with -f, as selection/resolve-filters does."
-  [parsed settings]
-  (selection/resolve-filters (or (parsed "filter") []) settings))
+  [parsed repository-settings]
+  (selection/resolve-filters (or (parsed "filter") []) repository-settings))
 
 (defn- explain-empty
   ``Say why `reason` says a selection is empty. Unless the reason is that the
@@ -134,7 +134,7 @@
     (unless quiet?
       (eprint "No configured repository is left by "
               (if (empty? (reason :names))
-                (string "the filters in " config/command-config-name)
+                (string "the filters in " config/settings-file-name)
                 (describe-filters (reason :names)))))
 
     :no-anchor-contains-path
@@ -164,10 +164,10 @@
   `unconfigured-ok?`, a configuration directory without files does not end the
   run, and with `quiet?`, explanations of a selection the location emptied are
   left out.``
-  [options settings &named unconfigured-ok? quiet?]
+  [options repository-settings &named unconfigured-ok? quiet?]
   (def result
     (try
-      (selection/select options settings)
+      (selection/select options repository-settings)
       ([err]
         (if (dictionary? err)
           (eprint "Selection error: " (err :stage-error))
@@ -248,20 +248,20 @@
 
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
-  [args &opt settings jobs]
+  [args &opt repository-settings jobs]
   (def parsed
     (parse-command args "clone"
                    "Check out the configured repositories beneath a path."
                    {"jobs" (string (or jobs parallel/default-jobs))}))
   (def jobs (parsed-jobs parsed))
-  (def selection (resolve-filters parsed settings))
+  (def selection (resolve-filters parsed repository-settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
   (when-let [value (first (selection :command-values))]
     (eprint "usage error: clone can only use the JMESPath filters in :filters, "
             "and " (describe value) " is not one")
     (os/exit 1))
   (def repositories
-    ((select-repositories (selection-options parsed) settings) :repositories))
+    ((select-repositories (selection-options parsed) repository-settings) :repositories))
   (def result (clone/clone-repositories repositories jobs))
   (print (result :summary))
   # A blocked repository was asked for and is still not checked out.
@@ -283,18 +283,18 @@
     parsed))
 
 (defn- extra-on-disk
-  ``Scan the disk from `--at` and return the repositories no configuration file
+  ``Scan the disk from `--at` and return the repositories no repository list
   defines, whatever their anchor or the filters named on the command line.
   A checkout row's own filter does count: a repository it leaves out is not
   meant to be there.``
-  [parsed settings names configured]
+  [parsed repository-settings names configured]
   (def max-depth
     (exit-on-error "Invalid --max-depth: "
                    (fn [] (scan-max-depth (parsed "max-depth")))))
   (def everything
     (if (empty? names)
       configured
-      (((select-repositories {:catalog-only? true} settings) :catalog)
+      (((select-repositories {:catalog-only? true} repository-settings) :catalog)
         :repositories)))
   (def root (survey/scan-root (parsed "at")))
   # Selection accepts a path that is not a directory, such as a repository
@@ -314,8 +314,8 @@
   and --extra pick what to print by comparing them with what is on disk,
   and print the extra ones after the configured ones. Without them, plain
   list prints every configured repository, and --status what differs.``
-  [args &opt settings]
-  (default settings config/default-repository-settings)
+  [args &opt repository-settings]
+  (default repository-settings config/default-repository-settings)
   (def parsed
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}))
@@ -342,7 +342,7 @@
              {:wanted-state wanted
               :jobs parallel/default-jobs
               :catalog-only? (not show-configured?)})
-      settings
+      repository-settings
       :unconfigured-ok? scan?
       :quiet? scan?))
   (def configured ((result :catalog) :repositories))
@@ -356,13 +356,13 @@
     (when (if (= "ok" state) want-ok? want-missing?)
       (emit state (repository :path) (repository :ssh_url))))
   (when scan?
-    (each repository (extra-on-disk parsed settings ((result :filters) :names) configured)
+    (each repository (extra-on-disk parsed repository-settings ((result :filters) :names) configured)
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))
 
 (defn- run-configured-command
   "Run a command in the selected repositories and report its outcome."
-  [command parsed &opt settings]
+  [command parsed &opt repository-settings]
   (def wanted (wanted-state parsed))
   (def show-output
     (exit-on-error "Invalid --show-output: "
@@ -373,7 +373,7 @@
        (merge (selection-options parsed)
               {:wanted-state wanted
                :jobs jobs})
-       settings)
+       repository-settings)
       :repositories))
   (def result (run/run-in-repositories repositories command show-output jobs))
   (print (result :summary))
@@ -381,18 +381,18 @@
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."
-  [command description &opt show-output jobs settings]
+  [command description &opt show-output jobs repository-settings]
   (def show-output (or show-output run/default-show-output))
   (fn [args]
     (def parsed
       (parse-command args "run" description
                      {"show-output" show-output
                       "jobs" (string (or jobs parallel/default-jobs))}))
-    (run-configured-command command parsed settings)))
+    (run-configured-command command parsed repository-settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
-  [args &opt jobs settings]
+  [args &opt jobs repository-settings]
   (def parsed
     (parse-command args "run"
                    (string "Run a command in each configured repository beneath a path.\n\n"
@@ -406,7 +406,7 @@
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
-  (run-configured-command command parsed settings))
+  (run-configured-command command parsed repository-settings))
 
 (defn completions-command
   ``Run `herd completions`: print the script for a shell, or, for the scripts
@@ -433,32 +433,32 @@
       (os/exit 1))))
 
 (defn custom-commands
-  "Build the handler of each custom command that `prepared` holds."
-  [prepared]
-  (def {:settings settings :jobs jobs :commands commands} prepared)
+  "Build the handler of each custom command that `config` holds."
+  [config]
+  (def {:settings repository-settings :jobs jobs :commands commands} config)
   (tabseq [[name {:command command :description description
                   :show-output show-output}] :pairs commands]
-    name {:run (make-run-command command description show-output jobs settings)
+    name {:run (make-run-command command description show-output jobs repository-settings)
           :help description}))
 
 (defn built-in-commands
   ``Subcommands by name, with their argument handler and one-line summary.
-  The prepared config's per-file settings and job count are bound here so
+  The loaded config's per-file settings and job count are bound here so
   every handler starts from them, leaving the command line to override.``
-  [prepared]
-  (def {:settings settings :jobs jobs} prepared)
-  {"clone" {:run (fn [args] (clone-command args settings jobs))
+  [config]
+  (def {:settings repository-settings :jobs jobs} config)
+  {"clone" {:run (fn [args] (clone-command args repository-settings jobs))
             :help "Check out the configured repositories beneath a path."}
    "completions" {:run (fn [args]
                          (completions-command
                            args
-                           (fn [] (merge (built-in-commands prepared)
-                                         (custom-commands prepared)))
-                           (fn [] (filter/descriptions (get settings :filters {})))))
+                           (fn [] (merge (built-in-commands config)
+                                         (custom-commands config)))
+                           (fn [] (filter/descriptions (get repository-settings :filters {})))))
                   :help "Print a shell completion script for herd."}
-   "list" {:run (fn [args] (list-command args settings))
+   "list" {:run (fn [args] (list-command args repository-settings))
            :help "Print the configured repositories beneath a path."}
-   "run" {:run (fn [args] (run-command args jobs settings))
+   "run" {:run (fn [args] (run-command args jobs repository-settings))
           :help "Run a command in each configured repository beneath a path."}})
 
 (def built-in-command-names
@@ -468,9 +468,9 @@
 (defn available-commands
   "Return built-in commands merged with the configured custom commands."
   []
-  (def prepared
+  (def config
     (config/load-settings (config/config-directory) built-in-command-names))
-  (merge (built-in-commands prepared) (custom-commands prepared)))
+  (merge (built-in-commands config) (custom-commands config)))
 
 (defn- command-list
   ``Render the commands for the top-level help. argparse documents named

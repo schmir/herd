@@ -227,7 +227,7 @@
   (spit config
         `[{"path":"first","ssh_url":"unused"},
           {"path":"second","ssh_url":"unused"}]`)
-  (def repositories (config/read-config config (config/config-directory) @[{}]))
+  (def repositories (config/read-repository-list config (config/config-directory) @[{}]))
   (assert (deep= (map (fn [repository] (repository :path)) repositories)
                  @[(string root "/first") (string root "/second")])
           "default configuration resolves under home")

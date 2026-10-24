@@ -124,13 +124,13 @@ Custom commands.
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 must be a dictionary
   [1]
   $ settings '{:checkouts [{:anchor "work"}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a configuration file
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
   [1]
   $ settings '{:checkouts [{:from 1}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a configuration file
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
   [1]
   $ settings '{:checkouts [{:from ""}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a configuration file
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
   [1]
   $ settings '{:checkouts [{:from "repos.json" :anchor ""}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-empty :anchor

@@ -73,7 +73,7 @@ An empty settings file with no lists is simply nothing configured.
 
   $ echo '{}' >"$CONFIG/config.jdn"
   $ herd list
-  No configuration files in $ROOT/home/.config/herd
+  No repository lists in $ROOT/home/.config/herd
   $ rm "$CONFIG/config.jdn"
 
 A list linked into the configuration directory is anchored where it is

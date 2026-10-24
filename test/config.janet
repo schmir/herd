@@ -1,4 +1,4 @@
-# Tests for reading, validating and merging configuration files.
+# Tests for reading, validating and merging repository lists.
 (use spork/test)
 (import spork/path)
 (import spork/sh)
@@ -40,9 +40,9 @@
 
 (defn- config-error
   "Return the error from config anchor resolution, or nil if it succeeds."
-  [config-path directory checkouts]
+  [list-path directory checkouts]
   (try
-    (do (config/resolve-checkout-rows config-path directory checkouts) nil)
+    (do (config/resolve-checkout-rows list-path directory checkouts) nil)
     ([err] (string err))))
 
 (defn- anchor-paths
@@ -208,8 +208,8 @@
               (command-of "check" {:command "true" :comand-jj "jj status"}))
 
 (let [dir (fixture)
-      config-path (path/join dir "config.jdn")]
-  (spit config-path `(error "this code must not run")`)
+      settings-path (path/join dir "config.jdn")]
+  (spit settings-path `(error "this code must not run")`)
   (def message
     (try
       (do (config/load-settings dir reserved) nil)
@@ -219,8 +219,8 @@
   (sh/rm dir))
 
 (let [dir (fixture)
-      config-path (path/join dir "config.jdn")]
-  (spit config-path `{:defaults {:vcs "git"}}`)
+      settings-path (path/join dir "config.jdn")]
+  (spit settings-path `{:defaults {:vcs "git"}}`)
   (assert (= "git" (get-in (config/load-settings dir reserved)
                            [:settings :defaults :vcs]))
           "the default VCS is loaded from config.jdn")
@@ -254,22 +254,22 @@
 
 (let [xdg (os/getenv "XDG_CONFIG_HOME")]
   (os/setenv "XDG_CONFIG_HOME" "/xdg")
-  (assert (= "/xdg/herd/config.jdn" (config/command-config-path))
+  (assert (= "/xdg/herd/config.jdn" (config/settings-file-path))
           "the file is config.jdn in the configuration directory")
   (os/setenv "XDG_CONFIG_HOME" xdg))
 
-# --- parse-settings -------------------------------------------------------
+# --- parse-settings-file -------------------------------------------------------
 
-(assert (deep= {:jobs 3} (config/parse-settings `{:jobs 3}`))
+(assert (deep= {:jobs 3} (config/parse-settings-file `{:jobs 3}`))
         "one dictionary is the settings it holds")
-(assert (deep= {} (config/parse-settings ""))
+(assert (deep= {} (config/parse-settings-file ""))
         "an empty file holds no settings")
 
 # A second dictionary appended rather than merged used to be read as far as
 # the first and the rest dropped in silence.
 (let [dir (fixture)
-      config-path (path/join dir "config.jdn")]
-  (spit config-path
+      settings-path (path/join dir "config.jdn")]
+  (spit settings-path
         (string `{:jobs 3}` "\n\n"
                 `{:commands {"hi" {:command "echo hi" :description "say hi"}}}`))
   (def message
@@ -281,8 +281,8 @@
   (sh/rm dir))
 
 (let [dir (fixture)
-      config-path (path/join dir "config.jdn")]
-  (spit config-path "# nothing configured yet\n")
+      settings-path (path/join dir "config.jdn")]
+  (spit settings-path "# nothing configured yet\n")
   (def settings (get (config/load-settings dir reserved) :settings))
   (assert (and (empty? (settings :defaults))
                (empty? (settings :checkouts))
@@ -364,19 +364,19 @@
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg))
 
-# --- discover-config-files ------------------------------------------------
+# --- discover-repository-lists ------------------------------------------------
 
 (let [dir (fixture)]
-  (assert (empty? (config/discover-config-files (string dir "/missing")))
+  (assert (empty? (config/discover-repository-lists (string dir "/missing")))
           "a missing directory holds no configuration")
-  (assert (empty? (config/discover-config-files nil)) "no directory at all holds none")
+  (assert (empty? (config/discover-repository-lists nil)) "no directory at all holds none")
   (spit (string dir "/b.json") "[]")
   (spit (string dir "/a.json") "[]")
   (spit (string dir "/notes.txt") "ignored")
   (sh/create-dirs (string dir "/directory.json"))
   (sh/create-dirs (string dir "/root"))
   (os/link (string dir "/root") (string dir "/a.json.root") true)
-  (assert (deep= (config/discover-config-files dir)
+  (assert (deep= (config/discover-repository-lists dir)
                  @[(string dir "/a.json") (string dir "/b.json")])
           "repository JSON files are sorted without directories")
   (sh/rm dir))
@@ -392,7 +392,7 @@
   (when (try (do (os/dir closed) false) ([_] true))
     (def message
       (try
-        (do (config/discover-config-files closed) nil)
+        (do (config/discover-repository-lists closed) nil)
         ([err] (string err))))
     (assert (and message (string/find closed message))
             "an unreadable directory raises and names itself"))
@@ -409,7 +409,7 @@
   (os/chmod outer 8r000)
   (when (try (do (os/dir inner) false) ([_] true))
     (assert-error "a directory under a closed parent raises"
-                  (config/discover-config-files inner)))
+                  (config/discover-repository-lists inner)))
   (os/chmod outer 8r755)
   (sh/rm dir))
 
@@ -417,7 +417,7 @@
       afile (string dir "/a-file")]
   (spit afile "not a directory")
   (assert-error "a file where the configuration directory belongs raises"
-                (config/discover-config-files afile))
+                (config/discover-repository-lists afile))
   (sh/rm dir))
 
 # --- checkout rows --------------------------------------------------------
@@ -711,7 +711,7 @@
                 [{:path "relative" :ssh_url "relative-url"}
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
+  (let [repositories (config/load-repository-lists
                        [config] configuration
                        (config/configured-repository-settings
                          {:checkouts [{:from "repos.json" :anchor "root"}]}))]
@@ -735,7 +735,7 @@
                 [{:path "relative" :ssh_url "relative-url"}
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
+  (let [repositories (config/load-repository-lists
                        [config] configuration
                        (config/configured-repository-settings
                          {:checkouts [{:from "repos.json" :anchor "one"}
@@ -763,7 +763,7 @@
   (sh/create-dirs configuration)
   (write-config config [{:path "org/team/repo" :ssh_url "url"}])
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
+  (let [repositories (config/load-repository-lists
                        [config] configuration
                        (config/configured-repository-settings
                          {:checkouts
@@ -786,8 +786,8 @@
   (write-config unread [{:path "one" :ssh_url "one-url"}])
   (write-config read-by-a-row [{:path "two" :ssh_url "two-url"}])
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
-                       (config/discover-config-files configuration) configuration
+  (let [repositories (config/load-repository-lists
+                       (config/discover-repository-lists configuration) configuration
                        (config/configured-repository-settings
                          {:defaults {:anchor "root"}
                           :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
@@ -796,8 +796,8 @@
                    (map (fn [repository] (repository :path)) repositories))
             "a file no row reads resolves from the defaults alone"))
   (assert-error "a row reading a file that is not there is refused"
-                (config/load-config
-                  (config/discover-config-files configuration) configuration
+                (config/load-repository-lists
+                  (config/discover-repository-lists configuration) configuration
                   (config/configured-repository-settings
                     {:checkouts [{:from "renamed.json" :anchor "root"}]})))
   (os/setenv "HOME" home)
@@ -813,7 +813,7 @@
         `[{"path": "plain", "ssh_url": "u"},
           {"path": "own", "ssh_url": "u", "vcs": "jj"}]`)
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
+  (let [repositories (config/load-repository-lists
                        [config] configuration
                        (config/configured-repository-settings
                          {:defaults {:vcs "jj"}
@@ -833,14 +833,14 @@
       home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (spit target "not a directory")
-  (each config-path [regular broken directory]
-    (write-config config-path [{:path (path/basename config-path) :ssh_url "u"}]))
+  (each list-path [regular broken directory]
+    (write-config list-path [{:path (path/basename list-path) :ssh_url "u"}]))
   (spit (string regular ".root") "not a symlink")
   (os/link (string dir "/missing") (string broken ".root") true)
   (os/link target (string directory ".root") true)
   (os/setenv "HOME" dir)
-  (let [repositories (config/load-config
-                       (config/discover-config-files configuration)
+  (let [repositories (config/load-repository-lists
+                       (config/discover-repository-lists configuration)
                        configuration)]
     (assert (= 3 (length repositories)) "root companions do not affect loading")
     (assert (every?
@@ -850,7 +850,7 @@
   (os/setenv "HOME" home)
   (sh/rm dir))
 
-# --- read-config and load-config ------------------------------------------
+# --- read-repository-list and load-repository-lists ------------------------------------------
 
 (let [dir (fixture)
       configuration (string dir "/config/herd")
@@ -867,7 +867,7 @@
                 [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
 
-  (let [merged (config/load-config (config/discover-config-files configuration) configuration)]
+  (let [merged (config/load-repository-lists (config/discover-repository-lists configuration) configuration)]
     (assert (deep= (map (fn [repository] (repository :path)) merged)
                    @[(string dir "/src/alpha")
                      "/opt/beta"
@@ -877,13 +877,13 @@
   # The same checkout in two files is fine while they agree on the URL.
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}])
-  (assert (= 3 (length (config/load-config (config/discover-config-files configuration) configuration)))
+  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration) configuration)))
           "an agreeing duplicate is dropped")
 
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
   (assert-error "a disagreeing duplicate is refused"
-                (config/load-config (config/discover-config-files configuration) configuration))
+                (config/load-repository-lists (config/discover-repository-lists configuration) configuration))
 
   # Two files may name one checkout only while they agree on every checkout
   # option, not merely on the URL. src/alpha carries no vcs of its own above,
@@ -892,16 +892,16 @@
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
                   :vcs "git"}])
   (assert-error "a duplicate disagreeing about the vcs is refused"
-                (config/load-config (config/discover-config-files configuration) configuration))
+                (config/load-repository-lists (config/discover-repository-lists configuration) configuration))
 
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
                   :vcs "jj"}])
-  (assert (= 3 (length (config/load-config (config/discover-config-files configuration) configuration)))
+  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration) configuration)))
           "a duplicate naming the vcs it already has is dropped")
 
   (assert-error "an unreadable file is refused"
-                (config/load-config [(string dir "/absent.json")] configuration))
+                (config/load-repository-lists [(string dir "/absent.json")] configuration))
   (os/setenv "HOME" home)
   (sh/rm dir))
 
@@ -916,13 +916,13 @@
   (write-config config
                 [{:path "one/repo" :ssh_url "shared-url"}
                  {:path "two/repo" :ssh_url "shared-url"}])
-  (assert (= 1 (length (config/load-config [config] configuration settings)))
+  (assert (= 1 (length (config/load-repository-lists [config] configuration settings)))
           "agreeing paths merged by stripping remain one repository")
   (write-config config
                 [{:path "one/repo" :ssh_url "first-url"}
                  {:path "two/repo" :ssh_url "second-url"}])
   (assert-error "stripped paths with different URLs are refused"
-                (config/load-config [config] configuration settings))
+                (config/load-repository-lists [config] configuration settings))
   (sh/rm dir))
 
 (let [dir (fixture)
@@ -931,7 +931,7 @@
       checkout (string dir "/shared")]
   (write-config first [{:path checkout :ssh_url "shared-url"}])
   (write-config second [{:path checkout :ssh_url "shared-url"}])
-  (let [repositories (config/load-config [first second] nil)]
+  (let [repositories (config/load-repository-lists [first second] nil)]
     (assert (= 1 (length repositories)) "an agreeing duplicate remains one repository")
     (assert (deep= (map path/abspath [(path/parent first) (path/parent second)])
                    ((repositories 0) :anchors))
@@ -948,14 +948,14 @@
   (let [catalog (config/load-repository-catalog configuration nil)]
     (assert (= configuration (catalog :directory))
             "the catalog keeps the configuration directory")
-    (assert (deep= @[config] (catalog :paths))
-            "the catalog keeps the configuration files it read")
+    (assert (deep= @[config] (catalog :repository-lists))
+            "the catalog keeps the repository lists it read")
     (assert (deep= @["/abs/one"]
                    (map (fn [repository] (repository :path))
                         (catalog :repositories)))
             "the catalog holds the merged repositories"))
   (let [catalog (config/load-repository-catalog (string dir "/missing") nil)]
-    (assert (and (empty? (catalog :paths)) (empty? (catalog :repositories)))
+    (assert (and (empty? (catalog :repository-lists)) (empty? (catalog :repositories)))
             "a missing directory yields an empty catalog"))
   (assert (try (do (config/load-repository-catalog
                      configuration

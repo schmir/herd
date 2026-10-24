@@ -195,28 +195,28 @@
   (spit config (string/format `[{"path": %j, "ssh_url": "unused"}]` directory))
   (each command ["clone" "list"]
     (assert (not= 0 ((invoke [command "--at" directory config]) :status))
-            (string command " rejects an explicit configuration file")))
+            (string command " rejects an explicit repository list")))
 
   (def home (os/getenv "HOME"))
   (def xdg (os/getenv "XDG_CONFIG_HOME"))
   (def root (os/realpath directory))
   (def configuration (path/join root "config/herd/repos.json"))
-  (def command-config (path/join root "config/herd/config.jdn"))
+  (def settings-file (path/join root "config/herd/config.jdn"))
   (def anchor (path/join root "work"))
   (def repository (path/join anchor "repo"))
-  (defn write-command-config
+  (defn write-settings-file
     ``Write config.jdn with the checkout row required by these tests.
     Add `body` to the shared settings.``
     [&opt body]
     (default body "")
-    (spit command-config
+    (spit settings-file
           (string `{:checkouts [{:from "repos.json" :anchor "work"}]`
                   "\n " body "}")))
   (sh/create-dirs-to configuration)
   (sh/create-dirs repository)
   (sh/create-dirs (path/join repository ".git"))
   (spit configuration `[{"path": "repo", "ssh_url": "unused"}]`)
-  (write-command-config)
+  (write-settings-file)
   (os/setenv "HOME" root)
   (os/setenv "XDG_CONFIG_HOME" (path/join root "config"))
   (def no-anchor (invoke ["list" "--at" "/unconfigured-herd-test"]))
@@ -227,14 +227,14 @@
   (assert (= 0 (no-repository :status)) "an empty anchor is not an error")
   (assert (string/find "-a/--all-anchors" (no-repository :output))
           "an empty anchor suggests all-anchor selection")
-  (write-command-config
+  (write-settings-file
     `:commands
      {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
               :show-output "always"}}`)
-  (assert (= command-config (config/command-config-path))
+  (assert (= settings-file (config/settings-file-path))
           "the JDN configuration uses the XDG configuration directory")
-  (assert (get-in (config/load-settings (path/parent command-config) herd/built-in-command-names)
+  (assert (get-in (config/load-settings (path/parent settings-file) herd/built-in-command-names)
                   [:commands "mark"])
           "the JDN configuration loads a custom command")
   (def top-help (invoke ["--help"]))
@@ -284,7 +284,7 @@
     (assert (string/find "Invalid --jobs: expected a positive integer"
                          (result :output))
             (string "--jobs " invalid " explains the expected value")))
-  (write-command-config
+  (write-settings-file
     `:jobs 2
      :commands
      {"mark" {:command "printf marker | grep marker && touch custom-command"
@@ -305,7 +305,7 @@
   (assert (string/find "Invalid --jobs"
                        ((invoke ["mark" "--at" anchor "--jobs" "0"]) :output))
           "an invalid command-line count still fails with a message")
-  (write-command-config ":jobs 0")
+  (write-settings-file ":jobs 0")
   (def bad-configured-jobs (invoke ["list" "--at" anchor]))
   (assert (not= 0 (bad-configured-jobs :status))
           "an invalid configured job count fails")
@@ -313,7 +313,7 @@
                        (bad-configured-jobs :output))
           (string "an invalid configured job count names the setting: "
                   (bad-configured-jobs :output)))
-  (write-command-config
+  (write-settings-file
     `:commands
      {"mark" {:command "printf marker | grep marker && touch custom-command"
               :description "Create a marker in each repository."
@@ -349,7 +349,7 @@
                 "for dest; do :; done; mkdir -p \"$dest/.git\"\n"))
   (sh/exec-fail "chmod" "+x" fake-git)
   (sh/exec-fail "chmod" "+x" fake-jj)
-  (write-command-config `:defaults {:vcs "git"}`)
+  (write-settings-file `:defaults {:vcs "git"}`)
   (sh/rm repository)
   (spit configuration
         `[{"path":"git-repo","ssh_url":"git-url"},
@@ -376,10 +376,10 @@
     (assert (and (discover/repository? git-repository)
                  (discover/repository? jj-repository))
             "each clone is moved from its staging path into place"))
-  (spit command-config `{:checkouts [{:from "renamed.json" :anchor "work"}]}`)
+  (spit settings-file `{:checkouts [{:from "renamed.json" :anchor "work"}]}`)
   (def renamed (invoke ["list" "--at" anchor]))
   (assert (not= 0 (renamed :status))
-          "a row reading a configuration file that is not there fails")
+          "a row reading a repository list that is not there fails")
   (assert (string/find `"renamed.json"` (renamed :output))
           "the mistake names the file the row could not read")
   # Confirm that a stale row fails after its last repository list is removed.
@@ -389,15 +389,15 @@
           "a stale row fails even when no repository list is left")
   (assert (string/find `"renamed.json"` (stale :output))
           "and is still named rather than passed over as an empty directory")
-  (spit command-config "{}")
+  (spit settings-file "{}")
   (def nothing-configured (invoke ["list" "--at" anchor]))
   (assert (= 0 (nothing-configured :status))
           "an empty configuration directory on its own is not an error")
-  (assert (string/find "No configuration files" (nothing-configured :output))
+  (assert (string/find "No repository lists" (nothing-configured :output))
           "and says so")
   # A binary has to be able to say which release it is even when the
   # configuration it would otherwise read cannot be loaded.
-  (spit command-config "{:checkouts")
+  (spit settings-file "{:checkouts")
   (def broken (invoke ["list" "--at" anchor]))
   (assert (not= 0 (broken :status)) "a malformed configuration fails")
   (each flag ["--version" "-V"]

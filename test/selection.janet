@@ -265,7 +265,7 @@
 (test-list-filters-narrow-the-catalog)
 
 (defn test-nothing-configured
-  "A directory without configuration files is a state, not a failure."
+  "A directory without repository lists is a state, not a failure."
   []
   (def bare-dir (path/join config-dir "bare"))
   (sh/create-dirs bare-dir)
@@ -273,7 +273,7 @@
                                 config/default-repository-settings))
   (assert (deep= {:kind :unconfigured :directory bare-dir} (result :reason)))
   (assert (empty? (result :repositories)))
-  (assert (empty? ((result :catalog) :paths)) "the catalog is still there to read"))
+  (assert (empty? ((result :catalog) :repository-lists)) "the catalog is still there to read"))
 
 (defn test-no-configuration-directory
   "Without XDG_CONFIG_HOME and HOME there is nowhere to look."

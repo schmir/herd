@@ -9,7 +9,7 @@
 (import ./vcs)
 
 (defn config-directory
-  ``Directory holding the JSON repository lists and the command config file,
+  ``Directory holding the JSON repository lists and the settings file,
   or nil when neither XDG_CONFIG_HOME nor HOME is set.``
   []
   (if-let [xdg (os/getenv "XDG_CONFIG_HOME")]
@@ -17,14 +17,14 @@
     (when-let [home (os/getenv "HOME")]
       (path/join home ".config" "herd"))))
 
-(def command-config-name
+(def settings-file-name
   "File in the configuration directory holding the settings and commands."
   "config.jdn")
 
-(def config-suffix ".json")
+(def repository-list-suffix ".json")
 
-(defn discover-config-files
-  ``Configuration files in `directory`, sorted so the merge order is stable.
+(defn discover-repository-lists
+  ``Repository lists in `directory`, sorted so the merge order is stable.
   A directory that is not there yields none: having no configuration yet is
   normal. One that cannot be listed for any other reason raises instead of
   passing for empty, since a directory herd cannot read holds every
@@ -43,7 +43,7 @@
                  (error err))))
       @[]))
   (sort (seq [name :in names
-              :when (string/has-suffix? config-suffix name)
+              :when (string/has-suffix? repository-list-suffix name)
               :let [file (path/join directory name)]
               :when (= :file (os/stat file :mode))]
           file)))
@@ -95,7 +95,7 @@
 
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
-  configuration file.``
+  repository list.``
   [checkout-row where]
   (unless (dictionary? checkout-row)
     (error (string where " must be a dictionary")))
@@ -103,7 +103,7 @@
     (reject-unknown-setting where key [;checkout-row-keys ;checkout/checkout-keys]))
   (def from (get checkout-row :from))
   (unless (and (string? from) (not (empty? from)))
-    (error (string where " needs a :from naming a configuration file")))
+    (error (string where " needs a :from naming a repository list")))
   (validate-anchor-setting checkout-row where)
   (validate-filter-setting checkout-row where)
   (validate-strip-components-setting checkout-row where)
@@ -122,7 +122,7 @@
   (checkout/validate-checkout-options defaults ":defaults")
   defaults)
 
-(defn parse-settings
+(defn parse-settings-file
   ``Return the one settings value `source` holds, or an empty one when it
   holds none. Holding several is a mistake rather than a file to read the
   first of: settings appended as a second dictionary, rather than merged into
@@ -136,24 +136,24 @@
                    (length parsed) " top-level values"))))
 
 (def default-repository-settings
-  "Repository settings used when the command config file is absent."
+  "Repository settings used when the settings file is absent."
   {:defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
   ``Validate repository settings. The checkout rows keep the order they were
   written in.``
-  [command-config]
-  (unless (dictionary? command-config)
+  [settings-file]
+  (unless (dictionary? settings-file)
     (error "expected a JDN dictionary"))
-  (def rows (get command-config :checkouts []))
+  (def rows (get settings-file :checkouts []))
   (unless (indexed? rows)
     (error ":checkouts must be an array of rows"))
   (def checkout-rows
     (seq [index :range [0 (length rows)]]
       (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
-  (def filters (filter/validate-registry (get command-config :filters {})))
-  (def defaults (validate-checkout-defaults (get command-config :defaults {})))
+  (def filters (filter/validate-registry (get settings-file :filters {})))
+  (def defaults (validate-checkout-defaults (get settings-file :defaults {})))
   (filter/check-names filters (get defaults :filter []) ":defaults")
   (each checkout-row checkout-rows
     (filter/check-names filters (get checkout-row :filter [])
@@ -190,9 +190,9 @@
   filter and path settings. Relative anchors use HOME. A missing anchor uses
   HOME for configured files and the file's parent otherwise. Keep configured
   paths because selection resolves symbolic links.``
-  [config-path directory checkout-rows]
-  (def parent (path/abspath (path/parent config-path)))
-  (def name (path/basename config-path))
+  [list-path directory checkout-rows]
+  (def parent (path/abspath (path/parent list-path)))
+  (def name (path/basename list-path))
   (seq [checkout-row :in checkout-rows]
     (def anchor (get checkout-row :anchor))
     (def resolved
@@ -234,7 +234,7 @@
   ``Resolve each entry once per placement, stripping its leading components and
   applying its checkout options. Entries without placements produce no
   checkouts. Unstripped absolute paths remain the same under all placements so
-  `merge-configs` can combine them.``
+  `merge-repository-lists` can combine them.``
   [entries placements]
   (def resolved @[])
   (each placement placements
@@ -269,18 +269,18 @@
     (checkout/validate-checkout-options entry (string "entry " index) `"vcs"`))
   rows)
 
-(defn read-config
-  ``Read one configuration file, resolving each repository into checkouts.
+(defn read-repository-list
+  ``Read one repository list, resolving each repository into checkouts.
   A row filters before its anchor is applied, so each row can describe a
   different part of the same list, and `names` narrows every row further.
   Only the entries a filter kept are validated: a list may carry entries herd
   could not use, which is the point of filtering it. The file is decoded once,
   after the filters have had it, so what they see is the file itself.``
-  [config-path directory checkout-rows &opt filters names]
+  [list-path directory checkout-rows &opt filters names]
   (default filters {})
   (default names [])
-  (def source (slurp config-path))
-  (def placements (resolve-checkout-rows config-path directory checkout-rows))
+  (def source (slurp list-path))
+  (def placements (resolve-checkout-rows list-path directory checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -304,15 +304,15 @@
     (array/concat resolved (resolve-repository-paths kept [placement])))
   resolved)
 
-(defn merge-configs
-  ``Concatenate `[config-path repositories]` pairs into one repository list.
+(defn merge-repository-lists
+  ``Concatenate `[list-path repositories]` pairs into one repository list.
   Two files may name the same checkout only when they agree on the URL and on
   every checkout option; letting them disagree would make the result depend
   on the reading order.``
   [lists]
   (def seen @{})
   (def merged @[])
-  (each [config-path repositories] lists
+  (each [list-path repositories] lists
     (each repository repositories
       (def previous (get seen (repository :path)))
       # Weigh whichever options there are rather than naming one of them, so
@@ -327,7 +327,7 @@
         (nil? previous)
         (do
           (put seen (repository :path)
-               {:source config-path
+               {:source list-path
                 :ssh_url (repository :ssh_url)
                 :options (checkout-options repository)
                 :anchors (repository :anchors)})
@@ -335,11 +335,11 @@
 
         (not= (previous :ssh_url) (repository :ssh_url))
         (error (string/format "%s and %s disagree on the URL for %s"
-                              (previous :source) config-path (repository :path)))
+                              (previous :source) list-path (repository :path)))
 
         disagreement
         (error (string/format "%s and %s disagree on the %s for %s"
-                              (previous :source) config-path disagreement
+                              (previous :source) list-path disagreement
                               (repository :path)))
 
         true
@@ -351,29 +351,29 @@
 (defn- reject-unknown-sources
   ``Reject checkouts whose source file is missing. This prevents a
   renamed list from silently using the defaults.``
-  [config-paths settings]
-  (def present (map path/basename config-paths))
+  [list-paths settings]
+  (def present (map path/basename list-paths))
   (each name (distinct (map (fn [checkout-row] (checkout-row :from)) (get settings :checkouts [])))
     (unless (index-of name present)
-      (error (string command-config-name ": :checkouts reads " (describe name)
+      (error (string settings-file-name ": :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
 
-(defn load-config
-  ``Read every configuration file and merge them into one repository list.
+(defn load-repository-lists
+  ``Read every repository list and merge them into one list of repositories.
   Errors name the file they came from, since a bad entry is otherwise hard to
   place once several files are in play.``
-  [config-paths directory &opt settings names]
+  [list-paths directory &opt settings names]
   (default settings default-repository-settings)
-  (reject-unknown-sources config-paths settings)
-  (merge-configs
-    (seq [config-path :in config-paths]
-      [config-path
+  (reject-unknown-sources list-paths settings)
+  (merge-repository-lists
+    (seq [list-path :in list-paths]
+      [list-path
        (try
-         (read-config config-path directory
-                      (checkout-rows-for-list settings (path/basename config-path))
-                      (get settings :filters {})
-                      names)
-         ([err] (error (string config-path ": " err))))])))
+         (read-repository-list list-path directory
+                               (checkout-rows-for-list settings (path/basename list-path))
+                               (get settings :filters {})
+                               names)
+         ([err] (error (string list-path ": " err))))])))
 
 (defn load-repository-catalog
   ``Discover and load the repository configuration. The returned catalog keeps
@@ -382,17 +382,17 @@
   before entries are validated, as required by the filter semantics.``
   [directory settings &opt names]
   (default names [])
-  (def config-paths (discover-config-files directory))
+  (def list-paths (discover-repository-lists directory))
   {:directory directory
-   :paths config-paths
-   :repositories (load-config config-paths directory settings names)})
+   :repository-lists list-paths
+   :repositories (load-repository-lists list-paths directory settings names)})
 
 (defn- configured-jobs
   "Return the configured job count, or the default when it is not set."
-  [command-config]
-  (unless (dictionary? command-config)
+  [settings-file]
+  (unless (dictionary? settings-file)
     (error "expected a JDN dictionary"))
-  (def jobs (get command-config :jobs parallel/default-jobs))
+  (def jobs (get settings-file :jobs parallel/default-jobs))
   (unless (parallel/jobs? jobs)
     (error (string ":jobs must be a positive integer no greater than "
                    parallel/max-jobs)))
@@ -462,10 +462,10 @@
   by name with its `:command`, `:description` and `:show-output`. `reserved`
   names the commands a custom command may not replace. The commands herd
   defines itself are there unless the settings define one of the same name.``
-  [command-config reserved]
-  (def jobs (configured-jobs command-config))
-  (def settings (configured-repository-settings command-config))
-  (def definitions (get command-config :commands {}))
+  [settings-file reserved]
+  (def jobs (configured-jobs settings-file))
+  (def settings (configured-repository-settings settings-file))
+  (def definitions (get settings-file :commands {}))
   (unless (dictionary? definitions)
     (error ":commands must be a dictionary"))
   (def commands @{})
@@ -473,23 +473,23 @@
     (put commands name (command-from-definition name definition reserved)))
   {:settings settings :jobs jobs :commands commands})
 
-(defn command-config-path
+(defn settings-file-path
   "Return the path of config.jdn, or nil without a configuration directory."
   []
   (when-let [directory (config-directory)]
-    (path/join directory command-config-name)))
+    (path/join directory settings-file-name)))
 
 (defn load-settings
   ``Read and validate config.jdn in `directory`, as `prepare-settings` does
   with `reserved`. Without the file, or without a directory to look in, the
   settings are the defaults. Errors from the file name it.``
   [directory reserved]
-  (def file (when directory (path/join directory command-config-name)))
+  (def file (when directory (path/join directory settings-file-name)))
   (def stat (when file (os/stat file)))
   (cond
     (nil? stat) (prepare-settings {} reserved)
     (not= :file (stat :mode))
     (error (string file " is not a file"))
     (try
-      (prepare-settings (parse-settings (slurp file)) reserved)
+      (prepare-settings (parse-settings-file (slurp file)) reserved)
       ([err] (error (string file ": " err))))))
