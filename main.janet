@@ -114,10 +114,10 @@
 
 (defn- explain-empty
   ``Say why `reason` says a selection is empty. Unless the reason is that the
-  state or the shell commands emptied it, `quiet` leaves it out: where the
+  state or the shell commands emptied it, `quiet?` leaves it out: where the
   disk is scanned as well, an empty selection would mislead, since the scan can
   still turn up repositories.``
-  [reason quiet]
+  [reason quiet?]
   # Since --at defaults to the current directory, standing in the wrong place
   # otherwise looks like a broken configuration.
   (case (get reason :kind)
@@ -131,40 +131,40 @@
     :emptied-by-filters
     # Filtering can empty the configuration itself, before the location is
     # ever weighed, so say that rather than blaming the location.
-    (unless quiet
+    (unless quiet?
       (eprint "No configured repository is left by "
               (if (empty? (reason :names))
                 (string "the filters in " config/command-config-name)
                 (describe-filters (reason :names)))))
 
     :no-anchor-contains-path
-    (unless quiet
+    (unless quiet?
       (eprint "No configuration anchor contains " (reason :at-path)
               "; use -a/--all-anchors to consider every anchor"))
 
     :none-beneath-path
-    (unless quiet
+    (unless quiet?
       (eprint "None of the configured repositories under the selected "
               "anchors are beneath " (reason :at-path) " or hold it"))))
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when `result`, of a run or a selection,
-  says it was interrupted, and with 1 when `failed`. An interrupted run
+  says it was interrupted, and with 1 when `failed?`. An interrupted run
   reached only part of the list, so it cannot report success however well the
   part it reached went.``
-  [result failed]
+  [result failed?]
   (when (result :interrupted?)
     (os/exit parallel/interrupt-exit-code))
-  (when failed
+  (when failed?
     (os/exit 1)))
 
 (defn- select-repositories
   ``Select the repositories `options` ask for, as selection/select does, and
   report for the CLI what stops the run or explains an empty selection. With
-  `unconfigured-ok`, a configuration directory without files does not end the
-  run, and with `quiet`, explanations of a selection the location emptied are
+  `unconfigured-ok?`, a configuration directory without files does not end the
+  run, and with `quiet?`, explanations of a selection the location emptied are
   left out.``
-  [options settings &named unconfigured-ok quiet]
+  [options settings &named unconfigured-ok? quiet?]
   (def result
     (try
       (selection/select options settings)
@@ -197,10 +197,10 @@
       (os/exit 1))
 
     :unconfigured
-    (unless unconfigured-ok
+    (unless unconfigured-ok?
       (exit-unconfigured (result :catalog)))
 
-    (explain-empty reason quiet))
+    (explain-empty reason quiet?))
   result)
 
 (defn- scan-jobs
@@ -303,8 +303,8 @@
     (if (= :directory (os/stat root :mode))
       (discover/find-repositories root
                                   :max-depth max-depth
-                                  :hidden (parsed "hidden")
-                                  :follow-links (parsed "follow-links"))
+                                  :hidden? (parsed "hidden")
+                                  :follow-links? (parsed "follow-links"))
       @[]))
   (survey/extra-repositories discovered everything))
 
@@ -320,19 +320,19 @@
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}))
   (def wanted (wanted-state parsed))
-  (def status (parsed "status"))
-  (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
+  (def show-status? (parsed "status"))
+  (def picked? (or (parsed "ok") (parsed "missing") (parsed "extra")))
   # The ok repositories are what --status leaves out unless asked: it is
   # there to show what differs.
-  (def want-ok (if picked (parsed "ok") (not status)))
-  (def want-missing (if picked (parsed "missing") true))
-  (def scan (if picked (parsed "extra") status))
-  (unless scan
+  (def want-ok? (if picked? (parsed "ok") (not show-status?)))
+  (def want-missing? (if picked? (parsed "missing") true))
+  (def scan? (if picked? (parsed "extra") show-status?))
+  (unless scan?
     (when-let [name (find parsed discovery-options)]
       (eprint "usage error: --" name " applies only when extra "
               "repositories are listed, by --extra or a plain --status")
       (os/exit 1)))
-  (def show-configured (or want-ok want-missing))
+  (def show-configured? (or want-ok? want-missing?))
   # Explaining an empty selection would mislead when the disk is scanned as
   # well, since that can still turn up repositories. The disk scan needs the
   # catalog, but a list of only the extra repositories selects none from it.
@@ -341,21 +341,21 @@
       (merge (selection-options parsed)
              {:wanted-state wanted
               :jobs parallel/default-jobs
-              :catalog-only? (not show-configured)})
+              :catalog-only? (not show-configured?)})
       settings
-      :unconfigured-ok scan
-      :quiet scan))
+      :unconfigured-ok? scan?
+      :quiet? scan?))
   (def configured ((result :catalog) :repositories))
   (def selected (result :repositories))
   (defn emit [state & fields]
-    (print ;(if status [state "\t"] []) (string/join fields "\t")))
+    (print ;(if show-status? [state "\t"] []) (string/join fields "\t")))
   (each repository selected
-    (def state (if (and want-ok want-missing (not status))
+    (def state (if (and want-ok? want-missing? (not show-status?))
                  "ok"
                  (checkout/checkout-status repository)))
-    (when (if (= "ok" state) want-ok want-missing)
+    (when (if (= "ok" state) want-ok? want-missing?)
       (emit state (repository :path) (repository :ssh_url))))
-  (when scan
+  (when scan?
     (each repository (extra-on-disk parsed settings ((result :filters) :names) configured)
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))

@@ -71,26 +71,26 @@
 
 (assert (deep= @["colocated" "deep/a/b/buried" "git-repo" "jj-repo" "outer"
                  "outer/vendor/inner" "worktree"]
-               (paths (discover/find-repositories root :nested true)))
+               (paths (discover/find-repositories root :nested? true)))
         "nested searches inside repositories, marker directories excepted")
 
 (assert (deep= @[".hidden/tucked" "colocated" "deep/a/b/buried" "git-repo"
                  "jj-repo" "outer" "worktree"]
-               (paths (discover/find-repositories root :hidden true)))
+               (paths (discover/find-repositories root :hidden? true)))
         "hidden also visits dot directories")
 
 (assert (deep= @["colocated" "deep/a/b/buried" "git-repo" "jj-repo" "link/linked"
                  "outer" "worktree"]
-               (paths (discover/find-repositories root :follow-links true)))
+               (paths (discover/find-repositories root :follow-links? true)))
         "follow-links reaches repositories behind a symbolic link")
 
 # Completion proves that the self-link did not cause a loop.
 (assert (deep= @["colocated" "deep/a/b/buried" "git-repo" "jj-repo" "link/linked"
                  "outer" "outer/vendor/inner" "worktree"]
                (paths (discover/find-repositories root
-                                                  :follow-links true
-                                                  :nested true
-                                                  :hidden false)))
+                                                  :follow-links? true
+                                                  :nested? true
+                                                  :hidden? false)))
         "a symbolic link back into the tree ends the walk instead of looping")
 
 (assert-error "a file is not a tree to walk"

@@ -43,9 +43,9 @@
 
 (defn make-progress
   "Create the state for one parallel repository run."
-  [total outcomes &opt jobs live]
+  [total outcomes &opt jobs live?]
   (default jobs default-jobs)
-  (default live (os/isatty stderr))
+  (default live? (os/isatty stderr))
   (require-jobs jobs)
   (def counts @{})
   (each outcome outcomes
@@ -57,9 +57,9 @@
     :active @{}
     :frame 0
     :drawn 0
-    :running true
-    :interrupted false
-    :live live})
+    :running? true
+    :interrupted? false
+    :live? live?})
 
 (defn- erase
   "Remove the drawn block, leaving the cursor where it began."
@@ -112,7 +112,7 @@
 (defn- draw
   "Repaint the live block when stderr is a terminal."
   [progress]
-  (when (progress :live)
+  (when (progress :live?)
     (erase progress)
     # Leave one column unused so a line cannot wrap and break cursor tracking.
     (def width (dec (terminal-width)))
@@ -133,12 +133,12 @@
 (defn- animate
   "Cycle the spinner until the repository run finishes."
   [progress]
-  (when (progress :live)
+  (when (progress :live?)
     (ev/spawn
-      (while (progress :running)
+      (while (progress :running?)
         (ev/sleep 0.08)
         # The run can finish while this fiber sleeps.
-        (when (progress :running)
+        (when (progress :running?)
           (update progress :frame inc)
           (draw progress))))))
 
@@ -153,24 +153,24 @@
   [progress]
   (os/sigaction :int
                 (fn []
-                  (when (or (progress :interrupted) (not (progress :running)))
+                  (when (or (progress :interrupted?) (not (progress :running?)))
                     (erase progress)
                     (file/flush stderr)
                     (os/exit interrupt-exit-code))
-                  (put progress :interrupted true))))
+                  (put progress :interrupted? true))))
 
 (defn run-repositories
   ``Run `operation` for each repository with at most `jobs` active callbacks.
   The callback receives the repository and a reporter, and returns an outcome
   key. Errors and unknown outcomes count as :failed. The live progress block
-  is drawn when stderr is a terminal, unless `live` is given: false keeps the
+  is drawn when stderr is a terminal, unless `live?` is given: false keeps the
   run silent, apart from what it reports.
 
   Return `{:counts :interrupted? :summary}`: how many repositories ended in
   each outcome, whether the terminal asked the run to stop, in which case
   repositories it had not begun were left alone, and the counts as a line,
   "2 succeeded, 1 failed", in the order the outcomes were declared.``
-  [repositories outcomes operation &opt jobs live]
+  [repositories outcomes operation &opt jobs live?]
   (unless (some (fn [outcome] (= :failed (outcome 0))) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
@@ -179,13 +179,13 @@
   (require-jobs jobs)
   # More workers than repositories would only draw empty spinner rows.
   (def workers (max 1 (min jobs total)))
-  (def progress (make-progress total outcomes workers live))
+  (def progress (make-progress total outcomes workers live?))
   (def cursor @[0])
   (watch-for-interrupt progress)
   (defn worker [slot]
     # An interrupted run finishes what is in flight and claims nothing more.
     # A clone killed halfway leaves a checkout worse than a slow exit does.
-    (while (and (not (progress :interrupted)) (< (cursor 0) total))
+    (while (and (not (progress :interrupted?)) (< (cursor 0) total))
       # Claiming an index does not yield, so workers cannot claim it twice.
       (def index (cursor 0))
       (put cursor 0 (inc index))
@@ -207,13 +207,13 @@
   (animate progress)
   (defer
     (do
-      (put progress :running false)
+      (put progress :running? false)
       (erase progress)
       (file/flush stderr))
     (ev/go-gather (seq [slot :range [0 workers]] (fn [] (worker slot)))))
   (def reached (reduce + 0 (values (progress :counts))))
-  (when (progress :interrupted)
+  (when (progress :interrupted?)
     (eprint "Interrupted after " reached " of " total " repositories"))
   {:counts (progress :counts)
-   :interrupted? (progress :interrupted)
+   :interrupted? (progress :interrupted?)
    :summary ((tally progress) 1)})
