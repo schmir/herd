@@ -1,6 +1,6 @@
 # Tests for parallel repository scheduling and progress rendering.
 (use spork/test)
-(import ../parallel)
+(import ../src/parallel)
 
 (start-suite "parallel")
 

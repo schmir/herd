@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../checkout)
+(import ../src/checkout)
 
 (start-suite "checkout")
 

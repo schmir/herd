@@ -6,29 +6,29 @@
                   :tag "26af769b7fd8f7214ea8f95dad5c2d360a79f6b4"}])
 
 # Janet binds no access(2), and the permission bits alone cannot say whether
-# this process may execute a file. See access.c.
+# this process may execute a file. See src/access.c.
 (declare-native
   :name "access"
-  :source ["access.c"])
+  :source ["src/access.c"])
 
 (declare-executable
   :name "herd"
-  :entry "main.janet"
+  :entry "src/main.janet"
   :deps ["build/access.so"
          "build/access.meta.janet"
-         "arguments.janet"
-         "checkout.janet"
-         "clone.janet"
-         "completions.janet"
-         "config.janet"
-         "discover.janet"
-         "named-filters.janet"
-         "location.janet"
-         "options.janet"
-         "parallel.janet"
-         "process.janet"
-         "run.janet"
-         "selection.janet"
-         "stages.janet"
-         "survey.janet"
-         "vcs.janet"])
+         "src/arguments.janet"
+         "src/checkout.janet"
+         "src/clone.janet"
+         "src/completions.janet"
+         "src/config.janet"
+         "src/discover.janet"
+         "src/named-filters.janet"
+         "src/location.janet"
+         "src/options.janet"
+         "src/parallel.janet"
+         "src/process.janet"
+         "src/run.janet"
+         "src/selection.janet"
+         "src/stages.janet"
+         "src/survey.janet"
+         "src/vcs.janet"])

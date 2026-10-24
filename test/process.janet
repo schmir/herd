@@ -1,6 +1,6 @@
 # Tests for running a subprocess and collecting what it did.
 (use spork/test)
-(import ../process)
+(import ../src/process)
 
 (start-suite "process")
 

@@ -22,10 +22,10 @@ native_path := '(array/insert module/paths 1 ["build/:all:.so" :native])'
 
 # Run the program.
 run *args: build
-    jpm --local janet -e '{{ native_path }}' -- main.janet {{ args }}
+    jpm --local janet -e '{{ native_path }}' -- src/main.janet {{ args }}
 
 # Start a REPL inside a source file, private bindings included.
-repl file="main.janet": build
+repl file="src/main.janet": build
     jpm --local janet -e '{{ native_path }}' -e '(repl nil nil (dofile "{{ file }}"))'
 
 # Build the standalone executable in build/.
@@ -69,10 +69,10 @@ ci: && test test-cli
 
 # The platforms are linux-x86_64, linux-aarch64, macos-arm64 and macos-x86_64.
 #
-# jpm's own build runs main.janet with the host janet and writes the marshaled
-# image into build/herd.c. That step has to run here, since it loads native
-# modules, but what it writes is portable C. Only the final compile needs the
-# target, and that is plain C: herd.c, the amalgamated janet.c, and every
+# jpm's own build runs src/main.janet with the host janet and writes the
+# marshaled image into build/herd.c. That step has to run here, since it loads
+# native modules, but what it writes is portable C. Only the final compile needs
+# the target, and that is plain C: herd.c, the amalgamated janet.c, and every
 # native module the image registers, built in statically.
 [doc('Cross-compile release binaries with zig cc, for the platforms named or all four.')]
 dist *platforms: build
@@ -142,7 +142,7 @@ dist *platforms: build
     fi
     # Each native module the image registers, as jpm names its static entry.
     modules=(
-        "access.c janet_module_entry_access"
+        "src/access.c janet_module_entry_access"
         "$spork/src/json.c janet_module_entry_spork_47_json"
         "$spork/src/rawterm.c janet_module_entry_spork_47_rawterm"
     )

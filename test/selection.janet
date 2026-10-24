@@ -2,9 +2,9 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../location)
-(import ../config)
-(import ../selection)
+(import ../src/location)
+(import ../src/config)
+(import ../src/selection)
 
 (start-suite "selection")
 

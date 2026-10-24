@@ -2,7 +2,7 @@
 (use spork/test)
 (import spork/path)
 (import spork/sh)
-(import ../vcs)
+(import ../src/vcs)
 
 (start-suite "vcs")
 
