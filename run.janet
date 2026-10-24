@@ -71,7 +71,7 @@
 
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
-  [repository command env report &opt show-output]
+  [repository command report &opt show-output]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
     # A blocked path holds no working copy to run in, so it counts as not
@@ -81,7 +81,7 @@
         (let [result (process/capture-process
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`
                         "herd" (repository :path) ;selected]
-                       :p env)
+                       :p)
               stdout (result :out)
               stderr (result :err)
               status (result :status)]
@@ -119,19 +119,16 @@
   "Run a command in parallel and return its outcome counts."
   [repositories command &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
-  # Parallel commands must not share a terminal for input or output. Capture
-  # output per process so each visible result is one coherent block.
-  (with [devnull (file/open "/dev/null" :r)]
-    (def env {:in devnull})
-    (def report-state @{:reported false})
-    (parallel/run-repositories
-      repositories
-      [[:succeeded "succeeded"]
-       [:failed "failed"]
-       [:skipped "skipped"]
-       [:not-checked-out "not checked out"]]
-      (fn [repository report]
-        (run-in-repository repository command env
-                           (fn [& args] (report-command-result report-state report ;args))
-                           show-output))
-      jobs)))
+  # Capture output per process so each visible result is one coherent block.
+  (def report-state @{:reported false})
+  (parallel/run-repositories
+    repositories
+    [[:succeeded "succeeded"]
+     [:failed "failed"]
+     [:skipped "skipped"]
+     [:not-checked-out "not checked out"]]
+    (fn [repository report]
+      (run-in-repository repository command
+                         (fn [& args] (report-command-result report-state report ;args))
+                         show-output))
+    jobs))

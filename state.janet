@@ -50,12 +50,10 @@
   rather than a repository that does not match, so they raise.``
   [repository command]
   (if (vcs/detect (repository :path))
-    (with [devnull (file/open "/dev/null" :r)]
-      (def result
-        (process/capture-process
-          ["sh" "-c" `cd "$1" && shift && exec "$@"`
-           "herd" (repository :path) "sh" "-c" command]
-          :p {:in devnull}))
+    (let [result (process/capture-process
+                   ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                    "herd" (repository :path) "sh" "-c" command]
+                   :p)]
       (when (index-of (result :status) [126 127])
         (error (string "cannot run " (describe command) ": "
                        (string/trim (string (result :err))))))

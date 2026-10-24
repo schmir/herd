@@ -153,17 +153,16 @@
       repo (repository dir)
       messages @[]]
   (sh/create-dirs (string dir "/.git"))
-  (with [devnull (file/open "/dev/null" :r)]
-    (def env {:in devnull :out :pipe :err :pipe})
+  (do
     (assert (= :succeeded
                (run/run-in-repository
                  repo ["sh" "-c" `printf "hidden\ntext\n"; printf secret >&2`]
-                 env (fn [& args] (array/push messages (string ;args))))))
+                 (fn [& args] (array/push messages (string ;args))))))
     (assert (empty? messages) "successful command output stays hidden")
     (assert (= :succeeded
                (run/run-in-repository
                  repo ["sh" "-c" `printf "visible\ntext\n"; printf note >&2`]
-                 env (fn [& args] (array/push messages (string ;args))) "always")))
+                 (fn [& args] (array/push messages (string ;args))) "always")))
     (assert (= 1 (length messages)) "requested successful output is one block")
     (assert (string/find (string "✓ " dir) (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
@@ -171,20 +170,20 @@
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
-                 repo ["true"] env (fn [& args] (array/push messages (string ;args)))
+                 repo ["true"] (fn [& args] (array/push messages (string ;args)))
                  "always")))
     (assert (empty? messages)
             "always stays quiet about a successful command without output")
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
-                 repo ["printf" "suppressed"] env
+                 repo ["printf" "suppressed"]
                  (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides successful command results")
     (assert (= :failed
                (run/run-in-repository
                  repo ["sh" "-c" `printf "visible\nsecond line\n"; printf problem >&2; exit 7`]
-                 env (fn [& args] (array/push messages (string ;args))))))
+                 (fn [& args] (array/push messages (string ;args))))))
     (assert (= 1 (length messages)) "failure output is one buffered block")
     (assert (string/find (string "✗ " dir " (exit 7)") (messages 0)))
     (assert (string/find "| stdout\n|   visible\n|   second line" (messages 0)))
@@ -192,12 +191,12 @@
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 repo ["false"] env (fn [& args] (array/push messages (string ;args))) "never")))
+                 repo ["false"] (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides failed command results")
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
-                 repo ["false"] env (fn [& args] (array/push messages (string ;args))))))
+                 repo ["false"] (fn [& args] (array/push messages (string ;args))))))
     (assert (and (= 1 (length messages))
                  (= (string "✗ " dir " (exit 1)") (messages 0)))
             "a failure without output still names the repository"))
