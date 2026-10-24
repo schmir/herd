@@ -41,11 +41,11 @@
    :interrupted? (result :interrupted?)})
 
 (defn filter-by-state
-  ``Keep the `repositories` whose state is `wanted`, :dirty or :clean. A
+  ``Keep the `repositories` whose state is `state`, :dirty or :clean. A
   repository with no working copy is neither.``
-  [repositories wanted &opt jobs]
+  [repositories state &opt jobs]
   (keep-repositories repositories
-                     (fn [repository] (= wanted (repository-state repository)))
+                     (fn [repository] (= state (repository-state repository)))
                      jobs))
 
 (defn command-matches?

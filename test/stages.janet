@@ -53,7 +53,7 @@
           "an empty directory has none"))
 
 (defn test-filter-by-state
-  "Repositories are kept in their order, and only those in the wanted state."
+  "Repositories are kept in their order, and only those in the given state."
   []
   (def repositories (map make-repository ["a" "b" "c" "d"]))
   (spit (path/join ((repositories 1) :path) "x") "x")

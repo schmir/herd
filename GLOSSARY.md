@@ -20,6 +20,11 @@ _Avoid_: Config file, list file
 **Settings file**: `config.jdn`, which holds the filters, defaults, checkout
 rows, job count and custom commands. _Avoid_: Command config
 
+**State**: Whether a checkout has changes nobody has committed: `:dirty` or
+`:clean`. A repository with no checkout has neither. Selection narrows by it
+with `--dirty` and `--clean`. _Avoid_: Status (what is on disk at a
+repository's path: ok, missing or blocked)
+
 **Checkout row**: One entry of `:checkouts` in `config.jdn`: it reads a
 repository list (`:from`) and places it under an anchor, with its own
 filters, stripped path components and repository options. Not a checkout in

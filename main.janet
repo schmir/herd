@@ -124,7 +124,9 @@
     :emptied-by-state
     (eprint "No repository is left of the " (reason :of)
             " selected by "
-            (string/join [;(if (reason :wanted) [(string "--" (reason :wanted))] [])
+            (string/join [;(if (reason :requested-state)
+                             [(string "--" (reason :requested-state))]
+                             [])
                           ;(if (reason :commands?) ["-f"] [])]
                          " and "))
 
@@ -236,7 +238,7 @@
    :all-anchors? (parsed "all-anchors")
    :filter-values (or (parsed "filter") [])})
 
-(defn- wanted-state
+(defn- state-from-flags
   "The state --dirty or --clean asks for, or nil. Asking for both is a mistake."
   [parsed]
   (when (and (parsed "dirty") (parsed "clean"))
@@ -319,7 +321,7 @@
   (def parsed
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}))
-  (def wanted (wanted-state parsed))
+  (def requested-state (state-from-flags parsed))
   (def show-status? (parsed "status"))
   (def picked? (or (parsed "ok") (parsed "missing") (parsed "extra")))
   # The ok repositories are what --status leaves out unless asked: it is
@@ -339,7 +341,7 @@
   (def result
     (select-or-exit
       (merge (selection-options parsed)
-             {:wanted-state wanted
+             {:requested-state requested-state
               :jobs parallel/default-jobs
               :catalog-only? (not show-configured?)})
       repository-settings
@@ -363,7 +365,7 @@
 (defn- run-selected
   "Run a command in the selected repositories and report its outcome."
   [command parsed &opt repository-settings]
-  (def wanted (wanted-state parsed))
+  (def requested-state (state-from-flags parsed))
   (def show-output
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
@@ -371,7 +373,7 @@
   (def repositories
     ((select-or-exit
        (merge (selection-options parsed)
-              {:wanted-state wanted
+              {:requested-state requested-state
                :jobs jobs})
        repository-settings)
       :repositories))

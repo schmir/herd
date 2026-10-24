@@ -381,23 +381,23 @@
   "The state and the checkout filters keep what they match, one stage after another."
   []
   (assert (deep= @["clean" "dirty"] (work-paths (work-select {}))))
-  (assert (deep= @["dirty"] (work-paths (work-select {:wanted-state :dirty}))))
-  (assert (deep= @["clean"] (work-paths (work-select {:wanted-state :clean}))))
+  (assert (deep= @["dirty"] (work-paths (work-select {:requested-state :dirty}))))
+  (assert (deep= @["clean"] (work-paths (work-select {:requested-state :clean}))))
   (assert (deep= @["dirty"]
                  (work-paths (work-select {:filter-values ["test -f marker"]}))))
-  (assert (empty? (work-paths (work-select {:wanted-state :clean
+  (assert (empty? (work-paths (work-select {:requested-state :clean
                                             :filter-values ["test -f marker"]})))
           "the stages combine")
-  (assert (deep= {:kind :emptied-by-state :of 2 :wanted :clean :commands? true}
-                 ((work-select {:wanted-state :clean
+  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state :clean :commands? true}
+                 ((work-select {:requested-state :clean
                                 :filter-values ["test -f marker"]}) :reason))
           "what the stages emptied is named")
-  (assert (deep= {:kind :emptied-by-state :of 2 :wanted nil :commands? true}
+  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :commands? true}
                  ((work-select {:filter-values ["false"]}) :reason))
           "a command that matches nowhere is named")
   (def nowhere (path/join work-dir "nowhere"))
   (assert (deep= {:kind :none-beneath-path :at-path nowhere}
-                 ((work-select {:at-path nowhere :wanted-state :dirty}) :reason))
+                 ((work-select {:at-path nowhere :requested-state :dirty}) :reason))
           "nothing was left for the stages to empty"))
 
 (defn test-an-interrupt-stops-the-selection
@@ -425,7 +425,7 @@
         "[{\"path\": \"broken\", \"ssh_url\": \"b\", \"vcs\": \"git\"}]")
   (def failure
     (try (do (selection/select {:directory broken-config-dir :at-path work-dir
-                                :wanted-state :dirty :jobs 1}
+                                :requested-state :dirty :jobs 1}
                                work-settings)
            nil)
       ([err] err)))
@@ -444,7 +444,7 @@
   "Asking for the catalog alone runs no stage, whatever the filters ask."
   []
   (def result
-    (work-select {:catalog-only? true :wanted-state :dirty
+    (work-select {:catalog-only? true :requested-state :dirty
                   :filter-values [(string "kill -INT " (os/getpid))]}))
   (assert (not (result :interrupted?)) "no stage ran, or it would have interrupted")
   (assert (empty? (result :repositories)) "nothing is picked")
