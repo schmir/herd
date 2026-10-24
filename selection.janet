@@ -35,10 +35,10 @@
   (each value values
     (cond
       (filter/list-filter? registry value) (array/push names value)
-      (and (nil? (filter/command-for registry value)) (mistyped? value))
+      (and (nil? (filter/checkout-filter-command registry value)) (mistyped? value))
       (do (set mistyped value) (break))
       (do
-        (array/push commands (or (filter/command-for registry value) value))
+        (array/push commands (or (filter/checkout-filter-command registry value) value))
         (array/push command-values value))))
   (if mistyped
     {:mistyped mistyped}

@@ -71,7 +71,7 @@
     (when (= kind :jp) entry)
     (get entry kind)))
 
-(defn- expression-for
+(defn- list-filter-expression
   "The JMESPath expression the list filter `name` stands for, or nil."
   [registry name]
   (text-of-kind (get registry name) :jp))
@@ -79,9 +79,9 @@
 (defn list-filter?
   "Whether `name` is a list filter in `registry`: one that narrows a list."
   [registry name]
-  (not (nil? (expression-for registry name))))
+  (not (nil? (list-filter-expression registry name))))
 
-(defn command-for
+(defn checkout-filter-command
   "The shell command the checkout filter `name` stands for, or nil."
   [registry name]
   (text-of-kind (get registry name) :sh))
@@ -107,7 +107,7 @@
   (each name names
     (cond
       (list-filter? registry name) nil
-      (command-for registry name)
+      (checkout-filter-command registry name)
       (error (string where " names the command filter " (describe name)
                      ", which only the command line can use"))
       (error (string where " names an unknown filter " (describe name)))))
@@ -173,7 +173,7 @@
   [source names filters &opt hint]
   (var narrowed source)
   (each name names
-    (set narrowed (apply-filter narrowed name (expression-for filters name)
+    (set narrowed (apply-filter narrowed name (list-filter-expression filters name)
                                 hint)))
   narrowed)
 

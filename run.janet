@@ -43,7 +43,7 @@
     (array/push sections (string "| stderr\n" (indent-command-output stderr))))
   (string/join sections "\n"))
 
-(defn command-for-repository
+(defn argv-for-repository
   "Return the process command selected for repository."
   [repository command]
   (cond
@@ -59,7 +59,7 @@
           nil
           (do
             (unless (string? selected)
-              (error (string "VCS command structure needs a string " key)))
+              (error (string "VCS-specific command needs a string " key)))
             ["sh" "-c" selected])))
       (error "repository has no .git or .jj metadata"))
 
@@ -67,7 +67,7 @@
     (indexed? command)
     command
 
-    (error "command must be a string, VCS command structure, or argument vector")))
+    (error "command must be a string, VCS-specific command, or argument vector")))
 
 (defn run-in-repository
   "Run and capture a command in a repository without changing herd's cwd."
@@ -77,7 +77,7 @@
     # A blocked path holds no working copy to run in, so it counts as not
     # checked out rather than as a place to run the command.
     (if (= :ok (checkout/checkout-status repository))
-      (if-let [selected (command-for-repository repository command)]
+      (if-let [selected (argv-for-repository repository command)]
         (let [result (process/capture-process
                        ["sh" "-c" `cd "$1" && shift && exec "$@"`
                         "herd" (repository :path) ;selected]

@@ -267,10 +267,10 @@ complete -F _herd herd
       (string name "\t" (filters name)))
     "\n"))
 
-(defn command-lines
-  "One `name TAB summary` line per command, which the scripts offer as choices."
-  [commands]
+(defn subcommand-lines
+  "One `name TAB summary` line per subcommand, which the scripts offer as choices."
+  [subcommands]
   (string/join
-    (seq [name :in (sort (keys commands))]
-      (string name "\t" (get-in commands [name :help])))
+    (seq [name :in (sort (keys subcommands))]
+      (string name "\t" (get-in subcommands [name :help])))
     "\n"))

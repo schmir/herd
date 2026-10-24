@@ -45,12 +45,12 @@
                   (string/find (string " -l " (option :name)) text))
               (string shell " offers --" (option :name))))))
 
-(defn test-command-lines
+(defn test-subcommand-lines
   "Commands are listed by name, each with its summary after a tab."
   []
   (assert (= "a\tfirst\nb\tsecond"
-             (completions/command-lines {"b" {:help "second"}
-                                         "a" {:help "first"}}))))
+             (completions/subcommand-lines {"b" {:help "second"}
+                                            "a" {:help "first"}}))))
 
 (defn test-filter-lines
   "Filters are listed by name, each with its expression after a tab."
@@ -111,7 +111,7 @@
 (test-scripts-offer-every-option)
 (test-menus-describe-every-option)
 (test-every-shell-offers-the-top-level-options)
-(test-command-lines)
+(test-subcommand-lines)
 (test-filter-lines)
 (test-scripts-complete-the-command-after-run)
 (test-bash-offers-nothing-after-numeric-options)
