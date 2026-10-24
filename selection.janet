@@ -1,6 +1,7 @@
 # Choosing the repositories a command acts on, and saying why there are none.
 
 (import ./config)
+(import ./filter)
 (import ./location)
 (import ./process)
 (import ./state)
@@ -26,19 +27,18 @@
   written for each command, for a message to quote. Return `{:mistyped value}`
   for the first value that is neither a filter nor a command.``
   [values settings]
-  (def list-filters (get settings :filters {}))
-  (def checkout-filters (get settings :sh-filters {}))
+  (def registry (get settings :filters {}))
   (def names @[])
   (def commands @[])
   (def command-values @[])
   (var mistyped nil)
   (each value values
     (cond
-      (get list-filters value) (array/push names value)
-      (and (nil? (get checkout-filters value)) (mistyped? value))
+      (filter/list-filter? registry value) (array/push names value)
+      (and (nil? (filter/command-for registry value)) (mistyped? value))
       (do (set mistyped value) (break))
       (do
-        (array/push commands (get checkout-filters value value))
+        (array/push commands (or (filter/command-for registry value) value))
         (array/push command-values value))))
   (if mistyped
     {:mistyped mistyped}
@@ -141,8 +141,7 @@
     {:repositories []
      :reason {:kind :mistyped-filter
               :value (filters :mistyped)
-              :known (sorted [;(keys (get settings :filters {}))
-                              ;(keys (get settings :sh-filters {}))])}}
+              :known (filter/names (get settings :filters {}))}}
 
     (nil? directory)
     {:repositories [] :reason {:kind :no-config-directory}}

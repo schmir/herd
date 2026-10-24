@@ -94,6 +94,115 @@
   [answer]
   (map (fn [repository] (repository :path)) (entries/parse-config answer)))
 
+# --- validate-registry ----------------------------------------------------
+
+(defmacro- assert-error
+  "Assert that `form` raises."
+  [message form]
+  ~(assert (error-message (fn [] ,form)) ,message))
+
+(defmacro- assert-no-error
+  "Assert that `form` raises nothing."
+  [message form]
+  ~(assert (nil? (error-message (fn [] ,form))) ,message))
+
+(assert-error "the filter registry must be a dictionary"
+              (filter/validate-registry []))
+(assert-error "a filter needs an expression"
+              (filter/validate-registry {"active" 1}))
+(assert-error "a filter expression must not be empty"
+              (filter/validate-registry {"active" ""}))
+(assert-no-error "a filter names an expression"
+                 (filter/validate-registry {"active" "[?schedules]"}))
+(assert-no-error "a filter can say it is JMESPath or a shell command"
+                 (filter/validate-registry {"a" {:jp "[?a]"} "b" {:sh "true"}}))
+(assert-error "a filter dictionary needs :jp or :sh"
+              (filter/validate-registry {"a" {}}))
+(assert-error "a filter dictionary cannot be both"
+              (filter/validate-registry {"a" {:jp "[?a]" :sh "true"}}))
+(assert-error "a filter dictionary rejects other keys"
+              (filter/validate-registry {"a" {:sh "true" :other 1}}))
+(assert-error "a shell filter must not be empty"
+              (filter/validate-registry {"a" {:sh ""}}))
+(assert-error "a JMESPath filter must be a string"
+              (filter/validate-registry {"a" {:jp 1}}))
+
+
+# --- the kinds a registry tells apart ---------------------------------------
+
+(def kinds-registry
+  (filter/validate-registry
+    {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}))
+
+(assert (and (filter/list-filter? kinds-registry "a")
+             (filter/list-filter? kinds-registry "b"))
+        "a string and a :jp entry are list filters")
+(assert (not (filter/list-filter? kinds-registry "c"))
+        "a :sh entry is not a list filter")
+(assert (not (filter/list-filter? kinds-registry "absent"))
+        "a name the registry lacks is not one either")
+(assert (= "true" (filter/command-for kinds-registry "c"))
+        "a :sh entry stands for its command")
+(assert (nil? (filter/command-for kinds-registry "a"))
+        "a list filter stands for no command")
+(assert (nil? (filter/command-for kinds-registry "absent"))
+        "nor does a name the registry lacks")
+(assert (deep= @["a" "b" "c"] (filter/names kinds-registry))
+        "the names come sorted, whatever the kind")
+(assert (deep= {"a" "[?a]" "b" "[?b]" "c" "true"}
+               (filter/descriptions kinds-registry))
+        "each name is described by its expression or command")
+(assert (empty? (filter/names {})) "an empty registry has no names")
+
+# --- check-names ----------------------------------------------------------
+
+(assert-no-error "list filters may be named by a row"
+                 (filter/check-names kinds-registry ["a" "b"] ":defaults"))
+(assert-no-error "a row may name none"
+                 (filter/check-names kinds-registry [] ":defaults"))
+(let [message (error-message
+                (fn [] (filter/check-names kinds-registry ["c"] ":defaults")))]
+  (assert (and message (string/find `names the command filter "c"` message)
+               (string/find "only the command line" message))
+          "a row cannot name a checkout filter, which runs in a checkout")
+  (assert (string/has-prefix? ":defaults " message) "and the row is named first"))
+(let [message (error-message
+                (fn [] (filter/check-names kinds-registry ["a" "typo"]
+                                           ":checkouts row for \"w.json\"")))]
+  (assert (and message (string/find `names an unknown filter "typo"` message))
+          "an unknown name is named, not the whole row"))
+
+# --- narrow ---------------------------------------------------------------
+
+(def narrow-registry
+  (filter/validate-registry {"row" "[?row]" "cli" {:jp "[?cli]"} "c" {:sh "true"}}))
+
+(with-fixture dir
+  (without-filter-program dir
+                          (assert (= entries (filter/narrow narrow-registry entries [] []))
+                                  "naming no filter needs no filter program")))
+
+(with-fixture dir
+  (def log (path/join dir "expressions"))
+  (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
+    (filter/narrow narrow-registry entries ["row"] ["cli"])
+    (assert (deep= @["[?row]" "[?cli]"]
+                   (string/split "\n" (string/trimr (slurp log))))
+            "a row's filters narrow first, then those named with -f")))
+
+(with-fixture dir
+  (with-stub (stub-filter dir "echo boom >&2" 1)
+    (def own (error-message
+               (fn [] (filter/narrow narrow-registry entries ["row"] []))))
+    (assert (and (string/find `filter "row" failed` own)
+                 (not (string/find "applied to every configured list" own)))
+            "a row's own filter fails without the hint")
+    (def named (error-message
+                 (fn [] (filter/narrow narrow-registry entries [] ["cli"]))))
+    (assert (and (string/find `filter "cli" failed` named)
+                 (string/find "applied to every configured list" named))
+            "a filter named with -f fails with the hint")))
+
 # --- apply-filter ---------------------------------------------------------
 
 (with-fixture dir

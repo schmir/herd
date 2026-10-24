@@ -18,7 +18,11 @@ their checkout rows and list filters have been applied. _Avoid_: Registry,
 inventory
 
 **Selection**: The repositories a command acts on, chosen from the catalog
-by location, then by state and shell filters. _Avoid_: Matching, targeting
+by location, then by state and checkout filters. _Avoid_: Matching,
+targeting
+
+**Filter registry**: The named filters `config.jdn` defines, each a list
+filter or a checkout filter. _Avoid_: Filter table, filter map
 
 **List filter**: A named JMESPath expression that narrows a repository list
 before it is read into the catalog. _Avoid_: Name filter, jp filter

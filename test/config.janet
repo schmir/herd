@@ -4,6 +4,7 @@
 (import spork/sh)
 (import ../config)
 (import ../entries)
+(import ../filter)
 (import ../main :as herd)
 
 (start-suite "config")
@@ -528,33 +529,14 @@
 (assert-no-error "the defaults settle filters"
                  (config/validate-checkout-defaults {:filter ["active"]}))
 
-(assert-error "the filter registry must be a dictionary"
-              (config/validate-filters []))
-(assert-error "a filter needs an expression"
-              (config/validate-filters {"active" 1}))
-(assert-error "a filter expression must not be empty"
-              (config/validate-filters {"active" ""}))
-(assert-no-error "a filter names an expression"
-                 (config/validate-filters {"active" "[?schedules]"}))
-(assert-no-error "a filter can say it is JMESPath or a shell command"
-                 (config/validate-filters {"a" {:jp "[?a]"} "b" {:sh "true"}}))
-(assert-error "a filter dictionary needs :jp or :sh"
-              (config/validate-filters {"a" {}}))
-(assert-error "a filter dictionary cannot be both"
-              (config/validate-filters {"a" {:jp "[?a]" :sh "true"}}))
-(assert-error "a filter dictionary rejects other keys"
-              (config/validate-filters {"a" {:sh "true" :other 1}}))
-(assert-error "a shell filter must not be empty"
-              (config/validate-filters {"a" {:sh ""}}))
-(assert-error "a JMESPath filter must be a string"
-              (config/validate-filters {"a" {:jp 1}}))
-
 (let [settings (config/configured-repository-settings
                  {:filters {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}})]
-  (assert (deep= {"a" "[?a]" "b" "[?b]"} (settings :filters))
+  (assert (and (filter/list-filter? (settings :filters) "a")
+               (filter/list-filter? (settings :filters) "b"))
           "strings and :jp filters are the JMESPath expressions")
-  (assert (deep= {"c" "true"} (settings :sh-filters))
-          "shell filters are kept apart, with their commands"))
+  (assert (= "true" (filter/command-for (settings :filters) "c"))
+          "shell filters keep their commands in the same registry")
+  (assert (nil? (settings :sh-filters)) "there is one registry, not two"))
 (assert-error "a row cannot name a shell filter"
               (config/configured-repository-settings
                 {:filters {"c" {:sh "true"}}
