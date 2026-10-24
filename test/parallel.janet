@@ -15,7 +15,7 @@
 (var active 0)
 (var most-active 0)
 (def seen @[])
-(def counts
+(def result
   (parallel/run-repositories
     repositories outcomes
     (fn [repository report]
@@ -26,7 +26,7 @@
       (-- active)
       :succeeded)))
 
-(assert (= 12 (counts :succeeded)) "every successful operation is counted")
+(assert (= 12 ((result :counts) :succeeded)) "every successful operation is counted")
 (assert (= 12 (length seen)) "every repository runs once")
 (assert (= 12 (length (distinct seen))) "no repository runs twice")
 (assert (= parallel/default-jobs most-active)
@@ -45,7 +45,7 @@
       :succeeded)
     2))
 
-(assert (= 12 (limited :succeeded)) "a job limit still runs every repository")
+(assert (= 12 ((limited :counts) :succeeded)) "a job limit still runs every repository")
 (assert (= 2 limited-most-active) "a job limit bounds the active operations")
 
 (var wide-most-active 0)
@@ -73,8 +73,8 @@
         (error "planned failure")
         :succeeded))))
 
-(assert (= 2 (failed :succeeded)) "successful work continues after an error")
-(assert (= 1 (failed :failed)) "an operation error counts as a failure")
+(assert (= 2 ((failed :counts) :succeeded)) "successful work continues after an error")
+(assert (= 1 ((failed :counts) :failed)) "an operation error counts as a failure")
 (assert (= 3 (length completed)) "an error does not stop later work")
 
 (assert-error "a misplaced live flag is rejected instead of hanging"
@@ -119,7 +119,40 @@
           (string (describe count) " is not a usable count")))
 
 # A run nobody interrupted says so, whatever its outcomes were.
-(assert (not (parallel/interrupted?))
-        "a completed run reports no interruption")
+(assert (not (result :interrupted?)) "a completed run reports no interruption")
+(assert (not (failed :interrupted?)) "and neither does one with a failure in it")
+
+# The summary is the tally the progress block shows, in the order the outcomes
+# were declared, so a command prints it rather than spelling the labels again.
+(assert (= "12 succeeded, 0 skipped, 0 failed" (result :summary)))
+(assert (= "2 succeeded, 0 skipped, 1 failed" (failed :summary)))
+
+# An interrupt winds the run down: what is in flight finishes, nothing more is
+# begun, and the result says so. The operation sends the interrupt to this very
+# process, which the run has taken the signal for.
+(def interrupted
+  (parallel/run-repositories
+    repositories outcomes
+    (fn [repository report]
+      (when (= "/repo/0" (repository :path))
+        (os/execute ["kill" "-INT" (string (os/getpid))] :p))
+      # The handler runs when the event loop gets its turn.
+      (ev/sleep 0.05)
+      :succeeded)
+    1
+    false))
+(assert (interrupted :interrupted?) "an interrupted run says it was")
+(def reached (reduce + 0 (values (interrupted :counts))))
+(assert (and (pos? reached) (< reached 12))
+        "the repository in flight finished and the rest were never begun")
+(assert (= (string reached " succeeded, 0 skipped, 0 failed") (interrupted :summary))
+        "the summary tells what was reached")
+
+# Interrupting one run says nothing about the next.
+(def again
+  (parallel/run-repositories (slice repositories 0 2) outcomes
+                             (fn [repository report] :succeeded) 1 false))
+(assert (not (again :interrupted?)) "a later run starts uninterrupted")
+(assert (= 2 ((again :counts) :succeeded)) "and reaches every repository")
 
 (end-suite)

@@ -61,11 +61,13 @@
   (def missing {:path (path/join dir "absent")})
   (def all [;repositories missing])
   (assert (deep= (map (fn [r] (r :path)) [(repositories 1) (repositories 3)])
-                 (map (fn [r] (r :path)) (state/filter-by-state all :dirty)))
+                 (map (fn [r] (r :path)) ((state/filter-by-state all :dirty) :repositories)))
           "dirty keeps the changed ones in order")
   (assert (deep= (map (fn [r] (r :path)) [(repositories 0) (repositories 2)])
-                 (map (fn [r] (r :path)) (state/filter-by-state all :clean)))
-          "clean keeps the unchanged ones, and not the missing one"))
+                 (map (fn [r] (r :path)) ((state/filter-by-state all :clean) :repositories)))
+          "clean keeps the unchanged ones, and not the missing one")
+  (assert (not ((state/filter-by-state all :clean) :interrupted?))
+          "a run nobody interrupted says so"))
 
 (defn test-filter-by-state-raises-when-unreadable
   "A repository whose state cannot be read stops the selection."
@@ -101,10 +103,10 @@
   (spit (path/join ((repositories 2) :path) "a") "")
   (def paths (fn [rs] (map (fn [r] (r :path)) rs)))
   (assert (deep= (paths [(repositories 0) (repositories 2)])
-                 (paths (state/filter-by-commands repositories ["test -f a"])))
+                 (paths ((state/filter-by-commands repositories ["test -f a"]) :repositories)))
           "one command keeps those that pass it")
   (assert (deep= (paths [(repositories 0)])
-                 (paths (state/filter-by-commands repositories ["test -f a" "test -f b"])))
+                 (paths ((state/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
           "all commands must pass"))
 
 (test-command-matches)

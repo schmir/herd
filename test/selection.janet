@@ -366,17 +366,19 @@
                  ((work-select {:at nowhere :wanted-state :dirty}) :reason))
           "nothing was left for the stages to empty"))
 
-(defn test-after-stage-runs-between-stages
-  "The caller hears of each stage that completed, so it can stop between them."
+(defn test-an-interrupt-stops-the-selection
+  "An interrupt during a stage ends the selection, and the result says so."
   []
-  (var stages 0)
-  (work-select {:after-stage (fn [] (++ stages))})
-  (assert (= 0 stages) "no stage was asked for")
-  (work-select {:wanted-state :dirty :after-stage (fn [] (++ stages))})
-  (assert (= 1 stages) "the state stage")
-  (work-select {:wanted-state :dirty :filter-values ["true"]
-                :after-stage (fn [] (++ stages))})
-  (assert (= 3 stages) "both stages"))
+  # The filter sends the interrupt to this process, which the stage has taken
+  # the signal for, and still succeeds.
+  (def interrupt (string "kill -INT " (os/getpid)))
+  (def result (work-select {:filter-values [interrupt]}))
+  (assert (result :interrupted?) "an interrupted selection says it was")
+  (assert (empty? (result :repositories))
+          "and picks nothing, since it did not reach them all")
+  (assert (nil? (result :reason)) "which is not a reason to explain")
+  (assert (not ((work-select {:filter-values ["true"]}) :interrupted?))
+          "a selection nobody interrupted says so"))
 
 (defn test-unreadable-repository-stops-the-selection
   "A failing stage raises something a caller can tell from a bad configuration."
@@ -407,11 +409,10 @@
 (defn test-catalog-only-picks-nothing
   "Asking for the catalog alone runs no stage, whatever the filters ask."
   []
-  (var stages 0)
   (def result
     (work-select {:catalog-only? true :wanted-state :dirty
-                  :filter-values ["false"] :after-stage (fn [] (++ stages))}))
-  (assert (= 0 stages) "no stage ran")
+                  :filter-values [(string "kill -INT " (os/getpid))]}))
+  (assert (not (result :interrupted?)) "no stage ran, or it would have interrupted")
   (assert (empty? (result :repositories)) "nothing is picked")
   (assert (nil? (result :reason)) "so there is nothing to explain")
   (assert (deep= @["clean" "dirty"]
@@ -422,7 +423,7 @@
 (test-catalog-only-picks-nothing)
 (test-state-and-commands-narrow-the-selection)
 (test-unreadable-repository-stops-the-selection)
-(test-after-stage-runs-between-stages)
+(test-an-interrupt-stops-the-selection)
 (test-nothing-configured)
 (test-no-configuration-directory)
 

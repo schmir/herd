@@ -105,12 +105,12 @@
           "a VCS that succeeds without writing a clone has failed")
   (assert (= 2 (length messages)) "the failed move is reported"))
 
-(def counts
+(def result
   (clone/clone-repositories [{:path existing :ssh_url "unused"}
                              {:path occupied :ssh_url "unused"}]))
-(assert (= 1 (counts :skipped)) "clone-repositories keeps outcome counts")
-(assert (= 1 (counts :blocked)))
-(assert (= 0 (counts :failed)))
+(assert (= 1 ((result :counts) :skipped)) "clone-repositories keeps outcome counts")
+(assert (= 1 ((result :counts) :blocked)))
+(assert (= 0 ((result :counts) :failed)))
 
 (sh/rm dir)
 

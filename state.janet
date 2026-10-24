@@ -16,11 +16,11 @@
   They are asked in parallel, and the call raises when any could not be
   answered, since a command run on a selection that is missing some
   repositories is worse than none. An interrupted run leaves the unasked
-  repositories out, so the caller has to look at `parallel/interrupted?`
-  before acting on the result.``
+  repositories out, so the caller has to look at `:interrupted?` before acting
+  on `:repositories`. Return `{:repositories :interrupted?}`.``
   [repositories keep? &opt jobs]
   (def kept @{})
-  (def counts
+  (def result
     (parallel/run-repositories
       repositories
       [[:kept "kept"] [:dropped "dropped"] [:failed "failed"]]
@@ -31,9 +31,12 @@
       jobs
       # A selection is a step towards the command, which has its own progress.
       false))
-  (when (pos? (counts :failed))
-    (error (string "cannot check " (counts :failed) " repositories")))
-  (filter (fn [repository] (get kept (repository :path))) repositories))
+  (def failed ((result :counts) :failed))
+  (when (pos? failed)
+    (error (string "cannot check " failed " repositories")))
+  {:repositories (filter (fn [repository] (get kept (repository :path)))
+                         repositories)
+   :interrupted? (result :interrupted?)})
 
 (defn filter-by-state
   ``Keep the `repositories` whose state is `wanted`, :dirty or :clean. A
