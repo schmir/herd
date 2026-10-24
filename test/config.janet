@@ -32,8 +32,8 @@
                   (seq [entry :in entries]
                     (string/format `{"path": %j, "ssh_url": %j%s}`
                                    (entry :path) (entry :ssh_url)
-                                   (if-let [vcs (entry :vcs)]
-                                     (string/format `, "vcs": %j` vcs)
+                                   (if-let [vcs-name (entry :vcs)]
+                                     (string/format `, "vcs": %j` vcs-name)
                                      "")))
                   ",\n")
                 "]")))

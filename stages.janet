@@ -10,8 +10,8 @@
   ``Say whether the repository has changes: :dirty or :clean, or nil when no
   working copy is checked out at its path. Raise when the VCS cannot say.``
   [repository]
-  (when-let [used (vcs/detect (repository :path))]
-    (vcs/state used (repository :path))))
+  (when-let [vcs-id (vcs/detect (repository :path))]
+    (vcs/state vcs-id (repository :path))))
 
 (defn keep-repositories
   ``Keep the `repositories` for which `keep?` answers true, in their order.

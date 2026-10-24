@@ -63,10 +63,10 @@
   (while (not (empty? stack))
     (def [directory depth] (array/pop stack))
     (unless (revisited? directory)
-      (def detected (vcs/detect directory))
-      (when detected
-        (array/push found {:path directory :vcs detected}))
-      (when (and (or nested? (nil? detected))
+      (def vcs-id (vcs/detect directory))
+      (when vcs-id
+        (array/push found {:path directory :vcs vcs-id}))
+      (when (and (or nested? (nil? vcs-id))
                  (or (nil? max-depth) (< depth max-depth)))
         (each child (reverse (child-directories directory hidden? follow-links?))
           (array/push stack [child (inc depth)])))))
