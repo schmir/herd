@@ -75,20 +75,20 @@
   have. Return `{:repositories :interrupted?}`.``
   [options repositories commands]
   (var kept repositories)
-  (var interrupted false)
+  (var interrupted? false)
   (try
     (do
       (when (options :wanted-state)
         (def stage (state/filter-by-state kept (options :wanted-state)
                                           (options :jobs)))
         (set kept (stage :repositories))
-        (set interrupted (stage :interrupted?)))
-      (when (and (not interrupted) (not (empty? commands)))
+        (set interrupted? (stage :interrupted?)))
+      (when (and (not interrupted?) (not (empty? commands)))
         (def stage (state/filter-by-commands kept commands (options :jobs)))
         (set kept (stage :repositories))
-        (set interrupted (stage :interrupted?))))
+        (set interrupted? (stage :interrupted?))))
     ([err] (error {:stage-error err})))
-  {:repositories kept :interrupted? interrupted})
+  {:repositories kept :interrupted? interrupted?})
 
 (defn- select-in
   "Select from the catalog in `directory`, as `select` describes."

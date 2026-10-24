@@ -17,17 +17,17 @@
 
 (defn- child-directories
   "Return sorted child directories. Skip directories that cannot be read."
-  [directory hidden follow-links]
+  [directory hidden? follow-links?]
   (def names (try (os/dir directory) ([_] @[])))
   (sort (seq [name :in names
               :when (not (index-of name (vcs/marker-names)))
-              :when (or hidden (not (string/has-prefix? "." name)))
+              :when (or hidden? (not (string/has-prefix? "." name)))
               :let [child (path/join directory name)
                     mode (os/lstat child :mode)]
               :when (or (= :directory mode)
                         # lstat returns the link. stat rejects broken links and
                         # targets that are not directories.
-                        (and follow-links
+                        (and follow-links?
                              (= :link mode)
                              (= :directory (os/stat child :mode))))]
           child)))
@@ -36,10 +36,10 @@
   ``Find git and jj repositories at or below `root`, outermost first.
   Return each repository as `{:path :vcs}` with an absolute path.
 
-  Stop at repositories unless `:nested` is set. `:hidden` includes dot
-  directories. `:follow-links` follows symbolic links. `:max-depth` limits
+  Stop at repositories unless `:nested?` is set. `:hidden?` includes dot
+  directories. `:follow-links?` follows symbolic links. `:max-depth` limits
   the walk, with `root` at depth zero.``
-  [root &named max-depth hidden follow-links nested]
+  [root &named max-depth hidden? follow-links? nested?]
   (require-max-depth max-depth)
   (def start (path/abspath root))
   (unless (= :directory (os/stat start :mode))
@@ -50,7 +50,7 @@
   (defn revisited?
     "Return true if followed links revisit a directory."
     [directory]
-    (when follow-links
+    (when follow-links?
       (def resolved (try (os/realpath directory) ([_] directory)))
       (if (get visited resolved)
         true
@@ -66,8 +66,8 @@
       (def detected (vcs/detect directory))
       (when detected
         (array/push found {:path directory :vcs detected}))
-      (when (and (or nested (nil? detected))
+      (when (and (or nested? (nil? detected))
                  (or (nil? max-depth) (< depth max-depth)))
-        (each child (reverse (child-directories directory hidden follow-links))
+        (each child (reverse (child-directories directory hidden? follow-links?))
           (array/push stack [child (inc depth)])))))
   found)
