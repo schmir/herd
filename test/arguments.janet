@@ -345,4 +345,29 @@
     (assert (function? (get-in commands [name :run]))
             (string name " is a default custom command with a handler"))))
 
+# Every option the command line parses is one that options declares, and the
+# other way around, so the help, the parser and the scripts cannot drift.
+(import ../options)
+(each command ["clone" "list" "run" "completions"]
+  (def spec (herd/command-spec command {"at" "." "jobs" "2" "show-output" "never"}))
+  (def named (seq [i :range [0 (length spec) 2]] (spec i)))
+  (assert (deep= (sorted (filter (fn [name] (not= "help" name))
+                                 (map (fn [option] (option :name))
+                                      (options/for-command command))))
+                 (sorted named))
+          (string command " parses exactly the options it declares"))
+  (each option (options/for-command command)
+    (unless (= "help" (option :name))
+      (def parsed (get spec (+ 1 (index-of (option :name) spec))))
+      (assert (= (option :kind) (parsed :kind))
+              (string command " --" (option :name) " parses as it is declared"))
+      (assert (= (option :help) (parsed :help))
+              (string command " --" (option :name) " shows its declared help"))
+      (assert (= (option :short) (parsed :short))
+              (string command " --" (option :name) " keeps its declared short form")))))
+(assert (= "." (get-in (struct ;(herd/command-spec "list" {"at" "."})) ["at" :default]))
+        "the program's defaults reach the options they are for")
+(assert (nil? (get-in (struct ;(herd/command-spec "list" {"at" "."})) ["filter" :default]))
+        "and only those")
+
 (end-suite)
