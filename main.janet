@@ -208,7 +208,7 @@
 (defn- parse-jobs
   ``Return the job count named by `text`, or raise a descriptive error. It
   arrives from the command line as a string, and is weighed against the range
-  parallel/run-repositories accepts, so an out-of-range count fails here with
+  parallel/for-each-repository accepts, so an out-of-range count fails here with
   a message instead of there with a stack trace.``
   [text]
   (def parsed (scan-number text))

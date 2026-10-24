@@ -16,7 +16,7 @@
 (var most-active 0)
 (def seen @[])
 (def result
-  (parallel/run-repositories
+  (parallel/for-each-repository
     repositories outcomes
     (fn [repository report]
       (++ active)
@@ -35,7 +35,7 @@
 (var limited-active 0)
 (var limited-most-active 0)
 (def limited
-  (parallel/run-repositories
+  (parallel/for-each-repository
     repositories outcomes
     (fn [repository report]
       (++ limited-active)
@@ -50,7 +50,7 @@
 
 (var wide-most-active 0)
 (var wide-active 0)
-(parallel/run-repositories
+(parallel/for-each-repository
   (slice repositories 0 3) outcomes
   (fn [repository report]
     (++ wide-active)
@@ -65,7 +65,7 @@
 
 (def completed @[])
 (def failed
-  (parallel/run-repositories
+  (parallel/for-each-repository
     (slice repositories 0 3) outcomes
     (fn [repository report]
       (array/push completed (repository :path))
@@ -86,9 +86,9 @@
 # so these reject regardless of how many repositories there are.
 (each count [0 -2 1.5 false]
   (each total [1 5]
-    (assert-error (string "run-repositories rejects " count
+    (assert-error (string "for-each-repository rejects " count
                           " with " total " repositories")
-                  (parallel/run-repositories
+                  (parallel/for-each-repository
                     (slice repositories 0 total) outcomes
                     (fn [repository report] :succeeded)
                     count))))
@@ -131,7 +131,7 @@
 # begun, and the result says so. The operation sends the interrupt to this very
 # process, which the run has taken the signal for.
 (def interrupted
-  (parallel/run-repositories
+  (parallel/for-each-repository
     repositories outcomes
     (fn [repository report]
       (when (= "/repo/0" (repository :path))
@@ -150,8 +150,8 @@
 
 # Interrupting one run says nothing about the next.
 (def again
-  (parallel/run-repositories (slice repositories 0 2) outcomes
-                             (fn [repository report] :succeeded) 1 false))
+  (parallel/for-each-repository (slice repositories 0 2) outcomes
+                                (fn [repository report] :succeeded) 1 false))
 (assert (not (again :interrupted?)) "a later run starts uninterrupted")
 (assert (= 2 ((again :counts) :succeeded)) "and reaches every repository")
 

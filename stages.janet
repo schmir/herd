@@ -23,7 +23,7 @@
   [repositories keep? &opt jobs]
   (def kept @{})
   (def result
-    (parallel/run-repositories
+    (parallel/for-each-repository
       repositories
       [[:kept "kept"] [:dropped "dropped"] [:failed "failed"]]
       (fn [repository report]
