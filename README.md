@@ -372,9 +372,9 @@ leaves out is reported as `extra`, since it is not meant to be there.
 repositories that are on disk, the ones that are not, and the `extra` ones.
 `herd list --status --ok --missing --extra` prints them all. Without
 `--status` they print the usual path and URL. Discovery starts at the
-repository holding the location, or the location itself; it does not enter
-repositories or hidden directories, and does not follow symbolic links.
-`--max-depth N`, `--hidden` and `--follow-links` change that.
+repository containing the location, or the location itself; it does not
+enter repositories or hidden directories, and does not follow symbolic
+links. `--max-depth N`, `--hidden` and `--follow-links` change that.
 
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
 plain Git ones, following the repository options in force for each:

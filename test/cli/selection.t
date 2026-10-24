@@ -23,7 +23,7 @@ A directory selects everything below it.
   /srv/other\tother (esc)
 
 A path inside a working copy selects that repository, however deep, and
-nested repositories both hold a path below them.
+nested repositories both contain a path below them.
 
   $ herd list -C /srv/foo/deep/inside
   /srv/foo\tfoo (esc)
@@ -35,7 +35,7 @@ nested repositories both hold a path below them.
 Matching is by whole path component, not by string prefix.
 
   $ herd list -C /srv/fo
-  None of the configured repositories under the selected anchors are beneath /srv/fo or hold it
+  None of the configured repositories under the selected anchors are beneath /srv/fo or contain it
 
   $ herd list -C /srv/foobar
   /srv/foobar\tfoobar (esc)
