@@ -431,7 +431,7 @@
   (def command (get definition :command))
   (def command-git (get definition :command-git))
   (def command-jj (get definition :command-jj))
-  (def resolved
+  (def command-or-vcs-specific
     (if (not (nil? command))
       (do
         (unless (string? command)
@@ -455,7 +455,7 @@
     (run/require-show-output show-output)
     ([err]
       (fail (string "has an invalid :show-output; " err))))
-  {:command resolved :description description :show-output show-output})
+  {:command command-or-vcs-specific :description description :show-output show-output})
 
 (defn prepare-settings
   ``Validate the raw settings of config.jdn and return `{:settings :jobs

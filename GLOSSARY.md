@@ -28,6 +28,13 @@ the on-disk sense. _Avoid_: Row, source, mapping
 **Placement**: A checkout row with its anchor resolved to a directory, as
 the code reads a list through it. _Avoid_: Resolved anchor
 
+**Subcommand**: A command of the herd program itself, such as `clone`,
+`list`, `run` or `completions`, or a custom command. _Avoid_: Verb, action
+
+**Custom command**: A subcommand that `:commands` in the settings file
+defines. It runs a command in each repository, with a `:command` or, per
+VCS, a `:command-git` and `:command-jj`. _Avoid_: Alias, task
+
 **Catalog**: Every repository that the repository lists define after their
 checkout rows and list filters have been applied. _Avoid_: Registry,
 inventory

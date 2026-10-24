@@ -360,7 +360,7 @@
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))
 
-(defn- run-configured-command
+(defn- run-selected
   "Run a command in the selected repositories and report its outcome."
   [command parsed &opt repository-settings]
   (def wanted (wanted-state parsed))
@@ -379,7 +379,7 @@
   (print (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 
-(defn make-run-command
+(defn custom-command-handler
   "Return a handler that uses description for help and runs command."
   [command description &opt show-output jobs repository-settings]
   (def show-output (or show-output run/default-show-output))
@@ -388,7 +388,7 @@
       (parse-command args "run" description
                      {"show-output" show-output
                       "jobs" (string (or jobs parallel/default-jobs))}))
-    (run-configured-command command parsed repository-settings)))
+    (run-selected command parsed repository-settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."
@@ -406,13 +406,13 @@
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
-  (run-configured-command command parsed repository-settings))
+  (run-selected command parsed repository-settings))
 
 (defn completions-command
   ``Run `herd completions`: print the script for a shell, or, for the scripts
-  to call back, the commands in effect including any configured ones, which
-  `commands` returns, or the configured filters, which `filters` returns.``
-  [args commands filters]
+  to call back, the subcommands in effect including any configured ones, which
+  `subcommands` returns, or the configured filters, which `filters` returns.``
+  [args subcommands filters]
   (def parsed
     (parse-args args
                 "Print a shell completion script for herd."
@@ -425,7 +425,7 @@
     (when (= 1 (length rest))
       (completions/script (first rest))))
   (cond
-    (deep= (tuple ;rest) ["commands"]) (print (completions/command-lines (commands)))
+    (deep= (tuple ;rest) ["commands"]) (print (completions/subcommand-lines (subcommands)))
     (deep= (tuple ;rest) ["filters"]) (print (completions/filter-lines (filters)))
     script (prin script)
     (do (eprint "herd completions needs one of: "
@@ -435,13 +435,13 @@
 (defn custom-commands
   "Build the handler of each custom command that `config` holds."
   [config]
-  (def {:settings repository-settings :jobs jobs :commands commands} config)
+  (def {:settings repository-settings :jobs jobs :commands definitions} config)
   (tabseq [[name {:command command :description description
-                  :show-output show-output}] :pairs commands]
-    name {:run (make-run-command command description show-output jobs repository-settings)
+                  :show-output show-output}] :pairs definitions]
+    name {:run (custom-command-handler command description show-output jobs repository-settings)
           :help description}))
 
-(defn built-in-commands
+(defn built-in-subcommands
   ``Subcommands by name, with their argument handler and one-line summary.
   The loaded config's per-file settings and job count are bound here so
   every handler starts from them, leaving the command line to override.``
@@ -452,7 +452,7 @@
    "completions" {:run (fn [args]
                          (completions-command
                            args
-                           (fn [] (merge (built-in-commands config)
+                           (fn [] (merge (built-in-subcommands config)
                                          (custom-commands config)))
                            (fn [] (filter/descriptions (get repository-settings :filters {})))))
                   :help "Print a shell completion script for herd."}
@@ -461,25 +461,25 @@
    "run" {:run (fn [args] (run-command args jobs repository-settings))
           :help "Run a command in each configured repository beneath a path."}})
 
-(def built-in-command-names
+(def built-in-subcommand-names
   "Names of the built-in subcommands, which a custom command may not reuse."
-  (keys (built-in-commands {})))
+  (keys (built-in-subcommands {})))
 
-(defn available-commands
-  "Return built-in commands merged with the configured custom commands."
+(defn available-subcommands
+  "Return built-in subcommands merged with the configured custom commands."
   []
   (def config
-    (config/load-settings (config/config-directory) built-in-command-names))
-  (merge (built-in-commands config) (custom-commands config)))
+    (config/load-settings (config/config-directory) built-in-subcommand-names))
+  (merge (built-in-subcommands config) (custom-commands config)))
 
-(defn- command-list
-  ``Render the commands for the top-level help. argparse documents named
+(defn- subcommand-list
+  ``Render the subcommands for the top-level help. argparse documents named
   options only, never positionals, so the command list has to be carried in
   the description it prints.``
-  [commands]
+  [subcommands]
   (string/join
-    (seq [name :in (sort (keys commands))]
-      (string/format "  %-12s%s" name (get-in commands [name :help])))
+    (seq [name :in (sort (keys subcommands))]
+      (string/format "  %-12s%s" name (get-in subcommands [name :help])))
     "\n"))
 
 (defn main
@@ -488,11 +488,11 @@
   (when (arguments/version-requested? args)
     (print "herd " version)
     (os/exit 0))
-  (def commands
-    (exit-on-error "Configuration error: " available-commands))
+  (def subcommands
+    (exit-on-error "Configuration error: " available-subcommands))
   (def spec
     [(string "manage multiple git/jj repositories\n\n Commands:\n"
-             (command-list commands))
+             (subcommand-list subcommands))
      ;(spec-entries options/top-level {})
      :default {:kind :accumulate
                :short-circuit true
@@ -501,12 +501,12 @@
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
   (def rest (rest-arguments parsed))
-  (if-let [command (get commands (first rest))]
-    ((command :run) rest)
+  (if-let [subcommand (get subcommands (first rest))]
+    ((subcommand :run) rest)
     (do
       (if (empty? rest)
         # Naming no command is still a usage error, but a bare usage line
-        # hides what the commands do, so show the same help `--help` prints.
+        # hides what the subcommands do, so show the same help `--help` prints.
         (argparse/argparse ;spec :args [(get args 0 "herd") "--help"])
         (eprint "Unknown command \"" (first rest) "\""))
       (os/exit 1))))

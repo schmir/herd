@@ -15,11 +15,11 @@
              (string "." (path/basename target) ".herd-clone")))
 
 (defn- clone-into-place
-  ``Run the clone command `command-for` returns for a staging path beside
+  ``Run the clone command `make-clone-command` returns for a staging path beside
   path, and move the result to path once the VCS succeeds, so path only ever
   holds a finished clone. Return what capture-process did, with a failed
   move as a nonzero status.``
-  [command-for path]
+  [make-clone-command path]
   # A link to an empty directory is filled through: the clone replaces the
   # directory it leads to, and the link is kept.
   (def target (if (= :link (os/lstat path :mode)) (os/realpath path) path))
@@ -27,7 +27,7 @@
   # What a crashed clone left behind, which the VCS would refuse to clone
   # into.
   (sh/rm staging)
-  (def result (process/capture-process (command-for staging)))
+  (def result (process/capture-process (make-clone-command staging)))
   (if (zero? (result :status))
     (try
       (do

@@ -234,7 +234,7 @@
               :show-output "always"}}`)
   (assert (= settings-file (config/settings-file-path))
           "the JDN configuration uses the XDG configuration directory")
-  (assert (get-in (config/load-settings (path/parent settings-file) herd/built-in-command-names)
+  (assert (get-in (config/load-settings (path/parent settings-file) herd/built-in-subcommand-names)
                   [:commands "mark"])
           "the JDN configuration loads a custom command")
   (def top-help (invoke ["--help"]))
@@ -413,7 +413,7 @@
 
 # Validated custom commands become handlers beside the built-in ones.
 (assert (deep= @["clone" "completions" "list" "run"]
-               (sorted herd/built-in-command-names))
+               (sorted herd/built-in-subcommand-names))
         "the reserved names are the built-in commands")
 (let [commands (herd/custom-commands
                  (config/prepare-settings
@@ -422,7 +422,7 @@
                      "both" {:command-git "git status"
                              :command-jj "jj status"
                              :description "Check by VCS."}}}
-                   herd/built-in-command-names))]
+                   herd/built-in-subcommand-names))]
   (assert (= "Check repositories." (get-in commands ["check" :help]))
           "a custom command retains its description")
   (assert (function? (get-in commands ["check" :run]))
