@@ -7,11 +7,10 @@
 (import ./completions)
 (import ./config)
 (import ./discover)
-(import ./location)
 (import ./parallel)
 (import ./process)
 (import ./run)
-(import ./select)
+(import ./selection)
 (import ./survey)
 
 (defmacro- baked-version
@@ -109,82 +108,16 @@
     (os/exit 0))
   parsed)
 
-(defn- bare-word?
-  "Whether `value` is a single word, which names a program rather than a script."
-  [value]
-  (not (or (string/find " " value) (string/find "\t" value)
-           (string/find "/" value))))
-
-(defn- reject-mistyped-filter
-  ``Report and exit when `value`, given with -f, is neither a filter nor a
-  command. A single word that no program on PATH answers to was most likely a
-  filter name with a typo in it, which is better said now than found out as a
-  command that fails in every checkout, or never runs where nothing is
-  checked out.``
-  [value settings]
-  (when (and (bare-word? value) (not (process/find-executable value)))
-    (def known (sorted [;(keys (get settings :filters {}))
-                        ;(keys (get settings :sh-filters {}))]))
-    (eprint (describe value) " is neither a configured filter nor a command"
-            (if (empty? known)
-              "; no filters are configured"
-              (string "; configured filters are "
-                      (string/join (map describe known) ", "))))
-    (os/exit 1)))
-
-(defn- resolve-filters
-  ``Sort what `parsed` was given with -f, in order. A name of a JMESPath
-  filter in `settings` narrows the lists. A name of a shell filter stands for
-  its command, and anything else is taken to be a shell command itself. The
-  commands run in the checkouts, so they follow the names. `:command-values`
-  holds what was written for each command, for a message to quote.``
-  [parsed settings]
-  (def expressions (get settings :filters {}))
-  (def shell-filters (get settings :sh-filters {}))
-  (def names @[])
-  (def commands @[])
-  (def command-values @[])
-  (each value (or (parsed "filter") [])
-    (cond
-      (get expressions value) (array/push names value)
-      (do
-        (unless (get shell-filters value)
-          (reject-mistyped-filter value settings))
-        (array/push commands (get shell-filters value value))
-        (array/push command-values value))))
-  {:names names :commands commands :command-values command-values})
-
 (defn- rest-arguments
   "The positional arguments `parsed` collected, starting at the command."
   [parsed]
   (or (parsed :rest) @[]))
-
-(defn- filters-in-play?
-  ``Whether any filter narrows this run, named on the command line or by a
-  checkout row. An empty result is worth explaining only when something could
-  have removed the repositories.``
-  [names settings]
-  (or (not (empty? names))
-      (not (empty? (get-in settings [:defaults :filter] [])))
-      (true? (some (fn [checkout] (not (empty? (get checkout :filter []))))
-                   (get settings :checkouts [])))))
 
 (defn- describe-filters
   "Name the filters in play, for a message about an empty selection."
   [names]
   (string (if (= 1 (length names)) "filter " "filters ")
           (string/join (map describe names) " and ")))
-
-(defn- read-configuration
-  "Load the repository catalog and report configuration errors for the CLI."
-  [settings names]
-  (def directory (config/config-directory))
-  (when (nil? directory)
-    (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
-            "configuration directory to read")
-    (os/exit 1))
-  (exit-on-error "Configuration error: "
-                 (fn [] (config/load-repository-catalog directory settings names))))
 
 (defn- exit-unconfigured
   ``Say that `catalog` read no configuration files, and exit successfully.
@@ -194,56 +127,89 @@
   (eprint "No configuration files in " (catalog :directory))
   (os/exit 0))
 
-(defn- anchors-at
-  ``The anchors of `repositories` to select from at a path: every one with
-  `all-anchors?`, otherwise those containing the path.``
-  [at-path repositories all-anchors?]
-  (if all-anchors?
-    (location/configured-anchors repositories)
-    (location/containing-anchors at-path repositories)))
+(defn- resolve-filters
+  "Sort what `parsed` was given with -f, as selection/resolve-filters does."
+  [parsed settings]
+  (selection/resolve-filters (or (parsed "filter") []) settings))
 
-(defn- select-configured
-  ``Select the `repositories` at a path, from the `selected-anchors`. Unless
-  `quiet` is set, say why the result is empty.``
-  [at-path repositories selected-anchors settings names &opt quiet]
-  (def selected (select/by-location at-path repositories selected-anchors))
-  # Say why the result is empty. Since --at defaults to the current
-  # directory, standing in the wrong place otherwise looks like a broken
-  # configuration.
-  (when (and (empty? selected) (not quiet))
-    (cond
-      # Filtering can empty the configuration itself, before the location is
-      # ever weighed, so say that rather than blaming the location.
-      (and (empty? repositories) (filters-in-play? names settings))
+(defn- explain-empty
+  ``Say why `reason` says a selection is empty. Unless the reason is that the
+  state or the shell commands emptied it, `quiet` leaves it out: where the
+  disk is scanned as well, an empty selection would mislead, since the scan can
+  still turn up repositories.``
+  [reason quiet]
+  # Since --at defaults to the current directory, standing in the wrong place
+  # otherwise looks like a broken configuration.
+  (case (get reason :kind)
+    :emptied-by-state
+    (eprint "No repository is left of the " (reason :of)
+            " selected by "
+            (string/join [;(if (reason :wanted) [(string "--" (reason :wanted))] [])
+                          ;(if (reason :commands?) ["-f"] [])]
+                         " and "))
+
+    :emptied-by-filters
+    # Filtering can empty the configuration itself, before the location is
+    # ever weighed, so say that rather than blaming the location.
+    (unless quiet
       (eprint "No configured repository is left by "
-              (if (empty? names)
+              (if (empty? (reason :names))
                 (string "the filters in " config/command-config-name)
-                (describe-filters names)))
+                (describe-filters (reason :names)))))
 
-      (empty? repositories) nil
+    :no-anchor-contains-path
+    (unless quiet
+      (eprint "No configuration anchor contains " (reason :at)
+              "; use -a/--all-anchors to consider every anchor"))
 
-      (empty? selected-anchors)
-      (eprint "No configuration anchor contains " at-path
-              "; use -a/--all-anchors to consider every anchor")
-
-      true
+    :none-beneath-path
+    (unless quiet
       (eprint "None of the configured repositories under the selected "
-              "anchors are beneath " at-path " or hold it")))
-  selected)
+              "anchors are beneath " (reason :at) " or hold it"))))
 
-(defn- configured-repositories
-  ``Load the configured repositories and select the ones at a path. The
-  filters named in `names` narrow every configuration file further, on top of
-  whatever its checkout rows already filter.``
-  [at-path all-anchors? &opt settings names]
-  (default settings config/default-repository-settings)
-  (def catalog (read-configuration settings names))
-  (when (empty? (catalog :paths))
-    (exit-unconfigured catalog))
-  (def repositories (catalog :repositories))
-  (select-configured at-path repositories
-                     (anchors-at at-path repositories all-anchors?)
-                     settings names))
+(defn- select-repositories
+  ``Select the repositories `options` ask for, as selection/select does, and
+  report for the CLI what stops the run or explains an empty selection. With
+  `unconfigured-ok`, a configuration directory without files does not end the
+  run, and with `quiet`, explanations of a selection the location emptied are
+  left out.``
+  [options settings &named unconfigured-ok quiet]
+  (def result
+    (try
+      (selection/select options settings)
+      ([err]
+        (if (dictionary? err)
+          (eprint "Selection error: " (err :stage-error))
+          (eprint "Configuration error: " err))
+        (os/exit 1))))
+  (def reason (result :reason))
+  (case (get reason :kind)
+    :mistyped-filter
+    # A single word that no program on PATH answers to was most likely a
+    # filter name with a typo in it, which is better said now than found out
+    # as a command that fails in every checkout, or never runs where nothing
+    # is checked out.
+    (do
+      (eprint (describe (reason :value))
+              " is neither a configured filter nor a command"
+              (if (empty? (reason :known))
+                "; no filters are configured"
+                (string "; configured filters are "
+                        (string/join (map describe (reason :known)) ", "))))
+      (os/exit 1))
+
+    :no-config-directory
+    (do
+      (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
+              "configuration directory to read")
+      (os/exit 1))
+
+    :unconfigured
+    (unless unconfigured-ok
+      (exit-unconfigured (result :catalog)))
+
+    (explain-empty reason quiet))
+  result)
 
 (defn- at-option
   "The --at specification, shared by every selecting command."
@@ -314,12 +280,12 @@
   [parsed]
   (exit-on-error "Invalid --jobs: " (fn [] (scan-jobs (parsed "jobs")))))
 
-(defn- selected-repositories
-  ``Load the repositories `parsed` selects: its --at and --all-anchors, and
-  the JMESPath filters among its -f.``
-  [parsed settings selection]
-  (configured-repositories (parsed "at") (parsed "all-anchors") settings
-                           (selection :names)))
+(defn- selection-options
+  "The selection options `parsed` holds: where, from which anchors, and by which -f."
+  [parsed]
+  {:at (parsed "at")
+   :all-anchors? (parsed "all-anchors")
+   :filter-values (or (parsed "filter") [])})
 
 (defn- exit-unless-complete
   ``Leave with the interrupt exit code when the run was interrupted, and with 1
@@ -348,24 +314,6 @@
     (parsed "dirty") :dirty
     (parsed "clean") :clean))
 
-(defn- select-by-state
-  ``Apply state and shell-command selection, preserving CLI error and
-  interruption handling around the selection module.``
-  [repositories wanted commands jobs]
-  (def kept
-    (exit-on-error
-      "Selection error: "
-      (fn []
-        (select/by-state repositories wanted commands jobs
-                         (fn [] (exit-unless-complete false))))))
-  (when (and (empty? kept) (not (empty? repositories)))
-    (eprint "No repository is left of the " (length repositories)
-            " selected by "
-            (string/join [;(if wanted [(string "--" wanted)] [])
-                          ;(if (empty? commands) [] ["-f"])]
-                         " and ")))
-  kept)
-
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt settings jobs]
@@ -380,7 +328,8 @@
     (eprint "usage error: clone can only use the JMESPath filters in :filters, "
             "and " (describe value) " is not one")
     (os/exit 1))
-  (def repositories (selected-repositories parsed settings selection))
+  (def repositories
+    ((select-repositories (selection-options parsed) settings) :repositories))
   (def counts (clone/clone-repositories repositories jobs))
   (print (counts :cloned) " cloned, "
          (counts :skipped) " already checked out, "
@@ -415,7 +364,8 @@
   (def everything
     (if (empty? names)
       configured
-      ((read-configuration settings []) :repositories)))
+      (((select-repositories {:catalog-only? true} settings) :catalog)
+        :repositories)))
   (def root (survey/scan-root (parsed "at")))
   # Selection accepts a path that is not a directory, such as a repository
   # not cloned yet, and there is nothing beneath it to scan.
@@ -458,8 +408,6 @@
                                      :help "Follow symbolic links when scanning for extra repositories."}
                      ;state-option-specs))
   (def wanted (wanted-state parsed))
-  (def selection (resolve-filters parsed settings))
-  (def names (selection :names))
   (def status (parsed "status"))
   (def picked (or (parsed "ok") (parsed "missing") (parsed "extra")))
   # The ok repositories are what --status leaves out unless asked: it is
@@ -473,23 +421,21 @@
               "repositories are listed, by --extra or a plain --status")
       (os/exit 1)))
   (def show-configured (or want-ok want-missing))
-  (def catalog (read-configuration settings names))
-  (when (and (empty? (catalog :paths)) (not scan))
-    (exit-unconfigured catalog))
-  (def configured (catalog :repositories))
-  (def selected
-    (select-by-state
-      (if show-configured
-        # Explaining an empty selection would mislead when the disk is
-        # scanned as well, since that can still turn up repositories.
-        (select-configured (parsed "at") configured
-                           (anchors-at (parsed "at") configured
-                                       (parsed "all-anchors"))
-                           settings names scan)
-        @[])
-      wanted
-      (selection :commands)
-      parallel/default-jobs))
+  # Explaining an empty selection would mislead when the disk is scanned as
+  # well, since that can still turn up repositories. The disk scan needs the
+  # catalog, but a list of only the extra repositories selects none from it.
+  (def result
+    (select-repositories
+      (merge (selection-options parsed)
+             {:wanted-state wanted
+              :jobs parallel/default-jobs
+              :after-stage (fn [] (exit-unless-complete false))
+              :catalog-only? (not show-configured)})
+      settings
+      :unconfigured-ok scan
+      :quiet scan))
+  (def configured ((result :catalog) :repositories))
+  (def selected (result :repositories))
   (defn emit [state & fields]
     (print ;(if status [state "\t"] []) (string/join fields "\t")))
   (each repository selected
@@ -499,7 +445,7 @@
     (when (if (= "ok" state) want-ok want-missing)
       (emit state (repository :path) (repository :ssh_url))))
   (when scan
-    (each repository (extra-on-disk parsed settings names configured)
+    (each repository (extra-on-disk parsed settings ((result :filters) :names) configured)
       (emit "extra" (repository :path)
             (or (survey/remote-url repository) "")))))
 
@@ -511,10 +457,14 @@
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (parsed-jobs parsed))
-  (def selection (resolve-filters parsed settings))
   (def repositories
-    (select-by-state (selected-repositories parsed settings selection) wanted
-                     (selection :commands) jobs))
+    ((select-repositories
+       (merge (selection-options parsed)
+              {:wanted-state wanted
+               :jobs jobs
+               :after-stage (fn [] (exit-unless-complete false))})
+       settings)
+      :repositories))
   (def counts (run/run-in-repositories repositories command show-output jobs))
   (print (counts :succeeded) " succeeded, "
          (counts :failed) " failed, "
