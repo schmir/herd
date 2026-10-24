@@ -70,23 +70,25 @@
 
 (defn- narrow-by-state
   ``Keep the `repositories` in the state `:wanted-state` of `options` asks for,
-  and where the checkout filter `commands` succeed. Call `:after-stage` after
-  each completed stage, so the caller can preserve interruption handling
-  between stages.``
+  and where the checkout filter `commands` succeed. An interrupt during a stage
+  ends the selection there, since what it kept is only some of what it would
+  have. Return `{:repositories :interrupted?}`.``
   [options repositories commands]
-  (def after-stage (get options :after-stage (fn [])))
   (var kept repositories)
+  (var interrupted false)
   (try
     (do
       (when (options :wanted-state)
-        (set kept (state/filter-by-state kept (options :wanted-state)
-                                         (options :jobs)))
-        (after-stage))
-      (unless (empty? commands)
-        (set kept (state/filter-by-commands kept commands (options :jobs)))
-        (after-stage)))
+        (def stage (state/filter-by-state kept (options :wanted-state)
+                                          (options :jobs)))
+        (set kept (stage :repositories))
+        (set interrupted (stage :interrupted?)))
+      (when (and (not interrupted) (not (empty? commands)))
+        (def stage (state/filter-by-commands kept commands (options :jobs)))
+        (set kept (stage :repositories))
+        (set interrupted (stage :interrupted?))))
     ([err] (error {:stage-error err})))
-  kept)
+  {:repositories kept :interrupted? interrupted})
 
 (defn- select-in
   "Select from the catalog in `directory`, as `select` describes."
@@ -109,17 +111,20 @@
       (def located (location/select-repositories-with-anchors
                      (options :at) repositories anchors))
       (def commands (filters :commands))
-      (def selected (narrow-by-state options located commands))
-      {:repositories selected
-       :catalog catalog
-       :filters filters
-       :reason (when (empty? selected)
-                 (if (empty? located)
-                   (why-empty options names settings repositories anchors)
-                   {:kind :emptied-by-state
-                    :of (length located)
-                    :wanted (options :wanted-state)
-                    :commands? (not (empty? commands))}))})))
+      (def narrowed (narrow-by-state options located commands))
+      (def selected (narrowed :repositories))
+      (if (narrowed :interrupted?)
+        {:repositories [] :catalog catalog :filters filters :interrupted? true}
+        {:repositories selected
+         :catalog catalog
+         :filters filters
+         :reason (when (empty? selected)
+                   (if (empty? located)
+                     (why-empty options names settings repositories anchors)
+                     {:kind :emptied-by-state
+                      :of (length located)
+                      :wanted (options :wanted-state)
+                      :commands? (not (empty? commands))}))}))))
 
 (defn select
   ``Select the repositories that `options` ask for from the catalog `settings`
@@ -131,8 +136,9 @@
   given with -f: a list filter narrows every configuration file, and the rest
   are checkout filters or commands, which `:filters` of the result lists. `:wanted-state`, :dirty or :clean, and
   the commands then narrow the repositories further, with `:jobs` at a time,
-  and `:after-stage` is called after each of those stages. `:catalog-only?`
-  loads the catalog and runs no stage.``
+  and `:interrupted?` in the result says a stage was interrupted, in which case
+  no repositories are picked. `:catalog-only?` loads the catalog and runs no
+  stage.``
   [options settings]
   (def filters (resolve-filters (get options :filter-values []) settings))
   (def directory (or (options :directory) (config/config-directory)))

@@ -37,13 +37,13 @@
   (sh/create-dirs second)
   (sh/create-dirs (string first "/.git"))
   (sh/create-dirs (string second "/.git"))
-  (def counts (run/run-in-repositories [(repository first)
+  (def result (run/run-in-repositories [(repository first)
                                         (repository second)]
                                        ["touch" "command ran"]))
-  (assert (= 2 (counts :succeeded))
+  (assert (= 2 ((result :counts) :succeeded))
           "successful commands report no failures")
-  (assert (= 0 (counts :failed)))
-  (assert (= 0 (counts :not-checked-out)))
+  (assert (= 0 ((result :counts) :failed)))
+  (assert (= 0 ((result :counts) :not-checked-out)))
   (assert (= :file (os/stat (string first "/command ran") :mode))
           "the command runs in the first repository")
   (assert (= :file (os/stat (string second "/command ran") :mode))
@@ -56,12 +56,12 @@
       jj-repository (string dir "/jj")]
   (sh/create-dirs (string git-repository "/.git"))
   (sh/create-dirs (string jj-repository "/.jj"))
-  (def counts
+  (def result
     (run/run-in-repositories
       [(repository git-repository) (repository jj-repository)]
       {:command-git "touch selected-git"
        :command-jj "touch selected-jj"}))
-  (assert (= 2 (counts :succeeded))
+  (assert (= 2 ((result :counts) :succeeded))
           "VCS-specific commands run in both repository types")
   (assert (= :file (os/stat (string git-repository "/selected-git") :mode))
           "a Git repository selects command-git")
@@ -72,12 +72,12 @@
 (let [dir (fixture)]
   (sh/create-dirs (string dir "/.git"))
   (sh/create-dirs (string dir "/.jj"))
-  (def counts
+  (def result
     (run/run-in-repositories
       [(repository dir)]
       {:command-git "touch selected-git"
        :command-jj "touch selected-jj"}))
-  (assert (= 1 (counts :succeeded))
+  (assert (= 1 ((result :counts) :succeeded))
           "a colocated repository runs one command")
   (assert (= :file (os/stat (string dir "/selected-jj") :mode))
           "a colocated repository selects the jj command")
@@ -87,13 +87,13 @@
 
 (let [dir (fixture)]
   (sh/create-dirs (string dir "/.jj"))
-  (def counts
+  (def result
     (run/run-in-repositories
       [(repository dir)]
       {:command-git "touch selected-git"}))
-  (assert (= 1 (counts :skipped))
+  (assert (= 1 ((result :counts) :skipped))
           "a missing command for the repository VCS is skipped")
-  (assert (= 0 (counts :failed))
+  (assert (= 0 ((result :counts) :failed))
           "a missing VCS-specific command is not a failure")
   (assert (nil? (os/stat (string dir "/selected-git")))
           "a skipped command does not run")
@@ -107,14 +107,14 @@
   (sh/create-dirs last)
   (sh/create-dirs (string first "/.git"))
   (sh/create-dirs (string last "/.git"))
-  (def counts (run/run-in-repositories [(repository first)
+  (def result (run/run-in-repositories [(repository first)
                                         (repository missing)
                                         (repository last)]
                                        ["touch" "ran"]))
-  (assert (= 0 (counts :failed)))
-  (assert (= 1 (counts :not-checked-out))
+  (assert (= 0 ((result :counts) :failed)))
+  (assert (= 1 ((result :counts) :not-checked-out))
           "an unavailable repository is not checked out")
-  (assert (= 2 (counts :succeeded)))
+  (assert (= 2 ((result :counts) :succeeded)))
   (assert (= :file (os/stat (string first "/ran") :mode)))
   (assert (= :file (os/stat (string last "/ran") :mode))
           "a failure does not prevent later commands")
@@ -124,8 +124,8 @@
       blocked (string dir "/blocked")]
   (sh/create-dirs blocked)
   (spit (string blocked "/notes") "")
-  (def counts (run/run-in-repositories [(repository blocked)] ["touch" "ran"]))
-  (assert (= 1 (counts :not-checked-out))
+  (def result (run/run-in-repositories [(repository blocked)] ["touch" "ran"]))
+  (assert (= 1 ((result :counts) :not-checked-out))
           "a directory holding no repository is not checked out")
   (assert (nil? (os/stat (string blocked "/ran")))
           "the command does not run where no repository is")
@@ -138,11 +138,11 @@
   (sh/create-dirs second)
   (sh/create-dirs (string first "/.git"))
   (sh/create-dirs (string second "/.git"))
-  (def counts
+  (def result
     (run/run-in-repositories
       [(repository first) (repository second)]
       ["sh" "-c" "touch ran-before-failure; exit 7"]))
-  (assert (= 2 (counts :failed))
+  (assert (= 2 ((result :counts) :failed))
           "each non-zero command counts as one failure")
   (assert (= :file (os/stat (string first "/ran-before-failure") :mode)))
   (assert (= :file (os/stat (string second "/ran-before-failure") :mode))

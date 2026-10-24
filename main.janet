@@ -194,6 +194,17 @@
       (eprint "None of the configured repositories under the selected "
               "anchors are beneath " (reason :at) " or hold it"))))
 
+(defn- exit-unless-complete
+  ``Leave with the interrupt exit code when `result`, of a run or a selection,
+  says it was interrupted, and with 1 when `failed`. An interrupted run
+  reached only part of the list, so it cannot report success however well the
+  part it reached went.``
+  [result failed]
+  (when (result :interrupted?)
+    (os/exit parallel/interrupt-exit-code))
+  (when failed
+    (os/exit 1)))
+
 (defn- select-repositories
   ``Select the repositories `options` ask for, as selection/select does, and
   report for the CLI what stops the run or explains an empty selection. With
@@ -209,6 +220,7 @@
           (eprint "Selection error: " (err :stage-error))
           (eprint "Configuration error: " err))
         (os/exit 1))))
+  (exit-unless-complete result false)
   (def reason (result :reason))
   (case (get reason :kind)
     :mistyped-filter
@@ -271,16 +283,6 @@
    :all-anchors? (parsed "all-anchors")
    :filter-values (or (parsed "filter") [])})
 
-(defn- exit-unless-complete
-  ``Leave with the interrupt exit code when the run was interrupted, and with 1
-  when `failed`. An interrupted run reached only part of the list, so it
-  cannot report success however well the part it reached went.``
-  [failed]
-  (when (parallel/interrupted?)
-    (os/exit parallel/interrupt-exit-code))
-  (when failed
-    (os/exit 1)))
-
 (defn- wanted-state
   "The state --dirty or --clean asks for, or nil. Asking for both is a mistake."
   [parsed]
@@ -307,13 +309,11 @@
     (os/exit 1))
   (def repositories
     ((select-repositories (selection-options parsed) settings) :repositories))
-  (def counts (clone/clone-repositories repositories jobs))
-  (print (counts :cloned) " cloned, "
-         (counts :skipped) " already checked out, "
-         (counts :blocked) " blocked, "
-         (counts :failed) " failed")
+  (def result (clone/clone-repositories repositories jobs))
+  (print (result :summary))
   # A blocked repository was asked for and is still not checked out.
-  (exit-unless-complete (pos? (+ (counts :failed) (counts :blocked)))))
+  (exit-unless-complete
+    result (pos? (+ ((result :counts) :failed) ((result :counts) :blocked)))))
 
 (def- discovery-options
   "The list options that shape the scan of the disk, by name."
@@ -388,7 +388,6 @@
       (merge (selection-options parsed)
              {:wanted-state wanted
               :jobs parallel/default-jobs
-              :after-stage (fn [] (exit-unless-complete false))
               :catalog-only? (not show-configured)})
       settings
       :unconfigured-ok scan
@@ -420,16 +419,12 @@
     ((select-repositories
        (merge (selection-options parsed)
               {:wanted-state wanted
-               :jobs jobs
-               :after-stage (fn [] (exit-unless-complete false))})
+               :jobs jobs})
        settings)
       :repositories))
-  (def counts (run/run-in-repositories repositories command show-output jobs))
-  (print (counts :succeeded) " succeeded, "
-         (counts :failed) " failed, "
-         (counts :skipped) " skipped, "
-         (counts :not-checked-out) " not checked out")
-  (exit-unless-complete (pos? (counts :failed))))
+  (def result (run/run-in-repositories repositories command show-output jobs))
+  (print (result :summary))
+  (exit-unless-complete result (pos? ((result :counts) :failed))))
 
 (defn make-run-command
   "Return a handler that uses description for help and runs command."

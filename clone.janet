@@ -76,7 +76,8 @@
 
 (defn clone-repositories
   ``Clone repositories with their selected VCS and limit concurrent processes.
-  Return the cloned, skipped, blocked, and failed counts.``
+  Return what parallel/run-repositories does, with the cloned, skipped,
+  blocked, and failed counts.``
   [repositories &opt jobs]
   (def executables
     (tabseq [name :in (vcs/names)]

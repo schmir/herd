@@ -116,7 +116,8 @@
   (report ;xs))
 
 (defn run-in-repositories
-  "Run a command in parallel and return its outcome counts."
+  ``Run a command in parallel and return what parallel/run-repositories does,
+  with the succeeded, failed, skipped, and not-checked-out counts.``
   [repositories command &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
