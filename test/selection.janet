@@ -18,7 +18,7 @@
   "Return selected paths so assertions read as plain lists."
   [at-path selected-anchors]
   (map (fn [repository] (repository :path))
-       (location/select-repositories-with-anchors
+       (location/locate-repositories-under-anchors
          at-path repositories selected-anchors)))
 
 # A directory selects everything checked out below it.
@@ -51,14 +51,14 @@
 
 # A relative path is read from the current directory.
 (assert (deep= (map (fn [repository] (repository :path))
-                    (location/select-repositories-with-anchors
+                    (location/locate-repositories-under-anchors
                       "below" [{:path (string (os/cwd) "/below/repo")
                                 :ssh_url "u"
                                 :anchors @[(os/cwd)]}]
                       @[(os/cwd)]))
                @[(string (os/cwd) "/below/repo")]))
 
-(assert (empty? (location/select-repositories-with-anchors "/srv" [] @["/srv"])))
+(assert (empty? (location/locate-repositories-under-anchors "/srv" [] @["/srv"])))
 (assert (empty? (selected "/elsewhere" @[])))
 
 (def nested
@@ -73,7 +73,7 @@
   "Return paths selected from repositories with nested anchors."
   [at-path selected-anchors]
   (map (fn [repository] (repository :path))
-       (location/select-repositories-with-anchors
+       (location/locate-repositories-under-anchors
          at-path nested selected-anchors)))
 
 (assert (deep= @["/work" "/work/team"]
@@ -119,7 +119,7 @@
     (def repositories [{:path repository-path :ssh_url "u"
                         :anchors @[anchor]}])
     (map (fn [repository] (repository :path))
-         (location/select-repositories-with-anchors
+         (location/locate-repositories-under-anchors
            at-path repositories
            (location/containing-anchors at-path repositories))))
 
@@ -153,16 +153,16 @@
   (assert (deep= @[real] (location/containing-anchors alias shared))
           "and either spelling of the working location finds it")
   (def everything
-    (location/select-repositories-with-anchors
+    (location/locate-repositories-under-anchors
       real shared (location/containing-anchors real shared)))
   (assert (= 500 (length everything))
           "every repository under the anchor is selected, whichever spelling it has")
   (def team
-    (location/select-repositories-with-anchors
+    (location/locate-repositories-under-anchors
       (string alias "/team3") shared (location/containing-anchors alias shared)))
   (assert (= 100 (length team))
           "a subdirectory selects those beneath it, through either spelling")
-  (assert (empty? (location/select-repositories-with-anchors
+  (assert (empty? (location/locate-repositories-under-anchors
                     (string dir "/real/elsewhere") shared
                     (location/containing-anchors (string dir "/real/elsewhere") shared)))
           "a location outside the anchor selects none")

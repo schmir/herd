@@ -108,7 +108,7 @@
       (def anchors (if (options :all-anchors?)
                      (location/configured-anchors repositories)
                      (location/containing-anchors (options :at-path) repositories)))
-      (def located (location/select-repositories-with-anchors
+      (def located (location/locate-repositories-under-anchors
                      (options :at-path) repositories anchors))
       (def commands (filters :commands))
       (def narrowed (narrow-by-state options located commands))
