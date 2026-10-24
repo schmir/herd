@@ -2,7 +2,7 @@
 
 (import spork/path)
 
-(defn- bare-path
+(defn- trim-slashes
   "Drop trailing slashes, which normalisation keeps but comparison must not."
   [path]
   (def trimmed (string/trimr path "/"))
@@ -16,15 +16,15 @@
   part that does not exist, which is why the whole path cannot just be
   resolved at once.``
   [path]
-  (var head (bare-path (path/abspath path)))
+  (var head (trim-slashes (path/abspath path)))
   (def missing @[])
   (while (and (not= "/" head) (nil? (os/lstat head :mode)))
     (array/push missing (path/basename head))
-    (set head (bare-path (path/parent head))))
-  (def resolved (bare-path (try (os/realpath head) ([_] head))))
+    (set head (trim-slashes (path/parent head))))
+  (def resolved (trim-slashes (try (os/realpath head) ([_] head))))
   (if (empty? missing)
     resolved
-    (bare-path (path/join resolved ;(reverse missing)))))
+    (trim-slashes (path/join resolved ;(reverse missing)))))
 
 (defn- caching-resolved-path
   ``A function that gives the `resolved-path` of a path, asking the
@@ -53,10 +53,10 @@
   under, each once, in the order they are first seen.``
   [repositories]
   (def found @[])
-  (def resolved-anchor (caching-resolved-path))
+  (def resolve-anchor (caching-resolved-path))
   (each repository repositories
     (each anchor (get repository :anchors [])
-      (def candidate (resolved-anchor anchor))
+      (def candidate (resolve-anchor anchor))
       (unless (some (fn [known] (= candidate known)) found)
         (array/push found candidate))))
   found)
@@ -73,12 +73,12 @@
   are at `at-path`, beneath it or containing it.``
   [at-path repositories selected-anchors]
   (def resolved-at-path (resolved-path at-path))
-  (def resolved-anchor (caching-resolved-path))
+  (def resolve-anchor (caching-resolved-path))
   (filter (fn [repository]
             (def candidate (resolved-path (repository :path)))
             (and (some (fn [repository-anchor]
-                         (def normalized (resolved-anchor repository-anchor))
-                         (some (fn [anchor] (= normalized anchor))
+                         (def resolved-anchor (resolve-anchor repository-anchor))
+                         (some (fn [anchor] (= resolved-anchor anchor))
                                selected-anchors))
                        (get repository :anchors []))
                  (or (contains-path? resolved-at-path candidate)
