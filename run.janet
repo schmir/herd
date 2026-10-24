@@ -109,10 +109,10 @@
 
 (defn report-command-result
   "Separate result blocks while preserving their completion order."
-  [state report & xs]
-  (when (state :reported)
+  [separator report & xs]
+  (when (separator :needed?)
     (report ""))
-  (put state :reported true)
+  (put separator :needed? true)
   (report ;xs))
 
 (defn run-in-repositories
@@ -121,7 +121,7 @@
   [repositories command &opt show-output jobs]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
-  (def report-state @{:reported false})
+  (def block-separator @{:needed? false})
   (parallel/run-repositories
     repositories
     [[:succeeded "succeeded"]
@@ -130,6 +130,6 @@
      [:not-checked-out "not checked out"]]
     (fn [repository report]
       (run-in-repository repository command
-                         (fn [& args] (report-command-result report-state report ;args))
+                         (fn [& args] (report-command-result block-separator report ;args))
                          show-output))
     jobs))

@@ -203,10 +203,10 @@
   (sh/rm dir))
 
 (let [messages @[]
-      state @{:reported false}
+      separator @{:needed? false}
       report (fn [& args] (array/push messages (string ;args)))]
-  (run/report-command-result state report "first result")
-  (run/report-command-result state report "second result")
+  (run/report-command-result separator report "first result")
+  (run/report-command-result separator report "second result")
   (assert (deep= messages @["first result" "" "second result"])
           "result blocks have one empty line between them"))
 
