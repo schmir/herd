@@ -122,11 +122,17 @@ directory where another placement is anchored.
 A repository at the anchor itself is counted, and listed as ".".
 
   $ rm "$CONFIG/third.json" "$CONFIG/first.json"
-  $ echo '[{"path": ".", "clone_url": "u"}, {"path": "a", "clone_url": "v"}]' >"$CONFIG/self.json"
+  $ echo '[{"path": ".", "clone_url": "u"}]' >"$CONFIG/self.json"
   $ echo '{:checkouts [{:list "self.json" :anchor "/srv/work"}]}' >"$CONFIG/config.jdn"
   $ herd tree
-  /srv/work (self.json, 2 repositories)
+  /srv/work (self.json, 1 repository)
   $ herd tree -r
-  /srv/work (self.json, 2 repositories)
-  ├── .
-  └── a
+  /srv/work (self.json, 1 repository)
+  └── .
+
+A repository inside another is an error, as it is for the other commands.
+
+  $ echo '[{"path": ".", "clone_url": "u"}, {"path": "a", "clone_url": "v"}]' >"$CONFIG/self.json"
+  $ herd tree -r
+  Configuration error: self.json names /srv/work/a, which lies inside the repository /srv/work from self.json
+  [1]

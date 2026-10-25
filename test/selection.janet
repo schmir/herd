@@ -177,7 +177,8 @@
 (sh/create-dirs config-dir)
 (spit (path/join config-dir "repos.json")
       (string "[{\"path\": \"/srv/foo\", \"ssh_url\": \"foo\"},"
-              " {\"path\": \"/srv/foo/bar\", \"ssh_url\": \"bar\"},"
+              " {\"path\": \"/srv/group/a\", \"ssh_url\": \"a\"},"
+              " {\"path\": \"/srv/group/b\", \"ssh_url\": \"b\"},"
               " {\"path\": \"/srv/other\", \"ssh_url\": \"other\"}]"))
 
 (def srv-settings
@@ -194,9 +195,9 @@
 (defn test-selects-beneath-the-working-location
   "A working location picks the configured repositories beneath it."
   []
-  (def result (selection/select {:directory config-dir :at-path "/srv/foo"}
+  (def result (selection/select {:directory config-dir :at-path "/srv/group"}
                                 srv-settings))
-  (assert (deep= @["/srv/foo" "/srv/foo/bar"]
+  (assert (deep= @["/srv/group/a" "/srv/group/b"]
                  (map (fn [repository] (repository :path))
                       (result :repositories))))
   (assert (nil? (result :reason)) "a selection that is not empty needs no reason"))
@@ -207,7 +208,7 @@
   "Considering every anchor reaches a location no anchor contains."
   []
   (assert (empty? (chosen {:at-path "/"})) "no anchor contains the filesystem root")
-  (assert (deep= @["/srv/foo" "/srv/foo/bar" "/srv/other"]
+  (assert (deep= @["/srv/foo" "/srv/group/a" "/srv/group/b" "/srv/other"]
                  (chosen {:at-path "/" :all-anchors? true}))
           "every anchor is considered"))
 

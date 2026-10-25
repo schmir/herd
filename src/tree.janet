@@ -193,6 +193,11 @@
               (seq [[label row] :in (config/inline-lists settings)]
                 (list-placements label [row]
                                  (fn [row] (config/read-inline-list label row filters)))))])
+  (def seen @{})
+  (each {:label label :repositories repositories} placements
+    (each repository repositories
+      (put seen (repository :path) {:source label})))
+  (config/reject-nested-repositories seen)
   (roots-of (filesystem-trie placements) list? true))
 
 (defn from-paths

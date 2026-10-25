@@ -4,7 +4,6 @@ need not exist, since list prints what is configured.
   $ . "$TESTDIR/setup.sh"
   $ cat >"$CONFIG/repos.json" <<'EOF'
   > [{"path": "/srv/foo", "ssh_url": "foo"},
-  >  {"path": "/srv/foo/bar", "ssh_url": "bar"},
   >  {"path": "/srv/foobar", "ssh_url": "foobar"},
   >  {"path": "/srv/other", "ssh_url": "other"}]
   > EOF
@@ -14,23 +13,16 @@ A directory selects everything below it.
 
   $ herd list -C /srv/foo
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
 
   $ herd list -C /srv
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
   /srv/foobar\tfoobar (esc)
   /srv/other\tother (esc)
 
-A path inside a working copy selects that repository, however deep, and
-nested repositories both contain a path below them.
+A path inside a working copy selects that repository, however deep.
 
   $ herd list -C /srv/foo/deep/inside
   /srv/foo\tfoo (esc)
-
-  $ herd list -C /srv/foo/bar/x
-  /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
 
 Matching is by whole path component, not by string prefix.
 
@@ -44,15 +36,12 @@ Trailing slashes and unnormalised paths mean what they look like.
 
   $ herd list -C /srv/foo/
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
 
   $ herd list -C /srv/foo//
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
 
   $ herd list -C /srv/foo/../foo
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
 
 The filesystem root is in no anchor, unless every anchor is considered.
 
@@ -61,7 +50,6 @@ The filesystem root is in no anchor, unless every anchor is considered.
 
   $ herd list -a -C /
   /srv/foo\tfoo (esc)
-  /srv/foo/bar\tbar (esc)
   /srv/foobar\tfoobar (esc)
   /srv/other\tother (esc)
 

@@ -369,6 +369,26 @@
   (read-list-source (inline-list-source (checkout-row :list)) label
                     [checkout-row] (or filters {}) (or names [])))
 
+(defn- parent-path
+  "The directory holding `repository-path`, without a trailing slash."
+  [repository-path]
+  (def slash (last (string/find-all path/sep repository-path)))
+  (when (and slash (pos? slash))
+    (string/slice repository-path 0 slash)))
+
+(defn reject-nested-repositories
+  ``Reject a repository whose path lies inside another repository's. `seen`
+  maps each path to the `:source` that named it.``
+  [seen]
+  (eachk repository-path seen
+    (var ancestor (parent-path repository-path))
+    (while ancestor
+      (when-let [outer (get seen ancestor)]
+        (error (string/format "%s names %s, which lies inside the repository %s from %s"
+                              ((get seen repository-path) :source) repository-path
+                              ancestor (outer :source))))
+      (set ancestor (parent-path ancestor)))))
+
 (defn merge-repository-lists
   ``Concatenate `[list-path repositories]` pairs into one repository list.
   Two files may name the same checkout only when they agree on the URL and on
@@ -411,6 +431,7 @@
         (each anchor (repository :anchors)
           (unless (some (fn [known] (= anchor known)) (previous :anchors))
             (array/push (previous :anchors) anchor))))))
+  (reject-nested-repositories seen)
   merged)
 
 (defn- reject-unknown-sources

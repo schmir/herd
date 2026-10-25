@@ -175,3 +175,18 @@ Paths that stripping makes equal are merged the same way.
   $ herd list -C root
   Configuration error: $ROOT/home/.config/herd/repos.json and $ROOT/home/.config/herd/repos.json disagree on the URL for $ROOT/home/root/repo
   [1]
+
+A repository may not live inside another one, whichever anchor or list
+places it there.
+
+  $ echo '[{"path": "outer", "ssh_url": "o"}, {"path": "outer/inner", "ssh_url": "i"}]' \
+  >   >"$CONFIG/repos.json"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/repos.json names $ROOT/home/root/outer/inner, which lies inside the repository $ROOT/home/root/outer from $ROOT/home/.config/herd/repos.json
+  [1]
+  $ echo '[{"path": "outer", "ssh_url": "o"}, {"path": "outer-two/x", "ssh_url": "i"}]' \
+  >   >"$CONFIG/repos.json"
+  $ herd list -a -C /
+  $ROOT/home/root/outer\to (esc)
+  $ROOT/home/root/outer-two/x\ti (esc)
