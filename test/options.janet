@@ -17,6 +17,7 @@
                    "status" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
+  (assert (deep= @["help" "repositories"] (names "tree")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"
                    "dirty" "clean"]
                  (names "run")))

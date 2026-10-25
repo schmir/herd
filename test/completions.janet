@@ -17,7 +17,7 @@
   []
   (each shell completions/shells
     (def text (completions/script shell))
-    (each command ["clone" "list" "run" "completions"]
+    (each command ["clone" "list" "run" "completions" "tree"]
       (each long (map (fn [option] (option :name)) (options/for-command command))
         (assert (string/find long text)
                 (string shell " offers --" long " for " command))))))
@@ -27,7 +27,7 @@
   []
   (each shell ["zsh" "fish"]
     (def text (completions/script shell))
-    (each command ["clone" "list" "run" "completions"]
+    (each command ["clone" "list" "run" "completions" "tree"]
       (each option (options/for-command command)
         (assert (string/find (or (option :summary) (option :help)) text)
                 (string shell " describes --" (option :name) " for " command))))

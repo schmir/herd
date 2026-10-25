@@ -18,7 +18,7 @@
   "Every spelling of every option that takes a value, whichever command has it."
   (distinct (flags-of (filter (fn [option] (option :value-name))
                               (mapcat options/for-command
-                                      ["clone" "list" "run" "completions"])))))
+                                      ["clone" "list" "run" "completions" "tree"])))))
 
 (defn- bash-script []
   (string
@@ -55,7 +55,7 @@ _herd() {
     case $cmd in
 ``
     (string/join
-      (seq [cmd :in ["clone" "list" "completions"]]
+      (seq [cmd :in ["clone" "list" "completions" "tree"]]
         (string "        " cmd ")\n"
                 "            COMPREPLY=($(compgen -W \""
                 (string/join (flags-of (options/for-command cmd)) " ")
@@ -129,7 +129,7 @@ complete -F _herd herd
     "    for word in (commandline -opc)[2..-1]\n"
     "        if test $skip = 1\n"
     "            set skip 0\n"
-    "        else if contains -- $word -C --at -f --filter -j --jobs --show-output\n"
+    "        else if contains -- $word -C --at -d --depth -f --filter -j --jobs --show-output\n"
     "            set skip 1\n"
     "        else if not string match -q -- '-*' $word\n"
     "            echo $word\n"
@@ -142,7 +142,7 @@ complete -F _herd herd
     "end\n"
     "function __herd_command_other\n"
     "    set -l command (__herd_command)\n"
-    "    test -n \"$command\"; and not contains -- $command clone list completions\n"
+    "    test -n \"$command\"; and not contains -- $command clone list completions tree\n"
     "end\n"
     # Where the command to run starts, as a position in the command line: the
     # first word after run that is neither an option nor its value.
@@ -175,6 +175,7 @@ complete -F _herd herd
     (string/join (fish-lines (fish-quote "__herd_command_is clone") (options/for-command "clone")) "")
     (string/join (fish-lines (fish-quote "__herd_command_is list") (options/for-command "list")) "")
     (string/join (fish-lines (fish-quote "__herd_command_is completions") (options/for-command "completions")) "")
+    (string/join (fish-lines (fish-quote "__herd_command_is tree") (options/for-command "tree")) "")
     (string/join (fish-lines (fish-quote "__herd_command_other") (options/for-command "run")) "")))
 
 (defn- zsh-spec [option]
@@ -239,6 +240,7 @@ complete -F _herd herd
     "        completions) _arguments '1:shell:(" (string/join shells " ") ")' ;;\n"
     "        clone)\n            _arguments \\\n" (specs clone) "                ;;\n"
     "        list)\n            _arguments \\\n" (specs list-opts) "                ;;\n"
+    "        tree)\n            _arguments \\\n" (specs (options/for-command "tree")) "                ;;\n"
     # Only run takes a command. -A stops option completion at the command, so
     # its own options are left to _normal.
     "        run)\n            _arguments -A '-*' \\\n" (specs run) "                '*::command:_normal' ;;\n"

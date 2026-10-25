@@ -35,8 +35,26 @@ the on-disk sense. _Avoid_: Row, source, mapping
 **Placement**: A checkout row with its anchor resolved to a directory, as
 the code reads a list through it. _Avoid_: Resolved anchor
 
+**Tree**: What `herd tree` prints: the filesystem the configuration
+describes, with the directories placements are anchored at and the
+repositories beneath them. Unlike a selection, it covers every anchor.
+_Avoid_: Hierarchy, layout
+
+**Tree entry**: A directory line of the tree. A directory that several
+placements are anchored at has one entry for each placement, marked with its
+list and options and listing only that placement's repositories, so
+placements are never merged. What else is below that directory, such as
+anchors further down, goes in the entry of a lone placement, and in an entry
+with no placement beside several. _Avoid_: Node, branch
+
+**Tree root**: A top-level entry of the tree, shown by its full path. It is
+the directory that holds every anchor, or, when no anchor holds the others,
+each branch below it. It need not be an anchor, and an anchor need not be a
+root. _Avoid_: Anchor (the directory a checkout row resolves paths against)
+
 **Subcommand**: A command of the herd program itself, such as `clone`,
-`list`, `run` or `completions`, or a custom command. _Avoid_: Verb, action
+`list`, `run`, `tree` or `completions`, or a custom command. _Avoid_: Verb,
+action
 
 **Custom command**: A subcommand that `:commands` in the settings file
 defines. It runs a command in each repository, with a `:command` or, per

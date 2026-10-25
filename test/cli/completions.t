@@ -37,6 +37,7 @@ configuration defines are offered too.
   greet\tSay hi. (esc)
   list\tPrint the configured repositories beneath a path. (esc)
   run\tRun a command in each configured repository beneath a path. (esc)
+  tree\tPrint the repositories as a tree of the filesystem. (esc)
 
 So are the configured filters, for the option that names one.
 

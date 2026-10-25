@@ -412,7 +412,7 @@
   (sh/rm directory))
 
 # Validated custom commands become handlers beside the built-in ones.
-(assert (deep= @["clone" "completions" "list" "run"]
+(assert (deep= @["clone" "completions" "list" "run" "tree"]
                (sorted herd/built-in-subcommand-names))
         "the reserved names are the built-in commands")
 (let [commands (herd/custom-commands

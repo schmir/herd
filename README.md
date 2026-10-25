@@ -327,9 +327,9 @@ A command is either a single `:command` string, or `:command-git` and
 repository whose VCS has no command is skipped. Commands run through
 `sh -c`, so pipes and `&&` work. `:show-output` sets that command's default
 output condition; see [Use](#use). Custom names cannot shadow the built-in
-commands `clone`, `completions`, `list` and `run`. `diff` and `fetch` are
-themselves custom commands herd defines by default, so an entry of the same
-name in `:commands` replaces them.
+commands `clone`, `completions`, `list`, `run` and `tree`. `diff` and
+`fetch` are themselves custom commands herd defines by default, so an entry
+of the same name in `:commands` replaces them.
 
 ## Shell completions
 
@@ -478,6 +478,21 @@ override how many repositories are worked on at the same time:
 ```sh
 herd clone -j 12
 ```
+
+### Tree
+
+`herd tree` draws the filesystem the configuration describes: the
+directories its lists are anchored at, each marked with the lists and
+`:checkouts` rows placed there and their options, and the repositories
+checked out beneath them.
+
+```sh
+herd tree
+```
+
+A directory gives the number of repositories directly in it; `-r`
+(`--repositories`) also lists them. On a terminal, repositories are printed
+in green and the notes on a directory dimmed, unless `NO_COLOR` is set.
 
 ## Selection
 

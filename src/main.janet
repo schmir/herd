@@ -14,6 +14,7 @@
 (import ./run)
 (import ./selection)
 (import ./survey)
+(import ./tree)
 
 (defmacro- baked-version
   ``The version named by HERD_VERSION, read while this file is compiled.
@@ -381,6 +382,26 @@
   (print (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 
+(defn tree-command
+  ``Run `herd tree`: print the filesystem the configuration describes as a
+  tree, with the placements marked where they are anchored.``
+  [args config]
+  (def parsed
+    (parse-args args "Print the repositories as a tree of the filesystem."
+                ;(command-spec "tree" {})))
+  (def directory (config/config-directory))
+  (unless directory
+    (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
+            "configuration directory to read")
+    (os/exit 1))
+  (def nodes
+    (exit-on-error "Configuration error: "
+                   (fn [] (tree/build directory config (parsed "repositories")))))
+  # NO_COLOR, when set to anything, asks programs not to color.
+  (each line (tree/render nodes (and (os/isatty stdout)
+                                     (empty? (os/getenv "NO_COLOR" ""))))
+    (print line)))
+
 (defn custom-command-handler
   "Return a handler that uses description for help and runs command."
   [command description &opt show-output jobs repository-settings]
@@ -460,6 +481,8 @@
                   :help "Print a shell completion script for herd."}
    "list" {:run (fn [args] (list-command args repository-settings))
            :help "Print the configured repositories beneath a path."}
+   "tree" {:run (fn [args] (tree-command args config))
+           :help "Print the repositories as a tree of the filesystem."}
    "run" {:run (fn [args] (run-command args jobs repository-settings))
           :help "Run a command in each configured repository beneath a path."}})
 

@@ -51,6 +51,10 @@
    {:name "follow-links" :kind :flag
     :help "Follow symbolic links when discovering extra repositories."}])
 
+(def- list-repositories
+  {:name "repositories" :short "r" :kind :flag
+   :help "List the repositories."})
+
 (def top-level
   "The options of bare herd."
   [help
@@ -67,4 +71,5 @@
     "clone" [;selecting jobs]
     "list" [;selecting ;list-only dirty clean]
     "completions" [help]
+    "tree" [help list-repositories]
     [;selecting show-output jobs dirty clean]))
