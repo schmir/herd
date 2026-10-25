@@ -2,9 +2,8 @@
 
 `herd` manages a collection of Git repositories, checked out with
 [Jujutsu](https://jj-vcs.github.io/jj/latest/) or with Git. It can clone
-missing working copies, fetch remotes, and run a command in the selected
-repositories, with a configurable number of operations running in parallel
-(six by default).
+repositories, fetch and update them, and run arbitrary commands in selected
+repositories.
 
 ## Install
 
@@ -66,10 +65,10 @@ You can split repositories across any number of JSON files; files are loaded
 in name order. Duplicate paths are accepted only when their URLs and their
 repository options agree.
 
-A repository list holds nothing but repositories, so whatever writes one
-needs to know nothing else. Where a list is anchored and how its
-repositories are checked out is configured by the `:checkouts` rows in
-`config.jdn`.
+A repository list contains only repositories, so a script that generates one
+does not need to know how herd is configured. The `:checkouts` rows in
+`config.jdn` configure where the list is anchored and how its repositories
+are checked out.
 
 ### Settings
 
