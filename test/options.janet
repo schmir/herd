@@ -14,7 +14,7 @@
   []
   (assert (deep= @["at" "all-anchors" "filter" "help" "jobs"] (names "clone")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "ok" "missing" "extra"
-                   "status" "max-depth" "hidden" "follow-links" "dirty" "clean"]
+                   "status" "tree" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help" "repositories"] (names "tree")))

@@ -44,6 +44,8 @@
                   "Without --ok, --missing or --extra, "
                   "print only what differs.")
     :summary "Print the status of each repository first."}
+   {:name "tree" :short "t" :kind :flag
+    :help "Print the selected repositories as a tree."}
    {:name "max-depth" :kind :option :value-name "N"
     :help "Discover extra repositories at most N directories below the path."}
    {:name "hidden" :kind :flag

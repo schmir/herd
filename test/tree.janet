@@ -33,8 +33,24 @@
   (assert (string/find "\e[32mapi\e[0m" (lines 1)) "a repository is colored")
   (assert (string/find "\e[32mcore\e[0m" (lines 3)) "a nested repository is colored"))
 
+(defn test-from-paths-draws-the-paths-below-their-common-directory
+  "Paths are drawn from the directory that holds them all, with their statuses."
+  []
+  (def lines
+    (tree/render (tree/from-paths [{:path "/srv/a/x" :status "ok"}
+                                   {:path "/srv/a/y/z"}
+                                   {:path "/srv/a/y/w" :status "missing"}])))
+  (assert (deep= @["/srv/a (1 repository)"
+                   "├── x (ok)"
+                   "└── y/ (2 repositories)"
+                   "    ├── w (missing)"
+                   "    └── z"]
+                 lines))
+  (assert (empty? (tree/from-paths [])) "no paths draw nothing"))
+
 (test-render-separates-roots)
 (test-render-draws-branches)
+(test-from-paths-draws-the-paths-below-their-common-directory)
 (test-render-colors-only-repositories)
 
 (end-suite)

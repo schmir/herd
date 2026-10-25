@@ -406,6 +406,10 @@ repository containing the location, or the location itself; it does not
 enter repositories or hidden directories, and does not follow symbolic
 links. `--max-depth N`, `--hidden` and `--follow-links` change that.
 
+`--tree` draws what would be printed as a tree, from the directory that
+holds the selected repositories, instead of as lines. With `--status`, each
+repository is marked with its status. URLs are not drawn.
+
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
 plain Git ones, following the repository options in force for each:
 

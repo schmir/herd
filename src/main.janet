@@ -311,6 +311,12 @@
       @[]))
   (survey/extra-repositories discovered everything))
 
+(defn- color-output?
+  "Whether to color what is printed: on a terminal, unless NO_COLOR asks otherwise."
+  []
+  # NO_COLOR, when set to anything, asks programs not to color.
+  (and (os/isatty stdout) (empty? (os/getenv "NO_COLOR" ""))))
+
 (defn list-command
   ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them. --ok, --missing
@@ -352,16 +358,30 @@
   (def selected (result :repositories))
   (defn emit [status & fields]
     (print ;(if show-status? [status "\t"] []) (string/join fields "\t")))
+  # What is printed, a status and a repository each, so that it can be drawn
+  # either way.
+  (def rows @[])
   (each repository selected
     (def status (if (and want-ok? want-missing? (not show-status?))
                   :ok
                   (checkout/checkout-status repository)))
     (when (if (= :ok status) want-ok? want-missing?)
-      (emit status (repository :path) (repository :clone-url))))
+      (array/push rows {:status status :path (repository :path)
+                        :fields [(repository :path) (repository :clone-url)]})))
   (when discover?
     (each repository (discover-extra parsed repository-settings ((result :chosen) :list-filters) configured)
-      (emit "extra" (repository :path)
-            (or (survey/remote-url repository) "")))))
+      (array/push rows {:status "extra" :path (repository :path)
+                        :fields [(repository :path) (or (survey/remote-url repository) "")]})))
+  (if (parsed "tree")
+    (each line (tree/render
+                 (tree/from-paths
+                   (map (fn [row] {:path (row :path)
+                                   :status (when show-status? (string (row :status)))})
+                        rows))
+                 (color-output?))
+      (print line))
+    (each row rows
+      (emit (row :status) ;(row :fields)))))
 
 (defn- run-selected
   "Run a command in the selected repositories and report its outcome."
@@ -397,9 +417,7 @@
   (def nodes
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
-  # NO_COLOR, when set to anything, asks programs not to color.
-  (each line (tree/render nodes (and (os/isatty stdout)
-                                     (empty? (os/getenv "NO_COLOR" ""))))
+  (each line (tree/render nodes (color-output?))
     (print line)))
 
 (defn custom-command-handler

@@ -139,9 +139,40 @@
       (when (pos? counted)
         (if (= 1 counted) "1 repository" (string counted " repositories"))))
     {:label (string label (if directory? "/" ""))
-     :note (annotation note count-note)
+     :note (annotation note (end :status) count-note)
      :repository? (and (end :repository?) (empty? placements) (empty? children) (zero? counted))
      :children children}))
+
+(defn- roots-of
+  ``The display nodes of the filesystem `trie`, starting at the directory
+  where its paths part, with the repositories listed only if `list?`. Where
+  no anchor holds the paths together, each branch is a root of its own with
+  `split?`, and otherwise they hang from that directory.``
+  [trie list? split?]
+  (var root trie)
+  (def parts @[])
+  (while (and (empty? (root :placements))
+              (not (root :repository?))
+              (= 1 (length (root :children))))
+    (def [name child] (first (pairs (root :children))))
+    (array/push parts name)
+    (set root child))
+  (def start (string "/" (string/join parts "/")))
+  (def shown
+    (if (and split? (empty? (root :placements)) (not (root :repository?)))
+      # No anchor holds the others, so name the way down in each root instead of
+      # drawing a directory that is only a parent.
+      (mapcat (fn [name]
+                (display (string (if (= "/" start) "" start) "/" name) ((root :children) name) list?))
+              (sorted (keys (root :children))))
+      (display start root list?)))
+  # A root is a path to copy, so it has no closing slash, unless it is all of it.
+  (map (fn [root]
+         (def label (root :label))
+         (if (and (> (length label) 1) (string/has-suffix? "/" label))
+           (merge root {:label (string/slice label 0 -2)})
+           root))
+       shown))
 
 (defn build
   ``The display nodes of the configuration in `directory` as `config` loaded
@@ -162,32 +193,23 @@
               (seq [[label row] :in (config/inline-lists settings)]
                 (list-placements label [row]
                                  (fn [row] (config/read-inline-list label row filters)))))])
-  (def trie (filesystem-trie placements))
-  # Start where the paths part, since the directories above are not the point.
-  (var root trie)
-  (def parts @[])
-  (while (and (empty? (root :placements))
-              (not (root :repository?))
-              (= 1 (length (root :children))))
-    (def [name child] (first (pairs (root :children))))
-    (array/push parts name)
-    (set root child))
-  (def start (string "/" (string/join parts "/")))
-  (def shown
-    (if (empty? (root :placements))
-      # No anchor holds the others, so name the way down in each root instead of
-      # drawing a directory that is only a parent.
-      (mapcat (fn [name]
-                (display (string (if (= "/" start) "" start) "/" name) ((root :children) name) list?))
-              (sorted (keys (root :children))))
-      (display start root list?)))
-  # A root is a path to copy, so it has no closing slash, unless it is all of it.
-  (map (fn [root]
-         (def label (root :label))
-         (if (and (> (length label) 1) (string/has-suffix? "/" label))
-           (merge root {:label (string/slice label 0 -2)})
-           root))
-       shown))
+  (roots-of (filesystem-trie placements) list? true))
+
+(defn from-paths
+  ``The display nodes of the repositories at `entries`, each `{:path :status}`
+  with an absolute path and, if there is one, a status to show beside the
+  repository: the filesystem from the directory that holds them all, with
+  every repository listed.``
+  [entries]
+  (def trie (new-node))
+  (each {:path path :status status} entries
+    (def node (node-at trie (path-parts path)))
+    (put node :repository? true)
+    (when status
+      (put node :status status)))
+  (if (empty? entries)
+    []
+    (roots-of trie true false)))
 
 (def- repository-color
   "The escape sequence that starts the color repositories are printed in."
