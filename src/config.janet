@@ -59,12 +59,15 @@
     (error (string where " has an unknown setting " (describe key)))))
 
 (defn- validate-anchor-setting
-  "Validate an optional anchor as a non-empty string."
-  [settings where]
+  ``Validate an optional anchor as a non-empty string. `:defaults` may also
+  hold `false`, which leaves a list no row anchors without any anchor. It is
+  not `nil` because a dictionary cannot hold one.``
+  [settings where &opt allow-none?]
   (def anchor (get settings :anchor :unset))
-  (unless (= :unset anchor)
+  (unless (or (= :unset anchor) (and allow-none? (= false anchor)))
     (unless (and (string? anchor) (not (empty? anchor)))
-      (error (string where " needs a non-empty :anchor"))))
+      (error (string where " needs a non-empty :anchor"
+                     (if allow-none? " or false" "")))))
   settings)
 
 (defn- validate-filter-setting
@@ -117,7 +120,7 @@
     (error ":defaults must be a dictionary"))
   (eachk key defaults
     (reject-unknown-setting ":defaults" key [:anchor :filter ;checkout/option-keys]))
-  (validate-anchor-setting defaults ":defaults")
+  (validate-anchor-setting defaults ":defaults" true)
   (validate-filter-setting defaults ":defaults")
   (checkout/validate-repository-options defaults ":defaults")
   defaults)
@@ -188,20 +191,21 @@
 (defn resolve-checkout-rows
   ``Resolve each checkout row into a placement: its anchor resolved to a
   directory, with its repository options, filter and strip count. Relative
-  anchors use HOME. A missing anchor uses HOME for configured files and the
-  file's parent otherwise. Keep configured paths because selection
-  resolves symbolic links.``
-  [list-path directory checkout-rows]
-  (def parent (path/abspath (path/parent list-path)))
+  anchors use HOME, and so does a missing anchor. Both fail without it, and a
+  default anchor of false fails outright. Keep configured paths because
+  selection resolves symbolic links.``
+  [list-path checkout-rows]
   (def name (path/basename list-path))
   (seq [checkout-row :in checkout-rows]
     (def anchor (get checkout-row :anchor))
     (def resolved
       (cond
-        (nil? anchor)
-        (if (and directory (= parent (path/abspath directory)))
-          (or (os/getenv "HOME") parent)
-          parent)
+        (or (nil? anchor) (= false anchor))
+        (if (= false anchor)
+          (error (string "cannot place " name
+                         ": the default anchor is disabled"))
+          (or (os/getenv "HOME")
+              (error (string "cannot place " name " without HOME"))))
 
         (path/abspath? anchor)
         (path/abspath anchor)
@@ -278,11 +282,11 @@
   Only the entries a filter kept are validated: a list may carry entries herd
   could not use, which is the point of filtering it. The file is decoded once,
   after the filters have had it, so what they see is the file itself.``
-  [list-path directory checkout-rows &opt filters names]
+  [list-path checkout-rows &opt filters names]
   (default filters {})
   (default names [])
   (def source (slurp list-path))
-  (def placements (resolve-checkout-rows list-path directory checkout-rows))
+  (def placements (resolve-checkout-rows list-path checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -364,14 +368,14 @@
   ``Read every repository list and merge them into one list of repositories.
   Errors name the file they came from, since a bad entry is otherwise hard to
   place once several files are in play.``
-  [list-paths directory &opt settings names]
+  [list-paths &opt settings names]
   (default settings default-repository-settings)
   (reject-unknown-sources list-paths settings)
   (merge-repository-lists
     (seq [list-path :in list-paths]
       [list-path
        (try
-         (read-repository-list list-path directory
+         (read-repository-list list-path
                                (checkout-rows-for-list settings (path/basename list-path))
                                (get settings :filters {})
                                names)
@@ -387,7 +391,7 @@
   (def list-paths (discover-repository-lists directory))
   {:directory directory
    :repository-lists list-paths
-   :repositories (load-repository-lists list-paths directory settings names)})
+   :repositories (load-repository-lists list-paths settings names)})
 
 (defn- configured-jobs
   "Return the configured job count, or the default when it is not set."

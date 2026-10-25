@@ -55,9 +55,9 @@ repository out; see [Repository options](#repository-options).
 
 Every repository list is checked out under one or more **anchors**: the
 directories its relative paths resolve against. By default there is a single
-anchor, `$HOME`, or the configuration directory if `HOME` is not set.
-Absolute paths remain unchanged, whatever the anchors. The anchors also
-decide which repositories a command considers; see [Selection](#selection).
+anchor, `$HOME`; herd exits with an error if `HOME` is not set. Absolute
+paths remain unchanged, whatever the anchors. The anchors also decide which
+repositories a command considers; see [Selection](#selection).
 
 You can split repositories across any number of JSON files; files are loaded
 in name order. Duplicate paths are accepted only when their URLs and their
@@ -104,6 +104,11 @@ a list no row reads is checked out once from the defaults alone — dropping a
 list into the configuration directory checks it out rather than waiting to
 be mentioned.
 
+The anchor in `:defaults` is `$HOME` unless you say otherwise. Setting it to
+`false` removes the default: a list in the configuration directory that no
+anchored row reads then makes herd exit with an error, as it does when
+`HOME` is not set.
+
 A row whose `:from` is not in the configuration directory is an error rather
 than a row quietly ignored: a row left behind by a renamed or deleted list
 would otherwise stop applying without a word, and the list it was written
@@ -116,9 +121,7 @@ file resolve against. A relative anchor resolves from `$HOME`, so the first
 row above anchors `work.json` at `$HOME/work` and an entry such as
 `team/api` resolves to `$HOME/work/team/api`. An absolute anchor is used
 exactly as written and need not exist yet. A row that names no anchor at all
-falls back to `:defaults`, and without those to `$HOME` — or to the
-repository list's own directory, when the file is not in the configuration
-directory.
+falls back to `:defaults`, and without those to `$HOME`.
 
 Several rows reading the same file describe the same set of repositories
 checked out under each of their anchors. `team/api` above names both

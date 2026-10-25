@@ -85,15 +85,44 @@ seen, not where it lives.
   $ herd list -a -C /
   $ROOT/home/gamma\tgamma-url (esc)
 
-Without HOME, the configuration directory is the default anchor, and a
-relative anchor cannot be resolved.
+Without HOME there is no default anchor, and a relative anchor cannot be
+resolved either.
 
-  $ env -u HOME "$HERD" list -a -C / | sed "s|$ROOT|\$ROOT|g"
-  $ROOT/home/.config/herd/gamma\tgamma-url (esc)
+  $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
+  Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json without HOME
   $ echo '{:checkouts [{:from "link.json" :anchor "work"}]}' >"$CONFIG/config.jdn"
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   Configuration error: $ROOT/home/.config/herd/link.json: cannot resolve relative anchor for link.json without HOME
-  $ rm "$CONFIG/config.jdn" "$CONFIG/link.json"
+  $ echo '{:checkouts [{:from "link.json" :anchor "/abs"}]}' >"$CONFIG/config.jdn"
+  $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
+  /abs/gamma\tgamma-url (esc)
+
+The default anchor is $HOME unless :defaults sets it. Setting it to false
+leaves a list that no row anchors without any anchor, which is an error,
+while a row that names an anchor still places its list.
+
+  $ echo '[{"path": "delta", "ssh_url": "delta-url"}]' >"$CONFIG/other.json"
+  $ echo '{:defaults {:anchor "src"}}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  $ROOT/home/src/gamma\tgamma-url (esc)
+  $ROOT/home/src/delta\tdelta-url (esc)
+  $ echo '{:defaults {:anchor false}}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json: the default anchor is disabled
+  [1]
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:defaults {:anchor false}
+  >  :checkouts [{:from "link.json" :anchor "one"} {:from "other.json" :anchor "two"}]}
+  > EOF
+  $ herd list -a -C /
+  $ROOT/home/one/gamma\tgamma-url (esc)
+  $ROOT/home/two/delta\tdelta-url (esc)
+  $ echo '{:defaults {:anchor false} :checkouts [{:from "other.json" :anchor false}]}' \
+  >   >"$CONFIG/config.jdn"
+  $ herd list
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-empty :anchor
+  [1]
+  $ rm "$CONFIG/config.jdn" "$CONFIG/link.json" "$CONFIG/other.json"
 
 Two lists may name one checkout while they agree on its URL and how it is
 checked out, and are refused when they do not. src/alpha carries no vcs of

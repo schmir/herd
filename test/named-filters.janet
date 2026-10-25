@@ -404,7 +404,7 @@
   (with-stub (answering-stub dir)
     (assert (deep= @[(path/join src "a")]
                    (map (fn [repository] (repository :path))
-                        (config/read-repository-list config nil
+                        (config/read-repository-list config
                                                      @[{:anchor src :filter ["first"]}]
                                                      answers)))
             "a row's filter narrows what its file contributes")
@@ -412,7 +412,7 @@
     (assert (deep= @[(path/join src "a")]
                    (map (fn [repository] (repository :path))
                         (config/read-repository-list
-                          config nil
+                          config
                           @[{:anchor src
                              :filter ["prefixed"]
                              :strip-components 1}]
@@ -424,18 +424,18 @@
     # what a filter kept can have been validated above.
     (assert (string/find "needs a string"
                          (error-message
-                           (fn [] (config/read-repository-list config nil @[{:anchor src}] answers))))
+                           (fn [] (config/read-repository-list config @[{:anchor src}] answers))))
             "an entry no filter removed still has to be a repository")
 
     (assert (deep= @[(path/join src "a") (path/join vendor "b")]
                    (map (fn [repository] (repository :path))
-                        (config/read-repository-list config nil
+                        (config/read-repository-list config
                                                      @[{:anchor src :filter ["first"]}
                                                        {:anchor vendor :filter ["second"]}]
                                                      answers)))
             "two rows take different parts of one file")
 
-    (assert (empty? (config/read-repository-list config nil
+    (assert (empty? (config/read-repository-list config
                                                  @[{:anchor src :filter ["first"]}]
                                                  answers
                                                  ["none"]))
@@ -453,13 +453,13 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def from-command
-      (error-message (fn [] (config/read-repository-list config nil @[{:anchor src}] answers ["bad"]))))
+      (error-message (fn [] (config/read-repository-list config @[{:anchor src}] answers ["bad"]))))
     (assert (string/find "applied to every configured list" from-command)
             "a filter named with -f explains why it reached this list")
 
     (def from-row
       (error-message
-        (fn [] (config/read-repository-list config nil @[{:anchor src :filter ["bad"]}] answers))))
+        (fn [] (config/read-repository-list config @[{:anchor src :filter ["bad"]}] answers))))
     (assert (string/find "boom" from-row)
             "a row's own filter still reports what the filter said")
     (assert (not (string/find "applied to every configured list" from-row))
@@ -469,7 +469,7 @@
     # fails is reported even when a command-line filter is also named.
     (def both
       (error-message
-        (fn [] (config/read-repository-list config nil @[{:anchor src :filter ["bad"]}]
+        (fn [] (config/read-repository-list config @[{:anchor src :filter ["bad"]}]
                                             answers ["good"]))))
     (assert (not (string/find "applied to every configured list" both))
             "the row's filter fails first, and speaks for itself")))
@@ -489,7 +489,7 @@
   (spit config `[{"path": "x", "ssh_url": "git@example.com:x.git"}]`)
   (with-stub (answering-stub dir)
     (def repositories
-      (config/read-repository-list config nil
+      (config/read-repository-list config
                                    @[{:anchor one :filter ["a\0b"]}
                                      {:anchor two :filter ["a" "b"]}]
                                    answers))
@@ -511,7 +511,7 @@
                                   `printf '%s' "$2"`))
     (def answer `[{"path": "r", "ssh_url": "git@example.com:r.git"}]`)
     (def repositories
-      (config/read-repository-list config nil
+      (config/read-repository-list config
                                    @[{:anchor one :filter ["same"]}
                                      {:anchor two :filter ["same"]}
                                      {:anchor three :filter ["other"]}]
@@ -554,11 +554,11 @@
        "none" "[?path=='absent']"})
     (assert (deep= @[(path/join src "a")]
                    (map (fn [repository] (repository :path))
-                        (config/read-repository-list config nil
+                        (config/read-repository-list config
                                                      @[{:anchor src :filter ["active"]}]
                                                      filters)))
             "a real JMESPath expression selects by a field herd knows nothing of")
-    (assert (empty? (config/read-repository-list config nil @[{:anchor src}] filters ["none"]))
+    (assert (empty? (config/read-repository-list config @[{:anchor src}] filters ["none"]))
             "and an expression matching nothing selects nothing")))
 
 (end-suite)

@@ -40,9 +40,9 @@
 
 (defn- config-error
   "Return the error from checkout row resolution, or nil if it succeeds."
-  [list-path directory checkout-rows]
+  [list-path checkout-rows]
   (try
-    (do (config/resolve-checkout-rows list-path directory checkout-rows) nil)
+    (do (config/resolve-checkout-rows list-path checkout-rows) nil)
     ([err] (string err))))
 
 (defn- placement-paths
@@ -493,6 +493,12 @@
               (config/validate-checkout-defaults {:vcs "svn"}))
 (assert-no-error "empty defaults are valid"
                  (config/validate-checkout-defaults {}))
+(assert-error "a default anchor cannot be true"
+              (config/validate-checkout-defaults {:anchor true}))
+(assert-no-error "a default anchor can be disabled with false"
+                 (config/validate-checkout-defaults {:anchor false}))
+(assert-error "a row cannot disable its anchor"
+              (config/validate-checkout-row {:from "a.json" :anchor false} "row"))
 (assert-no-error "the defaults settle an anchor and a VCS"
                  (config/validate-checkout-defaults {:anchor "src" :vcs "git"}))
 
@@ -628,54 +634,41 @@
   (os/setenv "HOME" "/home/example")
   (assert (deep= @["/home/example"]
                  (placement-paths
-                   (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration @[{}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json") @[{}])))
           "a file in the configuration directory anchors at home")
   (assert (deep= @["/home/example"]
                  (placement-paths
-                   (config/resolve-checkout-rows (string configuration "/link.json")
-                                                 configuration @[{}])))
+                   (config/resolve-checkout-rows (string configuration "/link.json") @[{}])))
           "a JSON symlink uses its visible location")
-  (assert (deep= @[(path/abspath elsewhere)]
-                 (placement-paths
-                   (config/resolve-checkout-rows (string elsewhere "/linked.json")
-                                                 configuration @[{}])))
-          "a file outside the configuration directory anchors at its parent")
   (assert (deep= @["/home/example/work"]
                  (placement-paths
-                   (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration @[{:anchor "work"}])))
+                   (config/resolve-checkout-rows (string configuration "/real.json") @[{:anchor "work"}])))
           "a relative configured anchor resolves from home")
   (assert (deep= @["/home/example/work" "/srv/shared"]
                  (placement-paths
                    (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration
                                                  @[{:anchor "work"}
                                                    {:anchor "/srv/shared"}])))
           "every row is resolved in the order it was written")
   (assert (deep= @[]
                  (placement-paths
-                   (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration @[])))
+                   (config/resolve-checkout-rows (string configuration "/real.json") @[])))
           "a file no row reads is anchored nowhere")
   (assert (deep= @["/missing/anchor"]
                  (placement-paths
                    (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration
                                                  @[{:anchor "/missing/anchor"}])))
           "an absolute configured anchor need not exist")
 
   # A row carries the repository options it was merged with, and nothing else.
   (let [placements (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration
                                                  @[{:anchor "work" :vcs "git"}
                                                    {:anchor "/srv" :vcs "jj"}])]
     (assert (deep= @["/home/example/work" "/srv"] (placement-paths placements))
             "each row is resolved on its own")
     (assert (= "git" ((placements 0) :vcs)) "keeping the options it settles")
     (assert (= "jj" ((placements 1) :vcs)) "one row at a time"))
-  (let [placements (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration @[{:anchor "work"}])]
+  (let [placements (config/resolve-checkout-rows (string configuration "/real.json") @[{:anchor "work"}])]
     (assert (nil? ((placements 0) :vcs))
             "a row settling no options carries none at all"))
 
@@ -684,21 +677,30 @@
   (assert (deep= @[(string dir "/link/work")]
                  (placement-paths
                    (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration
                                                  @[{:anchor (string dir "/link/work")}])))
           "a configured anchor is kept as it was written, symlinks and all")
 
   (os/setenv "HOME" nil)
-  (assert (deep= @[(path/abspath configuration)]
-                 (placement-paths
-                   (config/resolve-checkout-rows (string configuration "/real.json")
-                                                 configuration @[{}])))
-          "the configuration directory is the default without home")
+  (def default-message
+    (config-error (string configuration "/real.json") @[{}]))
+  (assert (and default-message (string/find "without HOME" default-message))
+          "the default anchor needs home")
   (def message
     (config-error (string configuration "/real.json")
-                  configuration @[{:anchor "work"}]))
+                  @[{:anchor "work"}]))
   (assert (and message (string/find "without HOME" message))
           "a relative configured anchor needs home")
+  (os/setenv "HOME" "/home/example")
+  (def disabled-message
+    (config-error (string configuration "/real.json")
+                  @[{:anchor false}]))
+  (assert (and disabled-message (string/find "default anchor" disabled-message))
+          "a disabled default anchor leaves a configured file unplaced")
+  (assert (deep= @["/srv/shared"]
+                 (placement-paths
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 @[{:anchor "/srv/shared"}])))
+          "a row still anchors a list when the default anchor is disabled")
   (os/setenv "HOME" home)
   (sh/rm dir))
 
@@ -712,7 +714,7 @@
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       [config] configuration
+                       [config]
                        (config/configured-repository-settings
                          {:checkouts [{:from "repos.json" :anchor "root"}]}))]
     (assert (= (string (path/abspath dir) "/root/relative")
@@ -736,7 +738,7 @@
                  {:path "/absolute" :ssh_url "absolute-url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       [config] configuration
+                       [config]
                        (config/configured-repository-settings
                          {:checkouts [{:from "repos.json" :anchor "one"}
                                       {:from "repos.json" :anchor "two"}]}))
@@ -764,7 +766,7 @@
   (write-config config [{:path "org/team/repo" :ssh_url "url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       [config] configuration
+                       [config]
                        (config/configured-repository-settings
                          {:checkouts
                           [{:from "repos.json" :anchor "one" :strip-components 1}
@@ -787,7 +789,7 @@
   (write-config read-by-a-row [{:path "two" :ssh_url "two-url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       (config/discover-repository-lists configuration) configuration
+                       (config/discover-repository-lists configuration)
                        (config/configured-repository-settings
                          {:defaults {:anchor "root"}
                           :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
@@ -797,7 +799,7 @@
             "a file no row reads resolves from the defaults alone"))
   (assert-error "a row reading a file that is not there is refused"
                 (config/load-repository-lists
-                  (config/discover-repository-lists configuration) configuration
+                  (config/discover-repository-lists configuration)
                   (config/configured-repository-settings
                     {:checkouts [{:from "renamed.json" :anchor "root"}]})))
   (os/setenv "HOME" home)
@@ -814,7 +816,7 @@
           {"path": "own", "ssh_url": "u", "vcs": "jj"}]`)
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       [config] configuration
+                       [config]
                        (config/configured-repository-settings
                          {:defaults {:vcs "jj"}
                           :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
@@ -840,8 +842,7 @@
   (os/link target (string directory ".root") true)
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
-                       (config/discover-repository-lists configuration)
-                       configuration)]
+                       (config/discover-repository-lists configuration))]
     (assert (= 3 (length repositories)) "root companions do not affect loading")
     (assert (every?
               (map (fn [repository] (string/has-prefix? (string (path/abspath dir) "/") (repository :path)))
@@ -867,7 +868,7 @@
                 [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
 
-  (let [merged (config/load-repository-lists (config/discover-repository-lists configuration) configuration)]
+  (let [merged (config/load-repository-lists (config/discover-repository-lists configuration))]
     (assert (deep= (map (fn [repository] (repository :path)) merged)
                    @[(string dir "/src/alpha")
                      "/opt/beta"
@@ -877,13 +878,13 @@
   # The same checkout in two files is fine while they agree on the URL.
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}])
-  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration) configuration)))
+  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration))))
           "an agreeing duplicate is dropped")
 
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:different.git"}])
   (assert-error "a disagreeing duplicate is refused"
-                (config/load-repository-lists (config/discover-repository-lists configuration) configuration))
+                (config/load-repository-lists (config/discover-repository-lists configuration)))
 
   # Two files may name one checkout only while they agree on every checkout
   # option, not merely on the URL. src/alpha carries no vcs of its own above,
@@ -892,16 +893,16 @@
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
                   :vcs "git"}])
   (assert-error "a duplicate disagreeing about the vcs is refused"
-                (config/load-repository-lists (config/discover-repository-lists configuration) configuration))
+                (config/load-repository-lists (config/discover-repository-lists configuration)))
 
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
                   :vcs "jj"}])
-  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration) configuration)))
+  (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration))))
           "a duplicate naming the vcs it already has is dropped")
 
   (assert-error "an unreadable file is refused"
-                (config/load-repository-lists [(string dir "/absent.json")] configuration))
+                (config/load-repository-lists [(string dir "/absent.json")]))
   (os/setenv "HOME" home)
   (sh/rm dir))
 
@@ -916,25 +917,28 @@
   (write-config config
                 [{:path "one/repo" :ssh_url "shared-url"}
                  {:path "two/repo" :ssh_url "shared-url"}])
-  (assert (= 1 (length (config/load-repository-lists [config] configuration settings)))
+  (assert (= 1 (length (config/load-repository-lists [config] settings)))
           "agreeing paths merged by stripping remain one repository")
   (write-config config
                 [{:path "one/repo" :ssh_url "first-url"}
                  {:path "two/repo" :ssh_url "second-url"}])
   (assert-error "stripped paths with different URLs are refused"
-                (config/load-repository-lists [config] configuration settings))
+                (config/load-repository-lists [config] settings))
   (sh/rm dir))
 
 (let [dir (fixture)
-      first (string dir "/first/repos.json")
-      second (string dir "/second/repos.json")
+      first (string dir "/first.json")
+      second (string dir "/second.json")
       checkout (string dir "/shared")]
   (write-config first [{:path checkout :ssh_url "shared-url"}])
   (write-config second [{:path checkout :ssh_url "shared-url"}])
-  (let [repositories (config/load-repository-lists [first second] nil)]
+  (let [repositories (config/load-repository-lists
+                       [first second]
+                       (config/configured-repository-settings
+                         {:checkouts [{:from "first.json" :anchor "/one"}
+                                      {:from "second.json" :anchor "/two"}]}))]
     (assert (= 1 (length repositories)) "an agreeing duplicate remains one repository")
-    (assert (deep= (map path/abspath [(path/parent first) (path/parent second)])
-                   ((repositories 0) :anchors))
+    (assert (deep= @["/one" "/two"] ((repositories 0) :anchors))
             "an agreeing duplicate retains every configuration anchor"))
   (sh/rm dir))
 
