@@ -50,7 +50,7 @@
 
 (def checkout-row-keys
   "Non-option keys that a checkout row can contain."
-  [:list :anchor :filter :strip-components])
+  [:list :anchor :use-filters :strip-components])
 
 (defn- reject-unknown-setting
   "Raise for a setting that is not configurable."
@@ -71,15 +71,15 @@
   settings)
 
 (defn- validate-filter-setting
-  ``Validate an optional `:filter` as an array of filter names. It is always
-  an array, even for a single name, so there is one shape to write and one to
-  read. An empty array filters nothing, which is how a row drops the filters
-  it would otherwise inherit from `:checkout-defaults`.``
+  ``Validate an optional `:use-filters` as an array of filter names. It is
+  always an array, even for a single name, so there is one shape to write and
+  one to read. An empty array filters nothing, which is how a row drops the
+  filters it would otherwise inherit from `:checkout-defaults`.``
   [settings where]
-  (def names (get settings :filter :unset))
+  (def names (get settings :use-filters :unset))
   (unless (= :unset names)
     (unless (indexed? names)
-      (error (string where " needs an array of filter names in :filter")))
+      (error (string where " needs an array of filter names in :use-filters")))
     (each name names
       (unless (and (string? name) (not (empty? name)))
         (error (string where " names an invalid filter " (describe name)
@@ -121,7 +121,7 @@
   (unless (dictionary? defaults)
     (error ":checkout-defaults must be a dictionary"))
   (eachk key defaults
-    (reject-unknown-setting ":checkout-defaults" key [:anchor :filter ;checkout/option-keys]))
+    (reject-unknown-setting ":checkout-defaults" key [:anchor :use-filters ;checkout/option-keys]))
   (validate-anchor-setting defaults ":checkout-defaults" true)
   (validate-filter-setting defaults ":checkout-defaults")
   (checkout/validate-repository-options defaults ":checkout-defaults")
@@ -164,9 +164,9 @@
                              (string ":checkouts row " index))))
   (def filters (named-filters/validate-registry (get settings-file :filters {})))
   (def defaults (validate-checkout-defaults (get settings-file :checkout-defaults {})))
-  (named-filters/require-list-filters filters (get defaults :filter []) ":checkout-defaults")
+  (named-filters/require-list-filters filters (get defaults :use-filters []) ":checkout-defaults")
   (eachp [index checkout-row] checkout-rows
-    (named-filters/require-list-filters filters (get checkout-row :filter [])
+    (named-filters/require-list-filters filters (get checkout-row :use-filters [])
                                         (if (string? (checkout-row :list))
                                           (string ":checkouts row for "
                                                   (describe (checkout-row :list)))
@@ -226,7 +226,7 @@
                          name " without HOME")))))
     (merge (repository-options checkout-row)
            {:path resolved
-            :filter (get checkout-row :filter [])
+            :use-filters (get checkout-row :use-filters [])
             :strip-components (get checkout-row :strip-components 0)})))
 
 (defn- strip-path-components
@@ -335,7 +335,7 @@
   # another row had selected.
   (def selected @{})
   (each placement placements
-    (def chain [;(placement :filter) ;names])
+    (def chain [;(placement :use-filters) ;names])
     (def kept
       (if (has-key? selected chain)
         (get selected chain)
@@ -343,7 +343,7 @@
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
                          (json/decode
-                           (named-filters/narrow filters source (placement :filter) names)
+                           (named-filters/narrow filters source (placement :use-filters) names)
                            true))]
           (put selected chain computed)
           computed)))

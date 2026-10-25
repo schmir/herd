@@ -548,25 +548,25 @@
 # --- filter settings ------------------------------------------------------
 
 (assert-error "a row filter must be an array, not a bare name"
-              (config/validate-checkout-row {:list "a.json" :filter "active"}
+              (config/validate-checkout-row {:list "a.json" :use-filters "active"}
                                             ":checkouts row 0"))
 (assert-error "a row filter names strings"
-              (config/validate-checkout-row {:list "a.json" :filter [1]}
+              (config/validate-checkout-row {:list "a.json" :use-filters [1]}
                                             ":checkouts row 0"))
 (assert-error "a row filter name must not be empty"
-              (config/validate-checkout-row {:list "a.json" :filter [""]}
+              (config/validate-checkout-row {:list "a.json" :use-filters [""]}
                                             ":checkouts row 0"))
 (assert-no-error "a row filters by an array of names"
                  (config/validate-checkout-row
-                   {:list "a.json" :filter ["active" "platform"]}
+                   {:list "a.json" :use-filters ["active" "platform"]}
                    ":checkouts row 0"))
 (assert-no-error "a row can filter by nothing at all"
-                 (config/validate-checkout-row {:list "a.json" :filter []}
+                 (config/validate-checkout-row {:list "a.json" :use-filters []}
                                                ":checkouts row 0"))
 (assert-error "a default filter must be an array too"
-              (config/validate-checkout-defaults {:filter "active"}))
+              (config/validate-checkout-defaults {:use-filters "active"}))
 (assert-no-error "the defaults settle filters"
-                 (config/validate-checkout-defaults {:filter ["active"]}))
+                 (config/validate-checkout-defaults {:use-filters ["active"]}))
 
 (let [settings (config/configured-repository-settings
                  {:filters {"a" "[?a]" "b" {:jp "[?b]"} "c" {:sh "true"}}})]
@@ -579,37 +579,37 @@
 (assert-error "a row cannot name a shell filter"
               (config/configured-repository-settings
                 {:filters {"c" {:sh "true"}}
-                 :checkouts [{:list "work.json" :filter ["c"]}]}))
+                 :checkouts [{:list "work.json" :use-filters ["c"]}]}))
 (assert-error "the defaults cannot name a shell filter"
               (config/configured-repository-settings
-                {:filters {"c" {:sh "true"}} :checkout-defaults {:filter ["c"]}}))
+                {:filters {"c" {:sh "true"}} :checkout-defaults {:use-filters ["c"]}}))
 
 (assert-error "a row cannot name a filter that is not configured"
               (config/configured-repository-settings
-                {:checkouts [{:list "work.json" :filter ["absent"]}]}))
+                {:checkouts [{:list "work.json" :use-filters ["absent"]}]}))
 (assert-error "the defaults cannot name a filter that is not configured"
-              (config/configured-repository-settings {:checkout-defaults {:filter ["absent"]}}))
+              (config/configured-repository-settings {:checkout-defaults {:use-filters ["absent"]}}))
 (let [message (error-message
                 (fn [] (config/configured-repository-settings
                          {:filters {"active" "[?a]"}
-                          :checkouts [{:list "work.json" :filter ["typo"]}]})))]
+                          :checkouts [{:list "work.json" :use-filters ["typo"]}]})))]
   (assert (and message (string/find `"typo"` message))
           "an unknown filter is named rather than the whole row"))
 
 (let [settings (config/configured-repository-settings
                  {:filters {"active" "[?a]" "platform" "[?b]"}
-                  :checkout-defaults {:filter ["active"]}
+                  :checkout-defaults {:use-filters ["active"]}
                   :checkouts [{:list "work.json"}
-                              {:list "work.json" :filter ["platform"]}
-                              {:list "work.json" :filter []}]})
+                              {:list "work.json" :use-filters ["platform"]}
+                              {:list "work.json" :use-filters []}]})
       checkouts (config/checkout-rows-for-list settings "work.json")]
   (assert (deep= {"active" "[?a]" "platform" "[?b]"} (settings :filters))
           "the registry is carried with the settings")
-  (assert (deep= ["active"] ((checkouts 0) :filter))
+  (assert (deep= ["active"] ((checkouts 0) :use-filters))
           "a row that names no filter inherits the default one")
-  (assert (deep= ["platform"] ((checkouts 1) :filter))
+  (assert (deep= ["platform"] ((checkouts 1) :use-filters))
           "a row that names filters replaces the default ones")
-  (assert (empty? ((checkouts 2) :filter))
+  (assert (empty? ((checkouts 2) :use-filters))
           "and an empty array drops them without naming another"))
 # --- checkout-rows-for-list --------------------------------------------------------
 

@@ -254,7 +254,7 @@
                  (reason-of {:at-path "/srv"}
                             (config/configured-repository-settings
                               {:checkouts [{:list "repos.json" :anchor "/srv"
-                                            :filter ["none"]}]
+                                            :use-filters ["none"]}]
                                :filters {"none" "[?ssh_url=='nothing']"}})))
           "a checkout row's filter is blamed when no name was given")
   (assert (deep= {:kind :empty-catalog}

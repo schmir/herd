@@ -405,7 +405,7 @@
     (assert (deep= @[(path/join src "a")]
                    (map (fn [repository] (repository :path))
                         (config/read-repository-list config
-                                                     @[{:anchor src :filter ["first"]}]
+                                                     @[{:anchor src :use-filters ["first"]}]
                                                      answers)))
             "a row's filter narrows what its file contributes")
 
@@ -414,7 +414,7 @@
                         (config/read-repository-list
                           config
                           @[{:anchor src
-                             :filter ["prefixed"]
+                             :use-filters ["prefixed"]
                              :strip-components 1}]
                           {"prefixed"
                            `[{"path": "org/a", "ssh_url": "u"}]`})))
@@ -430,13 +430,13 @@
     (assert (deep= @[(path/join src "a") (path/join vendor "b")]
                    (map (fn [repository] (repository :path))
                         (config/read-repository-list config
-                                                     @[{:anchor src :filter ["first"]}
-                                                       {:anchor vendor :filter ["second"]}]
+                                                     @[{:anchor src :use-filters ["first"]}
+                                                       {:anchor vendor :use-filters ["second"]}]
                                                      answers)))
             "two rows take different parts of one file")
 
     (assert (empty? (config/read-repository-list config
-                                                 @[{:anchor src :filter ["first"]}]
+                                                 @[{:anchor src :use-filters ["first"]}]
                                                  answers
                                                  ["none"]))
             "a command-line filter narrows what the row already kept")))
@@ -459,7 +459,7 @@
 
     (def from-row
       (error-message
-        (fn [] (config/read-repository-list config @[{:anchor src :filter ["bad"]}] answers))))
+        (fn [] (config/read-repository-list config @[{:anchor src :use-filters ["bad"]}] answers))))
     (assert (string/find "boom" from-row)
             "a row's own filter still reports what the filter said")
     (assert (not (string/find "applied to every configured list" from-row))
@@ -469,7 +469,7 @@
     # fails is reported even when a command-line filter is also named.
     (def both
       (error-message
-        (fn [] (config/read-repository-list config @[{:anchor src :filter ["bad"]}]
+        (fn [] (config/read-repository-list config @[{:anchor src :use-filters ["bad"]}]
                                             answers ["good"]))))
     (assert (not (string/find "applied to every configured list" both))
             "the row's filter fails first, and speaks for itself")))
@@ -490,8 +490,8 @@
   (with-stub (answering-stub dir)
     (def repositories
       (config/read-repository-list config
-                                   @[{:anchor one :filter ["a\0b"]}
-                                     {:anchor two :filter ["a" "b"]}]
+                                   @[{:anchor one :use-filters ["a\0b"]}
+                                     {:anchor two :use-filters ["a" "b"]}]
                                    answers))
     (assert (deep= @[(path/join one "x") (path/join two "y")]
                    (map (fn [repository] (repository :path)) repositories))
@@ -512,9 +512,9 @@
     (def answer `[{"path": "r", "ssh_url": "git@example.com:r.git"}]`)
     (def repositories
       (config/read-repository-list config
-                                   @[{:anchor one :filter ["same"]}
-                                     {:anchor two :filter ["same"]}
-                                     {:anchor three :filter ["other"]}]
+                                   @[{:anchor one :use-filters ["same"]}
+                                     {:anchor two :use-filters ["same"]}
+                                     {:anchor three :use-filters ["other"]}]
                                    {"same" answer "other" answer}))
     (assert (= 3 (length repositories)) "every row still contributes its checkout")
     (assert (= 2 (length (slurp runs)))
@@ -555,7 +555,7 @@
     (assert (deep= @[(path/join src "a")]
                    (map (fn [repository] (repository :path))
                         (config/read-repository-list config
-                                                     @[{:anchor src :filter ["active"]}]
+                                                     @[{:anchor src :use-filters ["active"]}]
                                                      filters)))
             "a real JMESPath expression selects by a field herd knows nothing of")
     (assert (empty? (config/read-repository-list config @[{:anchor src}] filters ["none"]))

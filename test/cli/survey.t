@@ -76,7 +76,7 @@ meant to be there.
   $ git clone -q "$ROOT/origins/web" src/web
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']"}
-  >  :checkouts [{:list "repos.json" :filter ["platform"]}]}
+  >  :checkouts [{:list "repos.json" :use-filters ["platform"]}]}
   > EOF
   $ herd list --extra
   $ROOT/home/src/bare\t (esc)

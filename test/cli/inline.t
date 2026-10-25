@@ -75,7 +75,7 @@ under clone_url.
   > {:filters {"platform" "[?group=='platform']"}
   >  :checkouts [{:list [{:path "api" :clone-url "api-url" :group "platform"}
   >                     {:path "web" :clone-url "web-url" :group "other"}]
-  >               :anchor "work" :filter ["platform"]}]}
+  >               :anchor "work" :use-filters ["platform"]}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/work/api\tapi-url (esc)
@@ -83,7 +83,7 @@ under clone_url.
   > {:filters {"has-url" "[?clone_url=='web-url']"}
   >  :checkouts [{:list [{:path "api" :clone-url "api-url"}
   >                     {:path "web" :clone-url "web-url"}]
-  >               :anchor "work" :filter ["has-url"]}]}
+  >               :anchor "work" :use-filters ["has-url"]}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/work/web\tweb-url (esc)

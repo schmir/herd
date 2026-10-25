@@ -183,16 +183,16 @@ Filters, and the rows and defaults that name them.
   $ settings '{:filters {"active" ""}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: filter "active" needs a non-empty expression
   [1]
-  $ settings '{:checkouts [{:list "repos.json" :filter "active"}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs an array of filter names in :filter
+  $ settings '{:checkouts [{:list "repos.json" :use-filters "active"}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs an array of filter names in :use-filters
   [1]
-  $ settings '{:checkouts [{:list "repos.json" :filter [""]}]}'
+  $ settings '{:checkouts [{:list "repos.json" :use-filters [""]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 names an invalid filter ""; expected a non-empty string
   [1]
-  $ settings '{:filters {"active" "[?a]"} :checkouts [{:list "repos.json" :filter ["typo"]}]}'
+  $ settings '{:filters {"active" "[?a]"} :checkouts [{:list "repos.json" :use-filters ["typo"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names an unknown filter "typo"
   [1]
-  $ settings '{:checkout-defaults {:filter ["absent"]}}'
+  $ settings '{:checkout-defaults {:use-filters ["absent"]}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults names an unknown filter "absent"
   [1]
 
@@ -215,10 +215,10 @@ command in :sh, exactly one of them. A string stays a JMESPath expression.
 
 A shell filter runs in a checkout, so a row or the defaults cannot name one.
 
-  $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:list "repos.json" :filter ["b"]}]}'
+  $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:list "repos.json" :use-filters ["b"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names the command filter "b", which only the command line can use
   [1]
-  $ settings '{:filters {"b" {:sh "true"}} :checkout-defaults {:filter ["b"]}}'
+  $ settings '{:filters {"b" {:sh "true"}} :checkout-defaults {:use-filters ["b"]}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults names the command filter "b", which only the command line can use
   [1]
 

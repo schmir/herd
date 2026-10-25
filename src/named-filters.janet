@@ -99,7 +99,7 @@
       name (or (text-of-kind entry :jp) (text-of-kind entry :sh)))))
 
 (defn require-list-filters
-  ``Raise unless every one of `names`, a row's `:filter`, is a list filter in
+  ``Raise unless every one of `names`, a row's `:use-filters`, is a list filter in
   `registry`. A checkout filter cannot narrow a list, since it runs in a
   checkout, so only the command line can use one. `where` says whose names
   they are. Return `names`.``

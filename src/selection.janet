@@ -56,8 +56,8 @@
   have removed the repositories.``
   [names settings]
   (or (not (empty? names))
-      (not (empty? (get-in settings [:checkout-defaults :filter] [])))
-      (true? (some (fn [checkout-row] (not (empty? (get checkout-row :filter []))))
+      (not (empty? (get-in settings [:checkout-defaults :use-filters] [])))
+      (true? (some (fn [checkout-row] (not (empty? (get checkout-row :use-filters []))))
                    (get settings :checkouts [])))))
 
 (defn- why-empty

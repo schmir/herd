@@ -207,8 +207,8 @@ Filters are named in `:filters`, and everything else refers to them by name:
   "reviewed" "[?approvals > `0`]"}
 
  :checkouts
- [{:list "repos.json" :anchor "src"     :filter ["active" "reviewed"]}
-  {:list "repos.json" :anchor "archive" :filter []}]}
+ [{:list "repos.json" :anchor "src"     :use-filters ["active" "reviewed"]}
+  {:list "repos.json" :anchor "archive" :use-filters []}]}
 ```
 
 An expression is applied to the whole array in a list file, exactly as it is
@@ -224,9 +224,9 @@ Develop an expression that way, then name it. Naming is what the rest of
 substitution to the shell. A name nothing defines is an error rather than a
 selection that quietly matches nothing.
 
-A `:checkouts` row takes its filters in `:filter`, always as an array, and
-they run as a pipeline: the first is applied to the list, the second to what
-the first answered with, and so on, exactly as `jp A <list.json | jp B`
+A `:checkouts` row takes its filters in `:use-filters`, always as an array,
+and they run as a pipeline: the first is applied to the list, the second to
+what the first answered with, and so on, exactly as `jp A <list.json | jp B`
 would. For the usual `[?…]` expressions that amounts to an intersection, and
 the order makes no difference — `["active" "reviewed"]` selects the
 repositories that are both. An expression that is not a filter does not
@@ -234,8 +234,8 @@ commute, though: `["active" "[0:1]"]` takes the first of the active
 repositories, while `["[0:1]" "active"]` takes the first repository of the
 list and keeps it only if it is active. A row replaces the
 `:checkout-defaults` filters rather than adding to them, as it does for
-`:vcs` and `:anchor`, so `:filter []` is how a row keeps everything when
-`:checkout-defaults` filters.
+`:vcs` and `:anchor`, so `:use-filters []` is how a row keeps everything
+when `:checkout-defaults` filters.
 
 Because a row filters the list before anchoring it, two rows can take
 different parts of one file, and only the entries a filter kept are read as
@@ -254,10 +254,10 @@ herd run --filter platform -- jj st
 ```
 
 A filter named this way is applied to **every** configured list, while a
-row's `:filter` applies only to its own `:list`. Lists rarely have the same
-shape — that is why filters exist — and a field a list does not carry reads
-as null. Most JMESPath functions reject null rather than treating it as no
-match, so an expression meant for `-f` has to name fields defensively:
+row's `:use-filters` applies only to its own `:list`. Lists rarely have the
+same shape — that is why filters exist — and a field a list does not carry
+reads as null. Most JMESPath functions reject null rather than treating it
+as no match, so an expression meant for `-f` has to name fields defensively:
 
 ```janet
 {"platform" "[?group == 'platform' || starts_with(group || '', 'platform/')]"}
@@ -299,7 +299,7 @@ since it is most likely a filter name with a typo in it.
 Commands run after the selection, so the JMESPath filters among the `-f`
 values narrow the lists first, in the order written, and the commands then
 narrow what is left, along with `--dirty` and `--clean`. For the same reason
-only the command line can use one: a `:filter` in a row or in
+only the command line can use one: a `:use-filters` in a row or in
 `:checkout-defaults` naming a shell filter is an error, and so is `clone -f`
 with a command, as clone is what makes the checkouts a command would run in.
 `list` applies them to the configured repositories only, and leaves the
@@ -394,7 +394,7 @@ and `blocked` means something else stands there, which `clone` leaves alone.
 `extra` lists the Git and Jujutsu repositories found by discovery from the
 location that no repository list defines, whatever their anchor; their URL
 is the `origin` remote, empty when there is none. A repository a `-f` filter
-leaves out is still configured, but one a checkout row's own `:filter`
+leaves out is still configured, but one a checkout row's own `:use-filters`
 leaves out is reported as `extra`, since it is not meant to be there.
 
 `--ok`, `--missing` and `--extra` pick what to print instead: the configured
