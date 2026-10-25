@@ -158,7 +158,8 @@ checked out under each of their anchors. `team/api` above names both
 `$HOME/work/team/api` and `/srv/review/team/api`, and `herd clone` checks
 the repository out at each. An entry with an absolute path resolves the same
 way under every anchor, so it stays a single repository, reachable from all
-of them.
+of them. A relative path may not climb out of its anchor with `..`; write an
+absolute path for a repository that lives elsewhere.
 
 A row's `:strip-components` removes that many leading components from every
 repository path before resolving it against the anchor. For example,

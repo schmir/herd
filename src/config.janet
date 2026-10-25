@@ -285,6 +285,10 @@
       (error (string "entry " index " is not a JSON object")))
     (unless (string? (entry :path))
       (error (string "entry " index " needs a string \"path\"")))
+    (when (and (not (path/abspath? (entry :path)))
+               (index-of ".." (path/parts (path/normalize (entry :path)))))
+      (error (string "entry " index " has a relative \"path\" that leaves"
+                     " its anchor; write an absolute path instead")))
     (def spelled (filter (fn [key] (not (nil? (entry key)))) url-keys))
     (when (= 2 (length spelled))
       (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))

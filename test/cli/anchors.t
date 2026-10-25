@@ -29,6 +29,24 @@ path stays one repository reachable from all of them.
   $ herd list -C two
   $ROOT/home/two/relative\trelative-url (esc)
 
+A relative path may not climb out of its anchor, but an absolute one can name
+any place.
+
+  $ echo '[{"path": "../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a relative "path" that leaves its anchor; write an absolute path instead
+  [1]
+  $ echo '[{"path": "a/../../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a relative "path" that leaves its anchor; write an absolute path instead
+  [1]
+  $ echo '[{"path": "/srv/../abs", "ssh_url": "url"}]' >"$CONFIG/repos.json"
+  $ herd list -a -C /
+  /abs\turl (esc)
+  $ echo '[{"path": "relative", "ssh_url": "relative-url"}, {"path": "/absolute", "ssh_url": "absolute-url"}]' \
+  >   >"$CONFIG/repos.json"
+
 An absolute anchor need not exist.
 
   $ echo '{:checkouts [{:list "repos.json" :anchor "/missing/anchor"}]}' >"$CONFIG/config.jdn"
