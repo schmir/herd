@@ -41,7 +41,7 @@ message points at --all-anchors.
 A :checkouts row anchors its list somewhere else, so the home no longer
 contains the anchor.
 
-  $ echo '{:checkouts [{:from "repos.json" :anchor "work"}]}' \
+  $ echo '{:checkouts [{:list "repos.json" :anchor "work"}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list
   No configuration anchor contains $ROOT/home; use -a/--all-anchors to consider every anchor
@@ -51,7 +51,7 @@ contains the anchor.
 
 :strip-components drops leading path components before anchoring.
 
-  $ echo '{:checkouts [{:from "repos.json" :strip-components 1}]}' \
+  $ echo '{:checkouts [{:list "repos.json" :strip-components 1}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list
   $ROOT/home/api\t$ROOT/origins/api (esc)

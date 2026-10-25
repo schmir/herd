@@ -50,7 +50,7 @@
 
 (def checkout-row-keys
   "Non-option keys that a checkout row can contain."
-  [:from :anchor :filter :strip-components])
+  [:list :anchor :filter :strip-components])
 
 (defn- reject-unknown-setting
   "Raise for a setting that is not configurable."
@@ -98,15 +98,17 @@
 
 (defn validate-checkout-row
   ``Validate one `:checkouts` row and return it. Each row must name a
-  repository list.``
+  repository list or hold one inline.``
   [checkout-row where]
   (unless (dictionary? checkout-row)
     (error (string where " must be a dictionary")))
   (eachk key checkout-row
     (reject-unknown-setting where key [;checkout-row-keys ;checkout/option-keys]))
-  (def from (get checkout-row :from))
-  (unless (and (string? from) (not (empty? from)))
-    (error (string where " needs a :from naming a repository list")))
+  (def list-name (get checkout-row :list))
+  (unless (or (and (string? list-name) (not (empty? list-name)))
+              (indexed? list-name))
+    (error (string where " needs a :list naming a repository list"
+                   " or holding an array of repositories")))
   (validate-anchor-setting checkout-row where)
   (validate-filter-setting checkout-row where)
   (validate-strip-components-setting checkout-row where)
@@ -138,6 +140,11 @@
     (error (string "expected one dictionary of settings, but the file holds "
                    (length parsed) " top-level values"))))
 
+(defn- inline-list-label
+  "Name the inline list of `:checkouts` row `index`, as errors must."
+  [index]
+  (string ":checkouts row " index))
+
 (def default-repository-settings
   "Repository settings used when the settings file is absent."
   {:checkout-defaults {} :checkouts [] :filters {}})
@@ -158,10 +165,12 @@
   (def filters (named-filters/validate-registry (get settings-file :filters {})))
   (def defaults (validate-checkout-defaults (get settings-file :checkout-defaults {})))
   (named-filters/require-list-filters filters (get defaults :filter []) ":checkout-defaults")
-  (each checkout-row checkout-rows
+  (eachp [index checkout-row] checkout-rows
     (named-filters/require-list-filters filters (get checkout-row :filter [])
-                                        (string ":checkouts row for "
-                                                (describe (checkout-row :from)))))
+                                        (if (string? (checkout-row :list))
+                                          (string ":checkouts row for "
+                                                  (describe (checkout-row :list)))
+                                          (inline-list-label index))))
   {:checkout-defaults defaults
    :checkouts checkout-rows
    :filters filters})
@@ -172,7 +181,7 @@
   [settings name]
   (def defaults (get settings :checkout-defaults {}))
   (def matching
-    (filter (fn [checkout-row] (= (checkout-row :from) name))
+    (filter (fn [checkout-row] (= (checkout-row :list) name))
             (get settings :checkouts [])))
   (if (empty? matching)
     @[(merge defaults)]
@@ -259,34 +268,65 @@
                             :anchors @[(placement :path)]})))))
   resolved)
 
+(def- url-keys
+  "The names a repository list may give the URL a repository is cloned from."
+  [:clone_url :ssh_url])
+
 (defn validate-repository-list
-  ``Return the `entries` of a repository list unchanged, or raise an error
-  describing their shape.``
+  ``Return the `entries` of a repository list with the clone URL of each under
+  `:clone-url`, or raise an error describing their shape. A list may spell the
+  URL `clone_url` or, as older lists do, `ssh_url`, but not both.``
   [entries]
   (unless (indexed? entries)
     (error "expected a JSON array of repository objects"))
-  (for index 0 (length entries)
+  (seq [index :range [0 (length entries)]]
     (def entry (entries index))
     (unless (dictionary? entry)
       (error (string "entry " index " is not a JSON object")))
-    (each key [:path :ssh_url]
-      (unless (string? (entry key))
-        (error (string "entry " index " needs a string \"" key "\""))))
-    (checkout/validate-repository-options entry (string "entry " index) `"vcs"`))
-  entries)
+    (unless (string? (entry :path))
+      (error (string "entry " index " needs a string \"path\"")))
+    (def spelled (filter (fn [key] (not (nil? (entry key)))) url-keys))
+    (when (= 2 (length spelled))
+      (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))
+    (def url-key (get spelled 0 :clone_url))
+    (unless (string? (entry url-key))
+      (error (string "entry " index " needs a string \"" url-key "\"")))
+    (checkout/validate-repository-options entry (string "entry " index) `"vcs"`)
+    (def normalized @{})
+    (eachp [key value] entry
+      (unless (index-of key url-keys)
+        (put normalized key value)))
+    (put normalized :clone-url (entry url-key))))
 
-(defn read-repository-list
-  ``Read one repository list, resolving each repository into checkouts.
-  A row filters before its anchor is applied, so each row can describe a
-  different part of the same list, and `names` narrows every row further.
-  Only the entries a filter kept are validated: a list may carry entries herd
-  could not use, which is the point of filtering it. The file is decoded once,
-  after the filters have had it, so what they see is the file itself.``
-  [list-path checkout-rows &opt filters names]
-  (default filters {})
-  (default names [])
-  (def source (slurp list-path))
-  (def placements (resolve-checkout-rows list-path checkout-rows))
+(defn- inline-list-source
+  ``Return the JSON that stands for the inline repository list `entries`, so
+  that filters and validation see it as they see a file. A key written
+  `:clone-url` becomes `clone_url`, the way the files spell it.``
+  [entries]
+  (unless (indexed? entries)
+    (error "expected an array of repositories"))
+  (json/encode
+    (seq [index :range [0 (length entries)]]
+      (def entry (entries index))
+      (unless (dictionary? entry)
+        (error (string "entry " index " is not a dictionary")))
+      (when (has-key? entry :ssh_url)
+        (error (string "entry " index " needs :clone-url, not :ssh_url")))
+      (def spelled @{})
+      (eachp [key value] entry
+        (put spelled (if (keyword? key) (string/replace-all "-" "_" key) key) value))
+      spelled)))
+
+(defn- read-list-source
+  ``Read the JSON `source` of one repository list, resolving each repository
+  into checkouts. `label` names the list, as a file path does a file. A row
+  filters before its anchor is applied, so each row can describe a different
+  part of the same list, and `names` narrows every row further. Only the
+  entries a filter kept are validated: a list may carry entries herd could
+  not use, which is the point of filtering it. The source is decoded once,
+  after the filters have had it, so what they see is the list itself.``
+  [source label checkout-rows filters names]
+  (def placements (resolve-checkout-rows label checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -309,6 +349,21 @@
           computed)))
     (array/concat resolved (resolve-repository-paths kept [placement])))
   resolved)
+
+(defn read-repository-list
+  ``Read the repository list in the file `list-path`, resolving each
+  repository into checkouts as `read-list-source` does.``
+  [list-path checkout-rows &opt filters names]
+  (read-list-source (slurp list-path) list-path checkout-rows
+                    (or filters {}) (or names [])))
+
+(defn read-inline-list
+  ``Read the repository list held inline by a `:checkouts` row, which is
+  `label` to errors, resolving each repository into checkouts as
+  `read-list-source` does. The row must already have its defaults merged.``
+  [label checkout-row &opt filters names]
+  (read-list-source (inline-list-source (checkout-row :list)) label
+                    [checkout-row] (or filters {}) (or names [])))
 
 (defn merge-repository-lists
   ``Concatenate `[list-path repositories]` pairs into one repository list.
@@ -334,12 +389,12 @@
         (do
           (put seen (repository :path)
                {:source list-path
-                :ssh_url (repository :ssh_url)
+                :clone-url (repository :clone-url)
                 :options (repository-options repository)
                 :anchors (repository :anchors)})
           (array/push merged repository))
 
-        (not= (previous :ssh_url) (repository :ssh_url))
+        (not= (previous :clone-url) (repository :clone-url))
         (error (string/format "%s and %s disagree on the URL for %s"
                               (previous :source) list-path (repository :path)))
 
@@ -359,27 +414,44 @@
   renamed list from silently using the defaults.``
   [list-paths settings]
   (def present (map path/basename list-paths))
-  (each name (distinct (map (fn [checkout-row] (checkout-row :from)) (get settings :checkouts [])))
+  (each name (distinct (filter string? (map (fn [checkout-row] (checkout-row :list)) (get settings :checkouts []))))
     (unless (index-of name present)
       (error (string settings-file-name ": :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
 
+(defn inline-lists
+  ``Return `[label row]` for each `:checkouts` row of `settings` that holds
+  its list inline, with the defaults merged into the row.``
+  [settings]
+  (def defaults (get settings :checkout-defaults {}))
+  (seq [[index row] :pairs (get settings :checkouts [])
+        :when (indexed? (row :list))]
+    [(string settings-file-name ": " (inline-list-label index))
+     (merge defaults row)]))
+
 (defn load-repository-lists
   ``Read every repository list and merge them into one list of repositories.
-  Errors name the file they came from, since a bad entry is otherwise hard to
-  place once several files are in play.``
+  The files come first, then the lists held inline by `:checkouts` rows.
+  Errors name the list they came from, since a bad entry is otherwise hard to
+  place once several are in play.``
   [list-paths &opt settings names]
   (default settings default-repository-settings)
   (reject-unknown-sources list-paths settings)
+  (def filters (get settings :filters {}))
   (merge-repository-lists
-    (seq [list-path :in list-paths]
-      [list-path
-       (try
-         (read-repository-list list-path
-                               (checkout-rows-for-list settings (path/basename list-path))
-                               (get settings :filters {})
-                               names)
-         ([err] (error (string list-path ": " err))))])))
+    [;(seq [list-path :in list-paths]
+        [list-path
+         (try
+           (read-repository-list list-path
+                                 (checkout-rows-for-list settings (path/basename list-path))
+                                 filters
+                                 names)
+           ([err] (error (string list-path ": " err))))])
+     ;(seq [[label row] :in (inline-lists settings)]
+        [label
+         (try
+           (read-inline-list label row filters names)
+           ([err] (error (string label ": " err))))])]))
 
 (defn load-repository-catalog
   ``Discover and load the repository configuration. The returned catalog keeps
@@ -391,6 +463,7 @@
   (def list-paths (discover-repository-lists directory))
   {:directory directory
    :repository-lists list-paths
+   :inline-lists (map first (inline-lists settings))
    :repositories (load-repository-lists list-paths settings names)})
 
 (defn- configured-jobs

@@ -210,7 +210,7 @@
     [&opt body]
     (default body "")
     (spit settings-file
-          (string `{:checkouts [{:from "repos.json" :anchor "work"}]`
+          (string `{:checkouts [{:list "repos.json" :anchor "work"}]`
                   "\n " body "}")))
   (sh/create-dirs-to configuration)
   (sh/create-dirs repository)
@@ -376,7 +376,7 @@
     (assert (and (discover/repository? git-repository)
                  (discover/repository? jj-repository))
             "each clone is moved from its staging path into place"))
-  (spit settings-file `{:checkouts [{:from "renamed.json" :anchor "work"}]}`)
+  (spit settings-file `{:checkouts [{:list "renamed.json" :anchor "work"}]}`)
   (def renamed (invoke ["list" "--at" anchor]))
   (assert (not= 0 (renamed :status))
           "a row reading a repository list that is not there fails")

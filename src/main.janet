@@ -356,7 +356,7 @@
                   :ok
                   (checkout/checkout-status repository)))
     (when (if (= :ok status) want-ok? want-missing?)
-      (emit status (repository :path) (repository :ssh_url))))
+      (emit status (repository :path) (repository :clone-url))))
   (when discover?
     (each repository (discover-extra parsed repository-settings ((result :chosen) :list-filters) configured)
       (emit "extra" (repository :path)

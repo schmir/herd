@@ -14,11 +14,13 @@ repository list against. One list can be anchored at several directories.
 _Avoid_: Root, base directory
 
 **Repository list**: A JSON file in the configuration directory that lists
-repositories by path and URL. The catalog is built from all of them.
+repositories by path and clone URL, or an array of them written inline as
+the `:list` of a checkout row. The catalog is built from all of them.
 _Avoid_: Config file, list file
 
-**Settings file**: `config.jdn`, which holds the filters, `:checkout-defaults`,
-checkout rows, job count and custom commands. _Avoid_: Command config
+**Settings file**: `config.jdn`, which holds the filters,
+`:checkout-defaults`, checkout rows, job count and custom commands. _Avoid_:
+Command config
 
 **State**: Whether a checkout has changes nobody has committed: `:dirty` or
 `:clean`. A repository with no checkout has neither. Selection narrows by it
@@ -26,7 +28,7 @@ with `--dirty` and `--clean`. _Avoid_: Status (what is on disk at a
 repository's path: ok, missing or blocked)
 
 **Checkout row**: One entry of `:checkouts` in `config.jdn`: it reads a
-repository list (`:from`) and places it under an anchor, with its own
+repository list (`:list`) and places it under an anchor, with its own
 filters, stripped path components and repository options. Not a checkout in
 the on-disk sense. _Avoid_: Row, source, mapping
 

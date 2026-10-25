@@ -103,7 +103,7 @@
   (def catalog
     (config/load-repository-catalog directory settings list-filters))
   (cond
-    (empty? (catalog :repository-lists))
+    (and (empty? (catalog :repository-lists)) (empty? (catalog :inline-lists)))
     {:repositories [] :catalog catalog :chosen chosen
      :reason {:kind :unconfigured :directory directory}}
 

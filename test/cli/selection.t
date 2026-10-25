@@ -8,7 +8,7 @@ need not exist, since list prints what is configured.
   >  {"path": "/srv/foobar", "ssh_url": "foobar"},
   >  {"path": "/srv/other", "ssh_url": "other"}]
   > EOF
-  $ echo '{:checkouts [{:from "repos.json" :anchor "/srv"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "/srv"}]}' >"$CONFIG/config.jdn"
 
 A directory selects everything below it.
 
@@ -81,9 +81,9 @@ contains it, and an anchor does not contain its parent directory.
   > [{"path": "/work/team/unrelated", "ssh_url": "unrelated"}]
   > EOF
   $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:checkouts [{:from "repos.json" :anchor "/work"}
-  >              {:from "team.json" :anchor "/work/team"}
-  >              {:from "other.json" :anchor "/other"}]}
+  > {:checkouts [{:list "repos.json" :anchor "/work"}
+  >              {:list "team.json" :anchor "/work/team"}
+  >              {:list "other.json" :anchor "/other"}]}
   > EOF
 
   $ herd list -C /work/team
@@ -115,7 +115,7 @@ different symlinks, so both are resolved before they are compared.
   > [{"path": "$ROOT/link/work/repo", "ssh_url": "repo"},
   >  {"path": "$ROOT/link/work/absent", "ssh_url": "absent"}]
   > EOF
-  $ echo "{:checkouts [{:from \"repos.json\" :anchor \"$ROOT/link/work\"}]}" \
+  $ echo "{:checkouts [{:list \"repos.json\" :anchor \"$ROOT/link/work\"}]}" \
   >   >"$CONFIG/config.jdn"
 
   $ herd list -C real/work

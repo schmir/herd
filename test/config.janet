@@ -76,6 +76,18 @@
 (assert-no-error "a repository can select jj"
                  (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "jj"}]))
 (assert-no-error "an empty configuration is valid" (config/validate-repository-list []))
+(assert-error "a repository cannot spell its URL both ways"
+              (config/validate-repository-list [{:path "a" :ssh_url "b" :clone_url "b"}]))
+(assert-error "clone_url must be a string"
+              (config/validate-repository-list [{:path "a" :clone_url 1}]))
+(let [entry (first (config/validate-repository-list
+                     [{:path "a" :clone_url "b" :vcs "git"}]))]
+  (assert (and (= "b" (entry :clone-url)) (= "git" (entry :vcs))
+               (nil? (entry :clone_url)))
+          "clone_url is the clone URL"))
+(let [entry (first (config/validate-repository-list [{:path "a" :ssh_url "b"}]))]
+  (assert (and (= "b" (entry :clone-url)) (nil? (entry :ssh_url)))
+          "ssh_url is the clone URL too"))
 
 # --- custom commands ------------------------------------------------------
 
@@ -293,20 +305,20 @@
 # --- resolve-repository-paths ---------------------------------------------
 
 (let [entries (config/resolve-repository-paths
-                [{:path "rel" :ssh_url "u"}
-                 {:path "/already/absolute" :ssh_url "u"}]
+                [{:path "rel" :clone-url "u"}
+                 {:path "/already/absolute" :clone-url "u"}]
                 @[{:path "/anchor" :strip-components 0}])]
   (assert (= "/anchor/rel" ((entries 0) :path)) "a relative path joins the anchor")
   (assert (= "/already/absolute" ((entries 1) :path)) "an absolute path is left alone")
   (assert (deep= @["/anchor"] ((entries 0) :anchors))
           "resolved entries retain their configuration anchor")
-  (assert (= "u" ((entries 0) :ssh_url)) "the rest of the entry survives")
+  (assert (= "u" ((entries 0) :clone-url)) "the rest of the entry survives")
   (assert (= :vcs/jj ((entries 0) :vcs))
           "a checkout no level settles is a jj checkout"))
 
 (let [entries (config/resolve-repository-paths
-                [{:path "org/team/repo" :ssh_url "relative"}
-                 {:path "/srv/other/repo" :ssh_url "absolute"}]
+                [{:path "org/team/repo" :clone-url "relative"}
+                 {:path "/srv/other/repo" :clone-url "absolute"}]
                 @[{:path "/anchor" :strip-components 1}])]
   (assert (deep= @["/anchor/team/repo" "/anchor/other/repo"]
                  (map (fn [repository] (repository :path)) entries))
@@ -315,7 +327,7 @@
 (let [message
       (error-message
         (fn [] (config/resolve-repository-paths
-                 [{:path "team/repo" :ssh_url "u"}]
+                 [{:path "team/repo" :clone-url "u"}]
                  @[{:path "/anchor" :strip-components 2}])))]
   (assert (and message
                (string/find "2" message)
@@ -325,24 +337,24 @@
 
 (assert-error "stripping more components than a path has fails"
               (config/resolve-repository-paths
-                [{:path "team/repo" :ssh_url "u"}]
+                [{:path "team/repo" :clone-url "u"}]
                 @[{:path "/anchor" :strip-components 3}]))
 
 (let [entries (config/resolve-repository-paths
-                [{:path "plain" :ssh_url "u"}
-                 {:path "own" :ssh_url "u" :vcs "jj"}]
+                [{:path "plain" :clone-url "u"}
+                 {:path "own" :clone-url "u" :vcs "jj"}]
                 @[{:path "/anchor" :vcs "git"}])]
   (assert (= :vcs/git ((entries 0) :vcs)) "an anchor settles the VCS beneath it")
   (assert (= :vcs/jj ((entries 1) :vcs)) "an entry overrides the anchor it is under"))
 
 (assert (empty? (config/resolve-repository-paths
-                  [{:path "rel" :ssh_url "u"}
-                   {:path "/already/absolute" :ssh_url "u"}]
+                  [{:path "rel" :clone-url "u"}
+                   {:path "/already/absolute" :clone-url "u"}]
                   @[]))
         "entries anchored nowhere resolve to no repositories")
 
 (let [entries (config/resolve-repository-paths
-                [{:path "rel" :ssh_url "u"}]
+                [{:path "rel" :clone-url "u"}]
                 @[{:path "/one"} {:path "/two"}])]
   (assert (= 2 (length entries)) "every anchor resolves the same entry once")
   (assert (deep= @["/one/rel" "/two/rel"] (map (fn [repository] (repository :path)) entries))
@@ -427,50 +439,55 @@
 (assert-error "a row needs a source"
               (config/validate-checkout-row {:anchor "work"} ":checkouts row 0"))
 (assert-error "a row source must be a string"
-              (config/validate-checkout-row {:from 1} ":checkouts row 0"))
+              (config/validate-checkout-row {:list 1} ":checkouts row 0"))
 (assert-error "a row source must not be empty"
-              (config/validate-checkout-row {:from ""} ":checkouts row 0"))
+              (config/validate-checkout-row {:list ""} ":checkouts row 0"))
+(assert-no-error "a row may hold its repositories inline"
+                 (config/validate-checkout-row {:list [{:path "a" :clone-url "b"}]}
+                                               ":checkouts row 0"))
+(assert-no-error "an inline list may be empty"
+                 (config/validate-checkout-row {:list []} ":checkouts row 0"))
 (assert-error "a row anchor must be a string"
-              (config/validate-checkout-row {:from "a.json" :anchor 1}
+              (config/validate-checkout-row {:list "a.json" :anchor 1}
                                             ":checkouts row 0"))
 (assert-error "a row anchor must not be empty"
-              (config/validate-checkout-row {:from "a.json" :anchor ""}
+              (config/validate-checkout-row {:list "a.json" :anchor ""}
                                             ":checkouts row 0"))
 (assert-error "a row rejects settings it cannot carry"
-              (config/validate-checkout-row {:from "a.json" :jobs 2}
+              (config/validate-checkout-row {:list "a.json" :jobs 2}
                                             ":checkouts row 0"))
 (assert-error "the anchors an anchor replaced are not a row setting"
-              (config/validate-checkout-row {:from "a.json" :anchors ["work"]}
+              (config/validate-checkout-row {:list "a.json" :anchors ["work"]}
                                             ":checkouts row 0"))
 (assert-error "a row VCS must be git or jj"
-              (config/validate-checkout-row {:from "a.json" :vcs "svn"}
+              (config/validate-checkout-row {:list "a.json" :vcs "svn"}
                                             ":checkouts row 0"))
 (assert-error "a row strip count must be an integer"
               (config/validate-checkout-row
-                {:from "a.json" :strip-components 1.5}
+                {:list "a.json" :strip-components 1.5}
                 ":checkouts row 0"))
 (assert-error "a row strip count must not be a string"
               (config/validate-checkout-row
-                {:from "a.json" :strip-components "1"}
+                {:list "a.json" :strip-components "1"}
                 ":checkouts row 0"))
 (assert-error "a row strip count must not be negative"
               (config/validate-checkout-row
-                {:from "a.json" :strip-components -1}
+                {:list "a.json" :strip-components -1}
                 ":checkouts row 0"))
 (assert-no-error "a source alone is a valid row"
-                 (config/validate-checkout-row {:from "a.json"}
+                 (config/validate-checkout-row {:list "a.json"}
                                                ":checkouts row 0"))
 (assert-no-error "a row can strip no path components"
                  (config/validate-checkout-row
-                   {:from "a.json" :strip-components 0}
+                   {:list "a.json" :strip-components 0}
                    ":checkouts row 0"))
 (assert-no-error "a row can strip path components"
                  (config/validate-checkout-row
-                   {:from "a.json" :strip-components 2}
+                   {:list "a.json" :strip-components 2}
                    ":checkouts row 0"))
 (assert-no-error "a row settles an anchor and a VCS"
                  (config/validate-checkout-row
-                   {:from "a.json" :anchor "/srv" :vcs "git"}
+                   {:list "a.json" :anchor "/srv" :vcs "git"}
                    ":checkouts row 0"))
 
 (let [message (error-message
@@ -482,7 +499,7 @@
 (assert-error "the defaults must be a dictionary"
               (config/validate-checkout-defaults []))
 (assert-error "the defaults cannot name a source"
-              (config/validate-checkout-defaults {:from "a.json"}))
+              (config/validate-checkout-defaults {:list "a.json"}))
 (assert-error "the defaults reject settings they cannot carry"
               (config/validate-checkout-defaults {:jobs 2}))
 (assert-error "the defaults cannot strip path components"
@@ -498,7 +515,7 @@
 (assert-no-error "a default anchor can be disabled with false"
                  (config/validate-checkout-defaults {:anchor false}))
 (assert-error "a row cannot disable its anchor"
-              (config/validate-checkout-row {:from "a.json" :anchor false} "row"))
+              (config/validate-checkout-row {:list "a.json" :anchor false} "row"))
 (assert-no-error "the defaults settle an anchor and a VCS"
                  (config/validate-checkout-defaults {:anchor "src" :vcs "git"}))
 
@@ -510,16 +527,16 @@
               (config/configured-repository-settings {:checkouts {}}))
 (assert-error "every row is validated"
               (config/configured-repository-settings
-                {:checkouts [{:from "work.json"} {:unknown true}]}))
+                {:checkouts [{:list "work.json"} {:unknown true}]}))
 (assert-error "the defaults are validated"
               (config/configured-repository-settings {:checkout-defaults {:vcs "svn"}}))
 (assert-no-error "a configuration need settle nothing"
                  (config/configured-repository-settings {}))
 
 (let [settings (config/configured-repository-settings
-                 {:checkouts [{:from "work.json" :anchor "work"}
-                              {:from "vendor.json" :anchor "/opt"}
-                              {:from "work.json" :anchor "/srv" :vcs "git"}]})]
+                 {:checkouts [{:list "work.json" :anchor "work"}
+                              {:list "vendor.json" :anchor "/opt"}
+                              {:list "work.json" :anchor "/srv" :vcs "git"}]})]
   (assert (deep= @["work" "/opt" "/srv"]
                  (map (fn [checkout] (checkout :anchor)) (settings :checkouts)))
           "rows are kept in the order they were written")
@@ -531,20 +548,20 @@
 # --- filter settings ------------------------------------------------------
 
 (assert-error "a row filter must be an array, not a bare name"
-              (config/validate-checkout-row {:from "a.json" :filter "active"}
+              (config/validate-checkout-row {:list "a.json" :filter "active"}
                                             ":checkouts row 0"))
 (assert-error "a row filter names strings"
-              (config/validate-checkout-row {:from "a.json" :filter [1]}
+              (config/validate-checkout-row {:list "a.json" :filter [1]}
                                             ":checkouts row 0"))
 (assert-error "a row filter name must not be empty"
-              (config/validate-checkout-row {:from "a.json" :filter [""]}
+              (config/validate-checkout-row {:list "a.json" :filter [""]}
                                             ":checkouts row 0"))
 (assert-no-error "a row filters by an array of names"
                  (config/validate-checkout-row
-                   {:from "a.json" :filter ["active" "platform"]}
+                   {:list "a.json" :filter ["active" "platform"]}
                    ":checkouts row 0"))
 (assert-no-error "a row can filter by nothing at all"
-                 (config/validate-checkout-row {:from "a.json" :filter []}
+                 (config/validate-checkout-row {:list "a.json" :filter []}
                                                ":checkouts row 0"))
 (assert-error "a default filter must be an array too"
               (config/validate-checkout-defaults {:filter "active"}))
@@ -562,29 +579,29 @@
 (assert-error "a row cannot name a shell filter"
               (config/configured-repository-settings
                 {:filters {"c" {:sh "true"}}
-                 :checkouts [{:from "work.json" :filter ["c"]}]}))
+                 :checkouts [{:list "work.json" :filter ["c"]}]}))
 (assert-error "the defaults cannot name a shell filter"
               (config/configured-repository-settings
                 {:filters {"c" {:sh "true"}} :checkout-defaults {:filter ["c"]}}))
 
 (assert-error "a row cannot name a filter that is not configured"
               (config/configured-repository-settings
-                {:checkouts [{:from "work.json" :filter ["absent"]}]}))
+                {:checkouts [{:list "work.json" :filter ["absent"]}]}))
 (assert-error "the defaults cannot name a filter that is not configured"
               (config/configured-repository-settings {:checkout-defaults {:filter ["absent"]}}))
 (let [message (error-message
                 (fn [] (config/configured-repository-settings
                          {:filters {"active" "[?a]"}
-                          :checkouts [{:from "work.json" :filter ["typo"]}]})))]
+                          :checkouts [{:list "work.json" :filter ["typo"]}]})))]
   (assert (and message (string/find `"typo"` message))
           "an unknown filter is named rather than the whole row"))
 
 (let [settings (config/configured-repository-settings
                  {:filters {"active" "[?a]" "platform" "[?b]"}
                   :checkout-defaults {:filter ["active"]}
-                  :checkouts [{:from "work.json"}
-                              {:from "work.json" :filter ["platform"]}
-                              {:from "work.json" :filter []}]})
+                  :checkouts [{:list "work.json"}
+                              {:list "work.json" :filter ["platform"]}
+                              {:list "work.json" :filter []}]})
       checkouts (config/checkout-rows-for-list settings "work.json")]
   (assert (deep= {"active" "[?a]" "platform" "[?b]"} (settings :filters))
           "the registry is carried with the settings")
@@ -598,8 +615,8 @@
 
 (let [settings (config/configured-repository-settings
                  {:checkout-defaults {:anchor "src" :vcs "jj"}
-                  :checkouts [{:from "work.json" :anchor "work"}
-                              {:from "work.json" :anchor "/srv" :vcs "git"}]})
+                  :checkouts [{:list "work.json" :anchor "work"}
+                              {:list "work.json" :anchor "/srv" :vcs "git"}]})
       unmentioned (config/checkout-rows-for-list settings "other.json")
       work (config/checkout-rows-for-list settings "work.json")]
   (assert (= 1 (length unmentioned))
@@ -716,7 +733,7 @@
   (let [repositories (config/load-repository-lists
                        [config]
                        (config/configured-repository-settings
-                         {:checkouts [{:from "repos.json" :anchor "root"}]}))]
+                         {:checkouts [{:list "repos.json" :anchor "root"}]}))]
     (assert (= (string (path/abspath dir) "/root/relative")
                ((repositories 0) :path))
             "relative paths use the configured anchor")
@@ -740,8 +757,8 @@
   (let [repositories (config/load-repository-lists
                        [config]
                        (config/configured-repository-settings
-                         {:checkouts [{:from "repos.json" :anchor "one"}
-                                      {:from "repos.json" :anchor "two"}]}))
+                         {:checkouts [{:list "repos.json" :anchor "one"}
+                                      {:list "repos.json" :anchor "two"}]}))
         root (path/abspath dir)]
     (assert (= 3 (length repositories))
             "several rows check the relative tree out at each of their anchors")
@@ -769,8 +786,8 @@
                        [config]
                        (config/configured-repository-settings
                          {:checkouts
-                          [{:from "repos.json" :anchor "one" :strip-components 1}
-                           {:from "repos.json" :anchor "two" :strip-components 2}]}))
+                          [{:list "repos.json" :anchor "one" :strip-components 1}
+                           {:list "repos.json" :anchor "two" :strip-components 2}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/one/team/repo")
                      (string root "/two/repo")]
@@ -792,7 +809,7 @@
                        (config/discover-repository-lists configuration)
                        (config/configured-repository-settings
                          {:checkout-defaults {:anchor "root"}
-                          :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
+                          :checkouts [{:list "second.json" :anchor "elsewhere"}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/root/one") (string root "/elsewhere/two")]
                    (map (fn [repository] (repository :path)) repositories))
@@ -801,7 +818,7 @@
                 (config/load-repository-lists
                   (config/discover-repository-lists configuration)
                   (config/configured-repository-settings
-                    {:checkouts [{:from "renamed.json" :anchor "root"}]})))
+                    {:checkouts [{:list "renamed.json" :anchor "root"}]})))
   (os/setenv "HOME" home)
   (sh/rm dir))
 
@@ -819,8 +836,8 @@
                        [config]
                        (config/configured-repository-settings
                          {:checkout-defaults {:vcs "jj"}
-                          :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
-                                      {:from "repos.json" :anchor "b"}]}))]
+                          :checkouts [{:list "repos.json" :anchor "a" :vcs "git"}
+                                      {:list "repos.json" :anchor "b"}]}))]
     (assert (deep= @[:vcs/git :vcs/jj :vcs/jj :vcs/jj] (map (fn [repository] (repository :vcs)) repositories))
             "each level overrides the one it sits inside"))
   (os/setenv "HOME" home)
@@ -910,7 +927,7 @@
       configuration (string dir "/config/herd")
       config (string configuration "/repos.json")
       settings (config/configured-repository-settings
-                 {:checkouts [{:from "repos.json"
+                 {:checkouts [{:list "repos.json"
                                :anchor "root"
                                :strip-components 1}]})]
   (sh/create-dirs configuration)
@@ -935,8 +952,8 @@
   (let [repositories (config/load-repository-lists
                        [first second]
                        (config/configured-repository-settings
-                         {:checkouts [{:from "first.json" :anchor "/one"}
-                                      {:from "second.json" :anchor "/two"}]}))]
+                         {:checkouts [{:list "first.json" :anchor "/one"}
+                                      {:list "second.json" :anchor "/two"}]}))]
     (assert (= 1 (length repositories)) "an agreeing duplicate remains one repository")
     (assert (deep= @["/one" "/two"] ((repositories 0) :anchors))
             "an agreeing duplicate retains every configuration anchor"))
@@ -964,7 +981,7 @@
   (assert (try (do (config/load-repository-catalog
                      configuration
                      (config/configured-repository-settings
-                       {:checkouts [{:from "absent.json" :anchor "root"}]}))
+                       {:checkouts [{:list "absent.json" :anchor "root"}]}))
                  false)
             ([_] true))
           "a checkout from an absent file is a configuration error")

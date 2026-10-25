@@ -35,7 +35,7 @@ A row's :filter applies to its own list.
 
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']"}
-  >  :checkouts [{:from "repos.json" :filter ["platform"]}]}
+  >  :checkouts [{:list "repos.json" :filter ["platform"]}]}
   > EOF
   $ herd list
   $ROOT/home/src/api\t$ROOT/origins/api (esc)
@@ -111,8 +111,8 @@ filter removes them; unfiltered, they are errors.
   > EOF
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"src" "[?group=='src']" "vendor" "[?group=='vendor']"}
-  >  :checkouts [{:from "repos.json" :anchor "src" :filter ["src"]}
-  >              {:from "repos.json" :anchor "vendor" :filter ["vendor"]
+  >  :checkouts [{:list "repos.json" :anchor "src" :filter ["src"]}
+  >              {:list "repos.json" :anchor "vendor" :filter ["vendor"]
   >               :strip-components 1}]}
   > EOF
   $ herd list -a -C /
@@ -120,7 +120,7 @@ filter removes them; unfiltered, they are errors.
   $ROOT/home/vendor/b\tb-url (esc)
   $ herd list -a -C / -f vendor
   $ROOT/home/vendor/b\tb-url (esc)
-  $ echo '{:checkouts [{:from "repos.json"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "repos.json"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 2 needs a string "path"
   [1]

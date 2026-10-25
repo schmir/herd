@@ -10,7 +10,7 @@
    [:failed "failed"]])
 
 (def repositories
-  (map |{:path (string "/repo/" $) :ssh_url "unused"} (range 12)))
+  (map |{:path (string "/repo/" $) :clone-url "unused"} (range 12)))
 
 (var active 0)
 (var most-active 0)

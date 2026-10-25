@@ -11,7 +11,7 @@ mistake, whichever command reads it.
 
   $ echo '[{"path": "src/x"}]' >"$CONFIG/broken.json"
   $ herd clone
-  Configuration error: $ROOT/home/.config/herd/broken.json: entry 0 needs a string "ssh_url"
+  Configuration error: $ROOT/home/.config/herd/broken.json: entry 0 needs a string "clone_url"
   [1]
 
 The same path is accepted twice only when both say the same about it.
@@ -25,7 +25,7 @@ The same path is accepted twice only when both say the same about it.
 
 A :checkouts row has to read a list that exists.
 
-  $ echo '{:checkouts [{:from "gone.json"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "gone.json"}]}' >"$CONFIG/config.jdn"
   $ herd list
   Configuration error: config.jdn: :checkouts reads "gone.json", which is not in the configuration directory
   [1]
@@ -124,40 +124,40 @@ Custom commands.
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 must be a dictionary
   [1]
   $ settings '{:checkouts [{:anchor "work"}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :list naming a repository list or holding an array of repositories
   [1]
-  $ settings '{:checkouts [{:from 1}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
+  $ settings '{:checkouts [{:list 1}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :list naming a repository list or holding an array of repositories
   [1]
-  $ settings '{:checkouts [{:from ""}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :from naming a repository list
+  $ settings '{:checkouts [{:list ""}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a :list naming a repository list or holding an array of repositories
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :anchor ""}]}'
+  $ settings '{:checkouts [{:list "repos.json" :anchor ""}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-empty :anchor
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :jobs 2}]}'
+  $ settings '{:checkouts [{:list "repos.json" :jobs 2}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 has an unknown setting :jobs
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :anchors ["work"]}]}'
+  $ settings '{:checkouts [{:list "repos.json" :anchors ["work"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 has an unknown setting :anchors
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :vcs "svn"}]}'
+  $ settings '{:checkouts [{:list "repos.json" :vcs "svn"}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 has an invalid :vcs; expected "git" or "jj"
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :strip-components 1.5}]}'
+  $ settings '{:checkouts [{:list "repos.json" :strip-components 1.5}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer in :strip-components
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :strip-components -1}]}'
+  $ settings '{:checkouts [{:list "repos.json" :strip-components -1}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer in :strip-components
   [1]
-  $ settings '{:checkouts [{:from "repos.json"} {:unknown true}]}'
+  $ settings '{:checkouts [{:list "repos.json"} {:unknown true}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 1 has an unknown setting :unknown
   [1]
   $ settings '{:checkout-defaults []}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults must be a dictionary
   [1]
-  $ settings '{:checkout-defaults {:from "repos.json"}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an unknown setting :from
+  $ settings '{:checkout-defaults {:list "repos.json"}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an unknown setting :list
   [1]
   $ settings '{:checkout-defaults {:strip-components 1}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an unknown setting :strip-components
@@ -168,7 +168,7 @@ Custom commands.
 
 Stripping more components than a path has.
 
-  $ settings '{:checkouts [{:from "repos.json" :strip-components 2}]}'
+  $ settings '{:checkouts [{:list "repos.json" :strip-components 2}]}'
   Configuration error: $ROOT/home/.config/herd/repos.json: the row anchored at "$ROOT/home" cannot strip 2 components from path "src/api"; no components remain
   [1]
 
@@ -183,13 +183,13 @@ Filters, and the rows and defaults that name them.
   $ settings '{:filters {"active" ""}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: filter "active" needs a non-empty expression
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :filter "active"}]}'
+  $ settings '{:checkouts [{:list "repos.json" :filter "active"}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs an array of filter names in :filter
   [1]
-  $ settings '{:checkouts [{:from "repos.json" :filter [""]}]}'
+  $ settings '{:checkouts [{:list "repos.json" :filter [""]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 names an invalid filter ""; expected a non-empty string
   [1]
-  $ settings '{:filters {"active" "[?a]"} :checkouts [{:from "repos.json" :filter ["typo"]}]}'
+  $ settings '{:filters {"active" "[?a]"} :checkouts [{:list "repos.json" :filter ["typo"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names an unknown filter "typo"
   [1]
   $ settings '{:checkout-defaults {:filter ["absent"]}}'
@@ -215,7 +215,7 @@ command in :sh, exactly one of them. A string stays a JMESPath expression.
 
 A shell filter runs in a checkout, so a row or the defaults cannot name one.
 
-  $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:from "repos.json" :filter ["b"]}]}'
+  $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:list "repos.json" :filter ["b"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names the command filter "b", which only the command line can use
   [1]
   $ settings '{:filters {"b" {:sh "true"}} :checkout-defaults {:filter ["b"]}}'

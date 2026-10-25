@@ -106,8 +106,8 @@
   (assert (= 2 (length messages)) "the failed move is reported"))
 
 (def result
-  (clone/clone-repositories [{:path existing :ssh_url "unused"}
-                             {:path occupied :ssh_url "unused"}]))
+  (clone/clone-repositories [{:path existing :clone-url "unused"}
+                             {:path occupied :clone-url "unused"}]))
 (assert (= 1 ((result :counts) :present)) "clone-repositories keeps outcome counts")
 (assert (= 1 ((result :counts) :blocked)))
 (assert (= 0 ((result :counts) :failed)))

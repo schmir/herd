@@ -27,7 +27,7 @@
 (defn- repository
   "Create a repository entry for path."
   [path]
-  {:path path :ssh_url "unused"})
+  {:path path :clone-url "unused"})
 
 (let [dir (fixture)
       first (string dir "/first")

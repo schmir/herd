@@ -80,8 +80,8 @@ and a checkout none of them settles uses jj.
   > EOF
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkout-defaults {:vcs "jj"}
-  >  :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
-  >              {:from "repos.json" :anchor "b"}]}
+  >  :checkouts [{:list "repos.json" :anchor "a" :vcs "git"}
+  >              {:list "repos.json" :anchor "b"}]}
   > EOF
   $ for repo in a/plain a/own b/plain b/own; do
   >   rm -f "$ROOT/git.args" "$ROOT/jj.args"

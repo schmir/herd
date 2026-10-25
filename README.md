@@ -39,19 +39,22 @@ repositories:
 [
   {
     "path": "src/acme/api",
-    "ssh_url": "git@github.com:acme/api.git"
+    "clone_url": "git@github.com:acme/api.git"
   },
   {
     "path": "src/acme/web",
-    "ssh_url": "git@github.com:acme/web.git",
+    "clone_url": "git@github.com:acme/web.git",
     "vcs": "git"
   }
 ]
 ```
 
-Both `path` and `ssh_url` are required and must be strings. The optional
-`vcs` is `"jj"` or `"git"` and decides how `herd clone` checks that
-repository out; see [Repository options](#repository-options).
+Both `path` and `clone_url`, the URL the repository is cloned from, are
+required and must be strings. Older lists spell the URL `ssh_url`, which is
+still read, but an entry may not carry both. The optional `vcs` is `"jj"` or
+`"git"` and decides how `herd clone` checks that repository out; see
+[Repository options](#repository-options). A few repositories can also be
+written [inline](#inline-lists) in `config.jdn` instead of in a file.
 
 Every repository list is checked out under one or more **anchors**: the
 directories its relative paths resolve against. By default there is a single
@@ -79,10 +82,12 @@ settings:
  :checkout-defaults {:anchor "src" :vcs "jj"}
 
  :checkouts
- [{:from "work.json"   :anchor "work"}
-  {:from "work.json"   :anchor "/srv/review" :vcs "git"}
-  {:from "vendor.json" :anchor "/opt/vendor"
-   :strip-components 1 :vcs "git"}]
+ [{:list "work.json"   :anchor "work"}
+  {:list "work.json"   :anchor "/srv/review" :vcs "git"}
+  {:list "vendor.json" :anchor "/opt/vendor"
+   :strip-components 1 :vcs "git"}
+  {:list [{:path "dotfiles" :clone-url "git@github.com:me/dotfiles.git"}]
+   :anchor "personal"}]
 
  :filters
  {"active" "[?schedules[?starts_with(name, 'nightly-')]]"}
@@ -96,23 +101,43 @@ settings:
 names the JMESPath expressions and shell commands that
 [select repositories](#filters).
 
-`:checkouts` is where the repository lists are anchored. Each row reads one
-repository list, named by `:from` as it is named in the configuration
-directory, and anchors its repositories at one directory.
-`:checkout-defaults` holds what every row starts from, so a row naming one
-setting keeps the rest, and a list no row reads is checked out once from
-`:checkout-defaults` alone — dropping a list into the configuration directory checks it
-out rather than waiting to be mentioned.
+`:checkouts` is where the repository lists are anchored. Each row takes one
+repository list, either named by `:list` as it is named in the configuration
+directory or written [inline](#inline-lists) as an array in `:list`, and
+anchors its repositories at one directory. `:checkout-defaults` holds what
+every row starts from, so a row naming one setting keeps the rest, and a
+list no row reads is checked out once from `:checkout-defaults` alone —
+dropping a list into the configuration directory checks it out rather than
+waiting to be mentioned.
 
 The anchor in `:checkout-defaults` is `$HOME` unless you say otherwise.
 Setting it to `false` removes the default: a list in the configuration
 directory that no anchored row reads then makes herd exit with an error, as
 it does when `HOME` is not set.
 
-A row whose `:from` is not in the configuration directory is an error rather
-than a row quietly ignored: a row left behind by a renamed or deleted list
-would otherwise stop applying without a word, and the list it was written
-for would fall back to `:checkout-defaults`.
+A row whose `:list` names a file that is not in the configuration directory
+is an error rather than a row quietly ignored: a row left behind by a
+renamed or deleted list would otherwise stop applying without a word, and
+the list it was written for would fall back to `:checkout-defaults`.
+
+### Inline lists
+
+A row's `:list` may hold its repositories itself, as an array, instead of
+naming a file. That suits a few repositories that are not worth a file of
+their own:
+
+```janet
+{:checkouts
+ [{:list [{:path "dotfiles" :clone-url "git@github.com:me/dotfiles.git"}
+          {:path "notes" :clone-url "git@github.com:me/notes.git" :vcs "git"}]
+   :anchor "personal"}]}
+```
+
+Entries take the keys of a JSON list's entries, spelled as the other
+settings are: `:path`, `:clone-url`, `:vcs` and any other, such as `:group`,
+that a filter reads. Filters see the list as the JSON a file would hold, so
+a filter written for one works on the other, reading `clone_url`. Such a
+list belongs to its row alone and is not shared by name with other rows.
 
 ### Anchors
 
@@ -141,7 +166,7 @@ than it contains, is an error.
 
 A repository list may itself be a symlink. It is still anchored by its
 visible location in the configuration directory, which is also the name
-`:from` knows it by, so point its rows at the directory tree it describes
+`:list` knows it by, so point its rows at the directory tree it describes
 when the list lives next to that tree.
 
 ### Repository options
@@ -182,8 +207,8 @@ Filters are named in `:filters`, and everything else refers to them by name:
   "reviewed" "[?approvals > `0`]"}
 
  :checkouts
- [{:from "repos.json" :anchor "src"     :filter ["active" "reviewed"]}
-  {:from "repos.json" :anchor "archive" :filter []}]}
+ [{:list "repos.json" :anchor "src"     :filter ["active" "reviewed"]}
+  {:list "repos.json" :anchor "archive" :filter []}]}
 ```
 
 An expression is applied to the whole array in a list file, exactly as it is
@@ -229,7 +254,7 @@ herd run --filter platform -- jj st
 ```
 
 A filter named this way is applied to **every** configured list, while a
-row's `:filter` applies only to its own `:from`. Lists rarely have the same
+row's `:filter` applies only to its own `:list`. Lists rarely have the same
 shape — that is why filters exist — and a field a list does not carry reads
 as null. Most JMESPath functions reject null rather than treating it as no
 match, so an expression meant for `-f` has to name fields defensively:
@@ -274,11 +299,11 @@ since it is most likely a filter name with a typo in it.
 Commands run after the selection, so the JMESPath filters among the `-f`
 values narrow the lists first, in the order written, and the commands then
 narrow what is left, along with `--dirty` and `--clean`. For the same reason
-only the command line can use one: a `:filter` in a row or in `:checkout-defaults`
-naming a shell filter is an error, and so is `clone -f` with a command, as clone is
-what makes the checkouts a command would run in. `list` applies them to the
-configured repositories only, and leaves the extra ones it finds on disk
-alone.
+only the command line can use one: a `:filter` in a row or in
+`:checkout-defaults` naming a shell filter is an error, and so is `clone -f`
+with a command, as clone is what makes the checkouts a command would run in.
+`list` applies them to the configured repositories only, and leaves the
+extra ones it finds on disk alone.
 
 ### Custom commands
 
@@ -470,7 +495,7 @@ such as `/` from reaching unrelated groups of repositories. Given:
 ```
 ~/.config/herd/personal.json          anchored at ~
 ~/.config/herd/work.json              anchored at ~/work
-~/.config/herd/config.jdn             {:checkouts [{:from "work.json" :anchor "work"}]}
+~/.config/herd/config.jdn             {:checkouts [{:list "work.json" :anchor "work"}]}
 ```
 
 running `herd list` in `~` selects only the repositories from

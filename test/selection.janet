@@ -9,10 +9,10 @@
 (start-suite "selection")
 
 (def repositories
-  [{:path "/srv/foo" :ssh_url "git@example.com:foo.git" :anchors @["/srv"]}
-   {:path "/srv/foo/bar" :ssh_url "git@example.com:bar.git" :anchors @["/srv"]}
-   {:path "/srv/foobar" :ssh_url "git@example.com:foobar.git" :anchors @["/srv"]}
-   {:path "/srv/other" :ssh_url "git@example.com:other.git" :anchors @["/srv"]}])
+  [{:path "/srv/foo" :clone-url "git@example.com:foo.git" :anchors @["/srv"]}
+   {:path "/srv/foo/bar" :clone-url "git@example.com:bar.git" :anchors @["/srv"]}
+   {:path "/srv/foobar" :clone-url "git@example.com:foobar.git" :anchors @["/srv"]}
+   {:path "/srv/other" :clone-url "git@example.com:other.git" :anchors @["/srv"]}])
 
 (defn- selected
   "Return selected paths so assertions read as plain lists."
@@ -53,7 +53,7 @@
 (assert (deep= (map (fn [repository] (repository :path))
                     (location/locate-repositories-under-anchors
                       "below" [{:path (string (os/cwd) "/below/repo")
-                                :ssh_url "u"
+                                :clone-url "u"
                                 :anchors @[(os/cwd)]}]
                       @[(os/cwd)]))
                @[(string (os/cwd) "/below/repo")]))
@@ -62,12 +62,12 @@
 (assert (empty? (selected "/elsewhere" @[])))
 
 (def nested
-  [{:path "/work/one" :ssh_url "one" :anchors @["/work"]}
-   {:path "/work/team/two" :ssh_url "two" :anchors @["/work/team"]}
-   {:path "/work/team/parent" :ssh_url "parent" :anchors @["/work"]}
-   {:path "/work/team/shared" :ssh_url "shared"
+  [{:path "/work/one" :clone-url "one" :anchors @["/work"]}
+   {:path "/work/team/two" :clone-url "two" :anchors @["/work/team"]}
+   {:path "/work/team/parent" :clone-url "parent" :anchors @["/work"]}
+   {:path "/work/team/shared" :clone-url "shared"
     :anchors @["/work" "/work/team"]}
-   {:path "/work/team/unrelated" :ssh_url "unrelated" :anchors @["/other"]}])
+   {:path "/work/team/unrelated" :clone-url "unrelated" :anchors @["/other"]}])
 
 (defn- selected-nested
   "Return paths selected from repositories with nested anchors."
@@ -116,7 +116,7 @@
   (defn- linked
     "Return the paths selected for a working location and one repository."
     [at-path repository-path anchor]
-    (def repositories [{:path repository-path :ssh_url "u"
+    (def repositories [{:path repository-path :clone-url "u"
                         :anchors @[anchor]}])
     (map (fn [repository] (repository :path))
          (location/locate-repositories-under-anchors
@@ -146,7 +146,7 @@
     (seq [i :range [0 500]]
       (def spelled (if (even? i) real alias))
       {:path (string spelled "/team" (% i 5) "/repo" i)
-       :ssh_url "u"
+       :clone-url "u"
        :anchors @[spelled]}))
   (assert (deep= @[real] (location/configured-anchors shared))
           "two spellings of one anchor are listed once")
@@ -182,7 +182,7 @@
 
 (def srv-settings
   (config/configured-repository-settings
-    {:checkouts [{:from "repos.json" :anchor "/srv"}]}))
+    {:checkouts [{:list "repos.json" :anchor "/srv"}]}))
 
 (defn- chosen
   "The paths of what selecting with `options` picks, in order."
@@ -234,7 +234,7 @@
 
 (def filter-settings
   (config/configured-repository-settings
-    {:checkouts [{:from "repos.json" :anchor "/srv"}]
+    {:checkouts [{:list "repos.json" :anchor "/srv"}]
      :filters {"foo" "[?ssh_url=='foo']" "none" "[?ssh_url=='nothing']"}}))
 
 (def empty-dir (path/join config-dir "empty"))
@@ -253,7 +253,7 @@
   (assert (deep= {:kind :emptied-by-filters :list-filters @[]}
                  (reason-of {:at-path "/srv"}
                             (config/configured-repository-settings
-                              {:checkouts [{:from "repos.json" :anchor "/srv"
+                              {:checkouts [{:list "repos.json" :anchor "/srv"
                                             :filter ["none"]}]
                                :filters {"none" "[?ssh_url=='nothing']"}})))
           "a checkout row's filter is blamed when no name was given")
@@ -290,7 +290,7 @@
 
 (def mixed-settings
   (config/configured-repository-settings
-    {:checkouts [{:from "repos.json" :anchor "/srv"}]
+    {:checkouts [{:list "repos.json" :anchor "/srv"}]
      :filters {"foo" "[?ssh_url=='foo']" "marked" {:sh "test -f marker"}}}))
 
 (defn test-filter-values-are-classified
@@ -362,7 +362,7 @@
 
 (def work-settings
   (config/configured-repository-settings
-    {:checkouts [{:from "work.json" :anchor work-dir}]}))
+    {:checkouts [{:list "work.json" :anchor work-dir}]}))
 
 (defn- work-select
   "Select in the work repositories with `options`."
@@ -434,7 +434,7 @@
   (def bad-configuration
     (try (do (selection/select {:directory config-dir :at-path "/srv"}
                                (config/configured-repository-settings
-                                 {:checkouts [{:from "gone.json" :anchor "/srv"}]}))
+                                 {:checkouts [{:list "gone.json" :anchor "/srv"}]}))
            nil)
       ([err] err)))
   (assert (string? bad-configuration) "a configuration error stays a string")

@@ -10,7 +10,7 @@ and what happens when two entries name the same checkout.
 
 A relative path joins the anchor, and an absolute one is used as written.
 
-  $ echo '{:checkouts [{:from "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   $ROOT/home/root/relative\trelative-url (esc)
   /absolute\tabsolute-url (esc)
@@ -18,7 +18,7 @@ A relative path joins the anchor, and an absolute one is used as written.
 Several rows check the relative tree out at each anchor, while an absolute
 path stays one repository reachable from all of them.
 
-  $ echo '{:checkouts [{:from "repos.json" :anchor "one"} {:from "repos.json" :anchor "two"}]}' \
+  $ echo '{:checkouts [{:list "repos.json" :anchor "one"} {:list "repos.json" :anchor "two"}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list -a -C /
   $ROOT/home/one/relative\trelative-url (esc)
@@ -31,7 +31,7 @@ path stays one repository reachable from all of them.
 
 An absolute anchor need not exist.
 
-  $ echo '{:checkouts [{:from "repos.json" :anchor "/missing/anchor"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "/missing/anchor"}]}' >"$CONFIG/config.jdn"
   $ herd list -C /missing/anchor
   /missing/anchor/relative\trelative-url (esc)
 
@@ -39,8 +39,8 @@ Each row strips its own number of components.
 
   $ echo '[{"path": "org/team/repo", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:checkouts [{:from "repos.json" :anchor "one" :strip-components 1}
-  >              {:from "repos.json" :anchor "two" :strip-components 2}]}
+  > {:checkouts [{:list "repos.json" :anchor "one" :strip-components 1}
+  >              {:list "repos.json" :anchor "two" :strip-components 2}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/one/team/repo\turl (esc)
@@ -52,7 +52,7 @@ A list no row reads is checked out once, from the defaults alone.
   $ echo '[{"path": "two", "ssh_url": "two-url"}]' >"$CONFIG/repos.json"
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkout-defaults {:anchor "root"}
-  >  :checkouts [{:from "repos.json" :anchor "elsewhere"}]}
+  >  :checkouts [{:list "repos.json" :anchor "elsewhere"}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/root/one\tone-url (esc)
@@ -60,7 +60,7 @@ A list no row reads is checked out once, from the defaults alone.
 
 A row reading a list that is gone fails, even once no list is left at all.
 
-  $ echo '{:checkouts [{:from "renamed.json"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "renamed.json"}]}' >"$CONFIG/config.jdn"
   $ herd list
   Configuration error: config.jdn: :checkouts reads "renamed.json", which is not in the configuration directory
   [1]
@@ -90,10 +90,10 @@ resolved either.
 
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json without HOME
-  $ echo '{:checkouts [{:from "link.json" :anchor "work"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "link.json" :anchor "work"}]}' >"$CONFIG/config.jdn"
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   Configuration error: $ROOT/home/.config/herd/link.json: cannot resolve relative anchor for link.json without HOME
-  $ echo '{:checkouts [{:from "link.json" :anchor "/abs"}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "link.json" :anchor "/abs"}]}' >"$CONFIG/config.jdn"
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   /abs/gamma\tgamma-url (esc)
 
@@ -112,12 +112,12 @@ while a row that names an anchor still places its list.
   [1]
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkout-defaults {:anchor false}
-  >  :checkouts [{:from "link.json" :anchor "one"} {:from "other.json" :anchor "two"}]}
+  >  :checkouts [{:list "link.json" :anchor "one"} {:list "other.json" :anchor "two"}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/one/gamma\tgamma-url (esc)
   $ROOT/home/two/delta\tdelta-url (esc)
-  $ echo '{:checkout-defaults {:anchor false} :checkouts [{:from "other.json" :anchor false}]}' \
+  $ echo '{:checkout-defaults {:anchor false} :checkouts [{:list "other.json" :anchor false}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-empty :anchor
@@ -149,7 +149,7 @@ Paths that stripping makes equal are merged the same way.
 
   $ echo '[{"path": "one/repo", "ssh_url": "shared"}, {"path": "two/repo", "ssh_url": "shared"}]' \
   >   >"$CONFIG/repos.json"
-  $ echo '{:checkouts [{:from "repos.json" :anchor "root" :strip-components 1}]}' >"$CONFIG/config.jdn"
+  $ echo '{:checkouts [{:list "repos.json" :anchor "root" :strip-components 1}]}' >"$CONFIG/config.jdn"
   $ herd list -C root
   $ROOT/home/root/repo\tshared (esc)
   $ echo '[{"path": "one/repo", "ssh_url": "first"}, {"path": "two/repo", "ssh_url": "second"}]' \

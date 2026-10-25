@@ -97,7 +97,7 @@
       (if (or executable
               (not= :missing (checkout/checkout-status repository)))
         (clone-repository executable report
-                          (repository :ssh_url)
+                          (repository :clone-url)
                           (repository :path)
                           vcs-id)
         (do
