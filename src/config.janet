@@ -59,7 +59,7 @@
     (error (string where " has an unknown setting " (describe key)))))
 
 (defn- validate-anchor-setting
-  ``Validate an optional anchor as a non-empty string. `:defaults` may also
+  ``Validate an optional anchor as a non-empty string. `:checkout-defaults` may also
   hold `false`, which leaves a list no row anchors without any anchor. It is
   not `nil` because a dictionary cannot hold one.``
   [settings where &opt allow-none?]
@@ -74,7 +74,7 @@
   ``Validate an optional `:filter` as an array of filter names. It is always
   an array, even for a single name, so there is one shape to write and one to
   read. An empty array filters nothing, which is how a row drops the filters
-  it would otherwise inherit from `:defaults`.``
+  it would otherwise inherit from `:checkout-defaults`.``
   [settings where]
   (def names (get settings :filter :unset))
   (unless (= :unset names)
@@ -114,15 +114,15 @@
   checkout-row)
 
 (defn validate-checkout-defaults
-  "Validate `:defaults` and return them. Defaults cannot name a source."
+  "Validate `:checkout-defaults` and return them. Defaults cannot name a source."
   [defaults]
   (unless (dictionary? defaults)
-    (error ":defaults must be a dictionary"))
+    (error ":checkout-defaults must be a dictionary"))
   (eachk key defaults
-    (reject-unknown-setting ":defaults" key [:anchor :filter ;checkout/option-keys]))
-  (validate-anchor-setting defaults ":defaults" true)
-  (validate-filter-setting defaults ":defaults")
-  (checkout/validate-repository-options defaults ":defaults")
+    (reject-unknown-setting ":checkout-defaults" key [:anchor :filter ;checkout/option-keys]))
+  (validate-anchor-setting defaults ":checkout-defaults" true)
+  (validate-filter-setting defaults ":checkout-defaults")
+  (checkout/validate-repository-options defaults ":checkout-defaults")
   defaults)
 
 (defn parse-settings-file
@@ -140,7 +140,7 @@
 
 (def default-repository-settings
   "Repository settings used when the settings file is absent."
-  {:defaults {} :checkouts [] :filters {}})
+  {:checkout-defaults {} :checkouts [] :filters {}})
 
 (defn configured-repository-settings
   ``Validate repository settings. The checkout rows keep the order they were
@@ -156,13 +156,13 @@
       (validate-checkout-row (rows index)
                              (string ":checkouts row " index))))
   (def filters (named-filters/validate-registry (get settings-file :filters {})))
-  (def defaults (validate-checkout-defaults (get settings-file :defaults {})))
-  (named-filters/require-list-filters filters (get defaults :filter []) ":defaults")
+  (def defaults (validate-checkout-defaults (get settings-file :checkout-defaults {})))
+  (named-filters/require-list-filters filters (get defaults :filter []) ":checkout-defaults")
   (each checkout-row checkout-rows
     (named-filters/require-list-filters filters (get checkout-row :filter [])
                                         (string ":checkouts row for "
                                                 (describe (checkout-row :from)))))
-  {:defaults defaults
+  {:checkout-defaults defaults
    :checkouts checkout-rows
    :filters filters})
 
@@ -170,7 +170,7 @@
   ``Merge each checkout row of `name` with the defaults. Return the defaults alone
   when none names the file.``
   [settings name]
-  (def defaults (get settings :defaults {}))
+  (def defaults (get settings :checkout-defaults {}))
   (def matching
     (filter (fn [checkout-row] (= (checkout-row :from) name))
             (get settings :checkouts [])))

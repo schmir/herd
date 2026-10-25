@@ -51,7 +51,7 @@ A list no row reads is checked out once, from the defaults alone.
   $ echo '[{"path": "one", "ssh_url": "one-url"}]' >"$CONFIG/first.json"
   $ echo '[{"path": "two", "ssh_url": "two-url"}]' >"$CONFIG/repos.json"
   $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:defaults {:anchor "root"}
+  > {:checkout-defaults {:anchor "root"}
   >  :checkouts [{:from "repos.json" :anchor "elsewhere"}]}
   > EOF
   $ herd list -a -C /
@@ -97,27 +97,27 @@ resolved either.
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   /abs/gamma\tgamma-url (esc)
 
-The default anchor is $HOME unless :defaults sets it. Setting it to false
+The default anchor is $HOME unless :checkout-defaults sets it. Setting it to false
 leaves a list that no row anchors without any anchor, which is an error,
 while a row that names an anchor still places its list.
 
   $ echo '[{"path": "delta", "ssh_url": "delta-url"}]' >"$CONFIG/other.json"
-  $ echo '{:defaults {:anchor "src"}}' >"$CONFIG/config.jdn"
+  $ echo '{:checkout-defaults {:anchor "src"}}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   $ROOT/home/src/gamma\tgamma-url (esc)
   $ROOT/home/src/delta\tdelta-url (esc)
-  $ echo '{:defaults {:anchor false}}' >"$CONFIG/config.jdn"
+  $ echo '{:checkout-defaults {:anchor false}}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json: the default anchor is disabled
   [1]
   $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:defaults {:anchor false}
+  > {:checkout-defaults {:anchor false}
   >  :checkouts [{:from "link.json" :anchor "one"} {:from "other.json" :anchor "two"}]}
   > EOF
   $ herd list -a -C /
   $ROOT/home/one/gamma\tgamma-url (esc)
   $ROOT/home/two/delta\tdelta-url (esc)
-  $ echo '{:defaults {:anchor false} :checkouts [{:from "other.json" :anchor false}]}' \
+  $ echo '{:checkout-defaults {:anchor false} :checkouts [{:from "other.json" :anchor false}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-empty :anchor

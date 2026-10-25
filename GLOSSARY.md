@@ -17,8 +17,8 @@ _Avoid_: Root, base directory
 repositories by path and URL. The catalog is built from all of them.
 _Avoid_: Config file, list file
 
-**Settings file**: `config.jdn`, which holds the filters, defaults, checkout
-rows, job count and custom commands. _Avoid_: Command config
+**Settings file**: `config.jdn`, which holds the filters, `:checkout-defaults`,
+checkout rows, job count and custom commands. _Avoid_: Command config
 
 **State**: Whether a checkout has changes nobody has committed: `:dirty` or
 `:clean`. A repository with no checkout has neither. Selection narrows by it

@@ -76,7 +76,7 @@ settings:
 ```janet
 {:jobs 6
 
- :defaults {:anchor "src" :vcs "jj"}
+ :checkout-defaults {:anchor "src" :vcs "jj"}
 
  :checkouts
  [{:from "work.json"   :anchor "work"}
@@ -98,21 +98,21 @@ names the JMESPath expressions and shell commands that
 
 `:checkouts` is where the repository lists are anchored. Each row reads one
 repository list, named by `:from` as it is named in the configuration
-directory, and anchors its repositories at one directory. `:defaults` holds
-what every row starts from, so a row naming one setting keeps the rest, and
-a list no row reads is checked out once from the defaults alone — dropping a
-list into the configuration directory checks it out rather than waiting to
-be mentioned.
+directory, and anchors its repositories at one directory.
+`:checkout-defaults` holds what every row starts from, so a row naming one
+setting keeps the rest, and a list no row reads is checked out once from
+`:checkout-defaults` alone — dropping a list into the configuration directory checks it
+out rather than waiting to be mentioned.
 
-The anchor in `:defaults` is `$HOME` unless you say otherwise. Setting it to
-`false` removes the default: a list in the configuration directory that no
-anchored row reads then makes herd exit with an error, as it does when
-`HOME` is not set.
+The anchor in `:checkout-defaults` is `$HOME` unless you say otherwise.
+Setting it to `false` removes the default: a list in the configuration
+directory that no anchored row reads then makes herd exit with an error, as
+it does when `HOME` is not set.
 
 A row whose `:from` is not in the configuration directory is an error rather
 than a row quietly ignored: a row left behind by a renamed or deleted list
 would otherwise stop applying without a word, and the list it was written
-for would fall back to the defaults.
+for would fall back to `:checkout-defaults`.
 
 ### Anchors
 
@@ -121,7 +121,7 @@ file resolve against. A relative anchor resolves from `$HOME`, so the first
 row above anchors `work.json` at `$HOME/work` and an entry such as
 `team/api` resolves to `$HOME/work/team/api`. An absolute anchor is used
 exactly as written and need not exist yet. A row that names no anchor at all
-falls back to `:defaults`, and without those to `$HOME`.
+falls back to `:checkout-defaults`, and without those to `$HOME`.
 
 Several rows reading the same file describe the same set of repositories
 checked out under each of their anchors. `team/api` above names both
@@ -154,7 +154,7 @@ set at three levels, and the innermost one that names it wins:
 | -------------- | ---------------------------------- |
 | the repository | `"vcs"` on an entry in a JSON list |
 | the checkout   | `:vcs` on a `:checkouts` row       |
-| every checkout | `:vcs` in `:defaults`              |
+| every checkout | `:vcs` in `:checkout-defaults`     |
 
 A repository no level settles is checked out with `jj`.
 
@@ -207,9 +207,10 @@ the order makes no difference — `["active" "reviewed"]` selects the
 repositories that are both. An expression that is not a filter does not
 commute, though: `["active" "[0:1]"]` takes the first of the active
 repositories, while `["[0:1]" "active"]` takes the first repository of the
-list and keeps it only if it is active. A row replaces the `:defaults`
-filters rather than adding to them, as it does for `:vcs` and `:anchor`, so
-`:filter []` is how a row keeps everything when the defaults filter.
+list and keeps it only if it is active. A row replaces the
+`:checkout-defaults` filters rather than adding to them, as it does for
+`:vcs` and `:anchor`, so `:filter []` is how a row keeps everything when
+`:checkout-defaults` filters.
 
 Because a row filters the list before anchoring it, two rows can take
 different parts of one file, and only the entries a filter kept are read as
@@ -273,8 +274,8 @@ since it is most likely a filter name with a typo in it.
 Commands run after the selection, so the JMESPath filters among the `-f`
 values narrow the lists first, in the order written, and the commands then
 narrow what is left, along with `--dirty` and `--clean`. For the same reason
-only the command line can use one: a row's or the defaults' `:filter` naming
-a shell filter is an error, and so is `clone -f` with a command, as clone is
+only the command line can use one: a `:filter` in a row or in `:checkout-defaults`
+naming a shell filter is an error, and so is `clone -f` with a command, as clone is
 what makes the checkouts a command would run in. `list` applies them to the
 configured repositories only, and leaves the extra ones it finds on disk
 alone.

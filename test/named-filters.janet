@@ -157,15 +157,15 @@
 # --- check-names ----------------------------------------------------------
 
 (assert-no-error "list filters may be named by a row"
-                 (named-filters/require-list-filters kinds-registry ["a" "b"] ":defaults"))
+                 (named-filters/require-list-filters kinds-registry ["a" "b"] ":checkout-defaults"))
 (assert-no-error "a row may name none"
-                 (named-filters/require-list-filters kinds-registry [] ":defaults"))
+                 (named-filters/require-list-filters kinds-registry [] ":checkout-defaults"))
 (let [message (error-message
-                (fn [] (named-filters/require-list-filters kinds-registry ["c"] ":defaults")))]
+                (fn [] (named-filters/require-list-filters kinds-registry ["c"] ":checkout-defaults")))]
   (assert (and message (string/find `names the command filter "c"` message)
                (string/find "only the command line" message))
           "a row cannot name a checkout filter, which runs in a checkout")
-  (assert (string/has-prefix? ":defaults " message) "and the row is named first"))
+  (assert (string/has-prefix? ":checkout-defaults " message) "and the row is named first"))
 (let [message (error-message
                 (fn [] (named-filters/require-list-filters kinds-registry ["a" "typo"]
                                                            ":checkouts row for \"w.json\"")))]

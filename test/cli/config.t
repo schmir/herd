@@ -115,7 +115,7 @@ Custom commands.
   [1]
   $ settings '{:commands {"check" {:command-jj "jj st" :description "Check."}}}'
 
-:checkouts rows and :defaults.
+:checkouts rows and :checkout-defaults.
 
   $ settings '{:checkouts {}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts must be an array of rows
@@ -153,17 +153,17 @@ Custom commands.
   $ settings '{:checkouts [{:from "repos.json"} {:unknown true}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 1 has an unknown setting :unknown
   [1]
-  $ settings '{:defaults []}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults must be a dictionary
+  $ settings '{:checkout-defaults []}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults must be a dictionary
   [1]
-  $ settings '{:defaults {:from "repos.json"}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults has an unknown setting :from
+  $ settings '{:checkout-defaults {:from "repos.json"}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an unknown setting :from
   [1]
-  $ settings '{:defaults {:strip-components 1}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults has an unknown setting :strip-components
+  $ settings '{:checkout-defaults {:strip-components 1}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an unknown setting :strip-components
   [1]
-  $ settings '{:defaults {:vcs "svn"}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults has an invalid :vcs; expected "git" or "jj"
+  $ settings '{:checkout-defaults {:vcs "svn"}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults has an invalid :vcs; expected "git" or "jj"
   [1]
 
 Stripping more components than a path has.
@@ -192,8 +192,8 @@ Filters, and the rows and defaults that name them.
   $ settings '{:filters {"active" "[?a]"} :checkouts [{:from "repos.json" :filter ["typo"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names an unknown filter "typo"
   [1]
-  $ settings '{:defaults {:filter ["absent"]}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults names an unknown filter "absent"
+  $ settings '{:checkout-defaults {:filter ["absent"]}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults names an unknown filter "absent"
   [1]
 
 A filter can say what it is: a JMESPath expression in :jp, or a shell
@@ -218,8 +218,8 @@ A shell filter runs in a checkout, so a row or the defaults cannot name one.
   $ settings '{:filters {"b" {:sh "true"}} :checkouts [{:from "repos.json" :filter ["b"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names the command filter "b", which only the command line can use
   [1]
-  $ settings '{:filters {"b" {:sh "true"}} :defaults {:filter ["b"]}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :defaults names the command filter "b", which only the command line can use
+  $ settings '{:filters {"b" {:sh "true"}} :checkout-defaults {:filter ["b"]}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkout-defaults names the command filter "b", which only the command line can use
   [1]
 
 Only *.json files are lists, and a directory named like one is not.

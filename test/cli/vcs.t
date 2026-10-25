@@ -71,7 +71,7 @@ forms each expects, and moves the clone into place once it succeeds.
   git-repo
   jj-repo
 
-The VCS is settled by the entry, then the :checkouts row, then :defaults,
+The VCS is settled by the entry, then the :checkouts row, then :checkout-defaults,
 and a checkout none of them settles uses jj.
 
   $ cat >"$CONFIG/repos.json" <<'EOF'
@@ -79,7 +79,7 @@ and a checkout none of them settles uses jj.
   >  {"path": "own", "ssh_url": "u", "vcs": "jj"}]
   > EOF
   $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:defaults {:vcs "jj"}
+  > {:checkout-defaults {:vcs "jj"}
   >  :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
   >              {:from "repos.json" :anchor "b"}]}
   > EOF

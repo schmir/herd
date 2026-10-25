@@ -349,7 +349,7 @@
                 "for dest; do :; done; mkdir -p \"$dest/.git\"\n"))
   (sh/exec-fail "chmod" "+x" fake-git)
   (sh/exec-fail "chmod" "+x" fake-jj)
-  (write-settings-file `:defaults {:vcs "git"}`)
+  (write-settings-file `:checkout-defaults {:vcs "git"}`)
   (sh/rm repository)
   (spit configuration
         `[{"path":"git-repo","ssh_url":"git-url"},

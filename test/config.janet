@@ -220,9 +220,9 @@
 
 (let [dir (fixture)
       settings-path (path/join dir "config.jdn")]
-  (spit settings-path `{:defaults {:vcs "git"}}`)
+  (spit settings-path `{:checkout-defaults {:vcs "git"}}`)
   (assert (= "git" (get-in (config/load-settings dir reserved)
-                           [:settings :defaults :vcs]))
+                           [:settings :checkout-defaults :vcs]))
           "the default VCS is loaded from config.jdn")
   (sh/rm dir))
 
@@ -284,7 +284,7 @@
       settings-path (path/join dir "config.jdn")]
   (spit settings-path "# nothing configured yet\n")
   (def settings (get (config/load-settings dir reserved) :settings))
-  (assert (and (empty? (settings :defaults))
+  (assert (and (empty? (settings :checkout-defaults))
                (empty? (settings :checkouts))
                (empty? (settings :filters)))
           "a file with no settings in it reads as no settings")
@@ -512,7 +512,7 @@
               (config/configured-repository-settings
                 {:checkouts [{:from "work.json"} {:unknown true}]}))
 (assert-error "the defaults are validated"
-              (config/configured-repository-settings {:defaults {:vcs "svn"}}))
+              (config/configured-repository-settings {:checkout-defaults {:vcs "svn"}}))
 (assert-no-error "a configuration need settle nothing"
                  (config/configured-repository-settings {}))
 
@@ -565,13 +565,13 @@
                  :checkouts [{:from "work.json" :filter ["c"]}]}))
 (assert-error "the defaults cannot name a shell filter"
               (config/configured-repository-settings
-                {:filters {"c" {:sh "true"}} :defaults {:filter ["c"]}}))
+                {:filters {"c" {:sh "true"}} :checkout-defaults {:filter ["c"]}}))
 
 (assert-error "a row cannot name a filter that is not configured"
               (config/configured-repository-settings
                 {:checkouts [{:from "work.json" :filter ["absent"]}]}))
 (assert-error "the defaults cannot name a filter that is not configured"
-              (config/configured-repository-settings {:defaults {:filter ["absent"]}}))
+              (config/configured-repository-settings {:checkout-defaults {:filter ["absent"]}}))
 (let [message (error-message
                 (fn [] (config/configured-repository-settings
                          {:filters {"active" "[?a]"}
@@ -581,7 +581,7 @@
 
 (let [settings (config/configured-repository-settings
                  {:filters {"active" "[?a]" "platform" "[?b]"}
-                  :defaults {:filter ["active"]}
+                  :checkout-defaults {:filter ["active"]}
                   :checkouts [{:from "work.json"}
                               {:from "work.json" :filter ["platform"]}
                               {:from "work.json" :filter []}]})
@@ -597,7 +597,7 @@
 # --- checkout-rows-for-list --------------------------------------------------------
 
 (let [settings (config/configured-repository-settings
-                 {:defaults {:anchor "src" :vcs "jj"}
+                 {:checkout-defaults {:anchor "src" :vcs "jj"}
                   :checkouts [{:from "work.json" :anchor "work"}
                               {:from "work.json" :anchor "/srv" :vcs "git"}]})
       unmentioned (config/checkout-rows-for-list settings "other.json")
@@ -791,7 +791,7 @@
   (let [repositories (config/load-repository-lists
                        (config/discover-repository-lists configuration)
                        (config/configured-repository-settings
-                         {:defaults {:anchor "root"}
+                         {:checkout-defaults {:anchor "root"}
                           :checkouts [{:from "second.json" :anchor "elsewhere"}]}))
         root (path/abspath dir)]
     (assert (deep= @[(string root "/root/one") (string root "/elsewhere/two")]
@@ -818,7 +818,7 @@
   (let [repositories (config/load-repository-lists
                        [config]
                        (config/configured-repository-settings
-                         {:defaults {:vcs "jj"}
+                         {:checkout-defaults {:vcs "jj"}
                           :checkouts [{:from "repos.json" :anchor "a" :vcs "git"}
                                       {:from "repos.json" :anchor "b"}]}))]
     (assert (deep= @[:vcs/git :vcs/jj :vcs/jj :vcs/jj] (map (fn [repository] (repository :vcs)) repositories))
