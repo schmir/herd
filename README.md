@@ -99,7 +99,8 @@ settings:
 
 `:jobs` is the default number of operations run in parallel. `:filters`
 names the JMESPath expressions and shell commands that
-[select repositories](#filters).
+[select repositories](#filters). Any other key at the top level is an error,
+so a misspelt setting is not silently ignored.
 
 `:checkouts` is where the repository lists are anchored. Each row takes one
 repository list, either named by `:list` as it is named in the configuration

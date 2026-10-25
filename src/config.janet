@@ -535,6 +535,10 @@
       (fail (string "has an invalid :show-output; " err))))
   {:command command-or-vcs-specific :description description :show-output show-output})
 
+(def- settings-keys
+  "Keys the settings file may hold at its top level."
+  [:jobs :checkout-defaults :checkouts :filters :commands])
+
 (defn prepare-settings
   ``Validate the raw settings of config.jdn and return `{:settings :jobs
   :commands}`: the repository settings, the job count, and each custom command
@@ -543,6 +547,8 @@
   defines itself are there unless the settings define one of the same name.``
   [settings-file reserved]
   (def jobs (configured-jobs settings-file))
+  (eachk key settings-file
+    (reject-unknown-setting "the top level" key settings-keys))
   (def settings (configured-repository-settings settings-file))
   (def definitions (get settings-file :commands {}))
   (unless (dictionary? definitions)

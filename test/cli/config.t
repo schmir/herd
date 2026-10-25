@@ -115,6 +115,16 @@ Custom commands.
   [1]
   $ settings '{:commands {"check" {:command-jj "jj st" :description "Check."}}}'
 
+Only the known settings may stand at the top level, so a misspelt or renamed
+one is not ignored without a word.
+
+  $ settings '{:defaults {:vcs "git"}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: the top level has an unknown setting :defaults
+  [1]
+  $ settings '{:job 4}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: the top level has an unknown setting :job
+  [1]
+
 :checkouts rows and :checkout-defaults.
 
   $ settings '{:checkouts {}}'

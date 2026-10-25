@@ -105,6 +105,11 @@
 
 (assert-error "custom command JDN must be a dictionary"
               (prepare []))
+(assert-error "an unknown top-level setting is refused"
+              (prepare {:defaults {:vcs "git"}}))
+(assert-no-error "every known top-level setting is accepted"
+                 (prepare {:jobs 2 :checkout-defaults {} :checkouts []
+                           :filters {} :commands {}}))
 (assert-error "the custom command collection must be a dictionary"
               (prepare {:commands []}))
 (assert-error "a custom command cannot replace a built-in command"
