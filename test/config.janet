@@ -108,7 +108,7 @@
 (assert-error "an unknown top-level setting is refused"
               (prepare {:defaults {:vcs "git"}}))
 (assert-no-error "every known top-level setting is accepted"
-                 (prepare {:jobs 2 :checkout-defaults {} :checkouts []
+                 (prepare {:jobs 2 :pager false :checkout-defaults {} :checkouts []
                            :filters {} :commands {}}))
 (assert-error "the custom command collection must be a dictionary"
               (prepare {:commands []}))
@@ -186,6 +186,16 @@
                              :description "Check repositories."}}}))
 (assert (= 6 ((prepare {}) :jobs)) "six jobs is the default")
 (assert (= 3 ((prepare {:jobs 3}) :jobs)) "a job count can be configured")
+(defn test-pager-setting
+  "The pager defaults to less, and :pager can name another command or turn it off."
+  []
+  (assert (= "less -FXR" ((prepare {}) :pager)) "less is the default pager")
+  (assert (= "bat -p" ((prepare {:pager "bat -p"}) :pager)) "a pager can be configured")
+  (assert (= false ((prepare {:pager false}) :pager)) "false turns the pager off")
+  (each invalid ["" true 1 :less]
+    (assert-error (string "a pager rejects " (describe invalid))
+                  (prepare {:pager invalid}))))
+(test-pager-setting)
 (each invalid [0 -2 1.5 "4" :four 2147483648]
   (assert-error (string "a configured job count rejects " (describe invalid))
                 (prepare {:jobs invalid})))

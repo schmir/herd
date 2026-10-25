@@ -477,6 +477,18 @@
                    parallel/max-jobs)))
   jobs)
 
+(def default-pager
+  "The command trees are shown through on a terminal, unless :pager says otherwise."
+  "less -FXR")
+
+(defn- configured-pager
+  "Return the configured pager command, false for none, or the default."
+  [settings-file]
+  (def pager (get settings-file :pager default-pager))
+  (unless (or (false? pager) (and (string? pager) (not (empty? pager))))
+    (error ":pager must be a non-empty command string, or false for no pager"))
+  pager)
+
 (def- custom-command-keys
   "Keys a custom-command definition may contain."
   [:command :command-git :command-jj :description :show-output])
@@ -537,16 +549,18 @@
 
 (def- settings-keys
   "Keys the settings file may hold at its top level."
-  [:jobs :checkout-defaults :checkouts :filters :commands])
+  [:jobs :pager :checkout-defaults :checkouts :filters :commands])
 
 (defn prepare-settings
   ``Validate the raw settings of config.jdn and return `{:settings :jobs
-  :commands}`: the repository settings, the job count, and each custom command
+  :pager :commands}`: the repository settings, the job count, the pager
+  command (false for none), and each custom command
   by name with its `:command`, `:description` and `:show-output`. `reserved`
   names the commands a custom command may not replace. The commands herd
   defines itself are there unless the settings define one of the same name.``
   [settings-file reserved]
   (def jobs (configured-jobs settings-file))
+  (def pager (configured-pager settings-file))
   (eachk key settings-file
     (reject-unknown-setting "the top level" key settings-keys))
   (def settings (configured-repository-settings settings-file))
@@ -556,7 +570,7 @@
   (def commands @{})
   (eachp [name definition] (merge default-command-definitions definitions)
     (put commands name (command-from-definition name definition reserved)))
-  {:settings settings :jobs jobs :commands commands})
+  {:settings settings :jobs jobs :pager pager :commands commands})
 
 (defn settings-file-path
   "Return the path of config.jdn, or nil without a configuration directory."

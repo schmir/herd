@@ -317,14 +317,33 @@
   # NO_COLOR, when set to anything, asks programs not to color.
   (and (os/isatty stdout) (empty? (os/getenv "NO_COLOR" ""))))
 
+(defn- print-tree
+  ``Print the `lines` of a tree. Colored for a terminal, they go through the
+  `pager` command, run by the shell, unless it is false. The default, less,
+  shows the color, quits at once when the lines fit on the screen, and leaves
+  them there when it quits. Without a pager they are printed.``
+  [lines color? pager]
+  (def text (string/join (map (fn [line] (string line "\n")) lines)))
+  (def pager
+    (when (and pager color? (not (empty? lines)))
+      (try (os/spawn ["sh" "-c" pager] :p {:in :pipe}) ([_] nil))))
+  (if pager
+    (do
+      # The reader may quit before the end, which closes the pipe.
+      (try (:write (pager :in) text) ([_] nil))
+      (try (:close (pager :in)) ([_] nil))
+      (os/proc-wait pager))
+    (prin text)))
+
 (defn list-command
   ``Run `herd list`: print the selected repositories, one tab-separated path
   and URL per line, in the order the commands act on them. --ok, --missing
   and --extra pick what to print by comparing them with what is on disk,
   and print the extra ones after the configured ones. Without them, plain
   list prints every configured repository, and --status what differs.``
-  [args &opt repository-settings]
+  [args &opt repository-settings pager]
   (default repository-settings config/default-repository-settings)
+  (default pager config/default-pager)
   (def parsed
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}))
@@ -373,13 +392,15 @@
       (array/push rows {:status "extra" :path (repository :path)
                         :fields [(repository :path) (or (survey/remote-url repository) "")]})))
   (if (parsed "tree")
-    (each line (tree/render
-                 (tree/from-paths
-                   (map (fn [row] {:path (row :path)
-                                   :status (when show-status? (string (row :status)))})
-                        rows))
-                 (color-output?))
-      (print line))
+    (let [color? (color-output?)]
+      (print-tree (tree/render
+                    (tree/from-paths
+                      (map (fn [row] {:path (row :path)
+                                      :status (when show-status? (string (row :status)))})
+                           rows))
+                    color?)
+                  color?
+                  pager))
     (each row rows
       (emit (row :status) ;(row :fields)))))
 
@@ -417,8 +438,8 @@
   (def nodes
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
-  (each line (tree/render nodes (color-output?))
-    (print line)))
+  (let [color? (color-output?)]
+    (print-tree (tree/render nodes color?) color? (config :pager))))
 
 (defn custom-command-handler
   "Return a handler that uses description for help and runs command."
@@ -487,7 +508,7 @@
   The loaded config's per-file settings and job count are bound here so
   every handler starts from them, leaving the command line to override.``
   [config]
-  (def {:settings repository-settings :jobs jobs} config)
+  (def {:settings repository-settings :jobs jobs :pager pager} config)
   {"clone" {:run (fn [args] (clone-command args repository-settings jobs))
             :help "Check out the configured repositories beneath a path."}
    "completions" {:run (fn [args]
@@ -497,7 +518,7 @@
                                          (custom-commands config)))
                            (fn [] (named-filters/descriptions (get repository-settings :filters {})))))
                   :help "Print a shell completion script for herd."}
-   "list" {:run (fn [args] (list-command args repository-settings))
+   "list" {:run (fn [args] (list-command args repository-settings pager))
            :help "Print the configured repositories beneath a path."}
    "tree" {:run (fn [args] (tree-command args config))
            :help "Print the repositories as a tree of the filesystem."}
