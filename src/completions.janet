@@ -34,7 +34,7 @@ _herd() {
             COMPREPLY=($(compgen -d -- "$cur"))
             return ;;
         # A number cannot be completed, and flag names would be misleading.
-        -j|--jobs|-n|--limit|--max-depth)
+        -j|--jobs|-n|--limit|--sample|--max-depth)
             return ;;
         --show-output)
             COMPREPLY=($(compgen -W "`` (string/join run/show-output-conditions " ") ``" -- "$cur"))

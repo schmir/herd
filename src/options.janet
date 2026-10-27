@@ -23,6 +23,10 @@
   {:name "limit" :short "n" :kind :option :value-name "N"
    :help "Stop after the command has run in N repositories."})
 
+(def- sample
+  {:name "sample" :kind :option :value-name "PERCENT"
+   :help "Select repositories by clone URL hash: the first PERCENT%, or LOW:HIGH%."})
+
 (def- show-output
   {:name "show-output" :kind :option :value-name "WHEN"
    :help "Show command output: never, on-failure, or always."})
@@ -75,7 +79,7 @@
   (def selecting [at all-anchors filter-option help])
   (case command
     "clone" [;selecting jobs]
-    "list" [;selecting ;list-only dirty clean]
+    "list" [;selecting sample ;list-only dirty clean]
     "completions" [help]
     "tree" [help list-repositories]
-    [;selecting show-output jobs limit dirty clean]))
+    [;selecting sample show-output jobs limit dirty clean]))

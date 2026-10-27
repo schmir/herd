@@ -13,12 +13,12 @@
   "A command's options come in the order its help and its scripts list them."
   []
   (assert (deep= @["at" "all-anchors" "filter" "help" "jobs"] (names "clone")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "ok" "missing" "extra"
+  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "missing" "extra"
                    "status" "tree" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help" "repositories"] (names "tree")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs" "limit"
+  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "jobs" "limit"
                    "dirty" "clean"]
                  (names "run")))
   (assert (deep= (names "run") (names "a-command-from-config"))

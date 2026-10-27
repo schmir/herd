@@ -497,6 +497,30 @@ not checked out do not count:
 herd run -n 3 git pull
 ```
 
+`run`, `list`, and custom commands take `--sample PERCENT` to select only
+about that share of the repositories. A repository is picked when the CRC-32
+of its clone URL falls in the first PERCENT percent of the checksum's range,
+so every machine picks the same repositories, and a smaller sample is part
+of every larger one. `herd list --sample 10` shows what
+`herd run --sample 10` acts on:
+
+```sh
+herd list --sample 10
+herd run --sample 10 git pull
+```
+
+`--sample LOW:HIGH` picks the half-open range from LOW up to, but not
+including, HIGH percent, as a slice does. A missing LOW is 0 and a missing
+HIGH is 100, so `--sample 10` is short for `--sample :10`. Percentages are
+whole numbers. Ranges that meet share no repository, so a change can be
+rolled out in steps:
+
+```sh
+herd run --sample :10 git pull
+herd run --sample 10:50 git pull
+herd run --sample 50: git pull
+```
+
 ### Tree
 
 `herd tree` draws the filesystem the configuration describes: the

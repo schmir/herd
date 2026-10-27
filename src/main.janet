@@ -12,6 +12,7 @@
 (import ./parallel)
 (import ./process)
 (import ./run)
+(import ./sample)
 (import ./selection)
 (import ./survey)
 (import ./tree)
@@ -115,7 +116,7 @@
 
 (defn- explain-empty
   ``Say why `reason` says a selection is empty. Unless the reason is that the
-  state or the shell commands emptied it, `quiet?` leaves it out: where the
+  sample, the state or the shell commands emptied it, `quiet?` leaves it out: where the
   disk is searched as well, an empty selection would mislead, since the
   discovery can still turn up repositories.``
   [reason quiet?]
@@ -130,6 +131,10 @@
                              [])
                           ;(if (reason :commands?) ["-f"] [])]
                          " and "))
+
+    :emptied-by-sample
+    (eprint "No repository is left of the " (reason :of)
+            " selected by --sample " (sample/format (reason :sample)))
 
     :emptied-by-filters
     # Filtering can empty the configuration itself, before the location is
@@ -238,12 +243,20 @@
   (when-let [text (parsed "limit")]
     (exit-on-error "Invalid --limit: " (fn [] (parse-count text)))))
 
+(defn- sample-from
+  "Return the validated --sample range, nil without one, or report the mistake and exit."
+  [parsed]
+  (when-let [text (parsed "sample")]
+    (exit-on-error "Invalid --sample: " (fn [] (sample/parse text)))))
+
 (defn- selection-options
-  "The selection options `parsed` holds: where, from which anchors, and by which -f."
+  ``The selection options `parsed` holds: where, from which anchors, by which
+  -f, and which --sample.``
   [parsed]
   {:at-path (parsed "at")
    :all-anchors? (parsed "all-anchors")
-   :filter-values (or (parsed "filter") [])})
+   :filter-values (or (parsed "filter") [])
+   :sample (sample-from parsed)})
 
 (defn- state-from-flags
   "The state --dirty or --clean asks for, or nil. Asking for both is a mistake."

@@ -228,6 +228,7 @@ dist *platforms: build
     # Each native module the image registers, as jpm names its static entry.
     modules=(
         "src/access.c janet_module_entry_access"
+        "$spork/src/crc.c janet_module_entry_spork_47_crc"
         "$spork/src/json.c janet_module_entry_spork_47_json"
         "$spork/src/rawterm.c janet_module_entry_spork_47_rawterm"
     )

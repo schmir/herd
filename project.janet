@@ -28,6 +28,7 @@
          "src/parallel.janet"
          "src/process.janet"
          "src/run.janet"
+         "src/sample.janet"
          "src/selection.janet"
          "src/stages.janet"
          "src/survey.janet"

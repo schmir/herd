@@ -94,14 +94,14 @@
 (defn test-bash-offers-nothing-after-numeric-options
   "bash offers no completions where an option wants a number."
   []
-  (assert (string/find "-j|--jobs|-n|--limit|--max-depth)" (completions/script "bash"))
-          "bash returns no completions after -j, --jobs, -n, --limit and --max-depth"))
+  (assert (string/find "-j|--jobs|-n|--limit|--sample|--max-depth)" (completions/script "bash"))
+          "bash returns no completions after -j, --jobs, -n, --limit, --sample and --max-depth"))
 
 (defn test-bash-skips-option-values
   "The bash scanner skips the value of every option that takes one."
   []
   (def text (completions/script "bash"))
-  (each flag ["-C" "--at" "-f" "--filter" "-j" "--jobs" "-n" "--limit" "--show-output"]
+  (each flag ["-C" "--at" "-f" "--filter" "-j" "--jobs" "-n" "--limit" "--sample" "--show-output"]
     (assert (or (string/find (string flag "|") text)
                 (string/find (string flag ") ((i++))") text))
             (string "bash skips the value of " flag))))

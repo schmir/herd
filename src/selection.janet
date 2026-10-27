@@ -4,6 +4,7 @@
 (import ./named-filters)
 (import ./location)
 (import ./process)
+(import ./sample)
 (import ./stages)
 
 (defn- bare-word?
@@ -117,8 +118,13 @@
                      (location/containing-anchors (options :at-path) repositories)))
       (def located (location/locate-repositories-under-anchors
                      (options :at-path) repositories anchors))
+      # Sampling costs a checksum, so it comes before the stages, which look
+      # into the checkouts.
+      (def sampled (if-let [bounds (options :sample)]
+                     (sample/keep-sample located bounds)
+                     located))
       (def commands (chosen :checkout-commands))
-      (def narrowed (narrow-by-stages options located commands))
+      (def narrowed (narrow-by-stages options sampled commands))
       (def selected (narrowed :repositories))
       (if (narrowed :interrupted?)
         {:repositories [] :catalog catalog :chosen chosen :interrupted? true}
@@ -126,10 +132,15 @@
          :catalog catalog
          :chosen chosen
          :reason (when (empty? selected)
-                   (if (empty? located)
+                   (cond
+                     (empty? located)
                      (why-empty options list-filters settings repositories anchors)
-                     {:kind :emptied-by-state
+                     (empty? sampled)
+                     {:kind :emptied-by-sample
                       :of (length located)
+                      :sample (options :sample)}
+                     {:kind :emptied-by-state
+                      :of (length sampled)
                       :requested-state (options :requested-state)
                       :commands? (not (empty? commands))}))}))))
 
@@ -142,6 +153,8 @@
   containing the location. `:filter-values` are the values
   given with -f: a list filter narrows every repository list, and the rest
   are checkout filters or commands, which `:chosen` of the result lists.
+  `:sample`, a `[low high]` range of percentages, keeps only the repositories
+  sample/sampled? picks.
   `:requested-state`, :dirty or :clean, and
   the commands then narrow the repositories further, with `:jobs` at a time,
   and `:interrupted?` in the result says a stage was interrupted, in which case
