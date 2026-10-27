@@ -489,6 +489,14 @@ override how many repositories are worked on at the same time:
 herd clone -j 12
 ```
 
+`run`, `fetch`, and custom commands take `-n N` (or `--limit N`) to stop
+once the command has run in N repositories. Repositories that are skipped or
+not checked out do not count:
+
+```sh
+herd run -n 3 git pull
+```
+
 ### Tree
 
 `herd tree` draws the filesystem the configuration describes: the

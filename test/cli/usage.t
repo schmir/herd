@@ -57,6 +57,15 @@ An option another command has is unknown to list.
   Invalid --jobs: expected a positive integer no greater than 2147483647
   [1]
 
+--limit takes a positive integer too.
+
+  $ herd run -n 0 true
+  Invalid --limit: expected a positive integer no greater than 2147483647
+  [1]
+  $ herd fetch --limit some
+  Invalid --limit: expected a positive integer no greater than 2147483647
+  [1]
+
 --show-output takes one of three conditions.
 
   $ herd run --show-output sometimes true
@@ -86,7 +95,7 @@ Every command selects by location, anchor and filter, and those that work
 on repositories document their defaults.
 
   $ for command in clone fetch list run; do
-  >   herd $command --help | grep -E -e '-(C|a|f|j), |--show-output' | sed 's/  */ /g'
+  >   herd $command --help | grep -E -e '-(C|a|f|j|n), |--show-output' | sed 's/  */ /g'
   > done
    -a, --all-anchors Consider repositories from every configuration anchor.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
@@ -96,6 +105,7 @@ on repositories document their defaults.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
+   -n, --limit N Stop after the command has run in N repositories.
    --show-output WHEN=on-failure Show command output: never, on-failure, or always.
    -a, --all-anchors Consider repositories from every configuration anchor.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
@@ -104,6 +114,7 @@ on repositories document their defaults.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
+   -n, --limit N Stop after the command has run in N repositories.
    --show-output WHEN=on-failure Show command output: never, on-failure, or always.
 
 Asking for help in a cluster works only when every flag in it is known;

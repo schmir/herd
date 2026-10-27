@@ -165,13 +165,15 @@
   callback receives the repository and a reporter, and returns an outcome
   key. Errors and unknown outcomes count as :failed. The live progress block
   is drawn when stderr is a terminal, unless `live?` is given: false keeps the
-  run silent, apart from what it reports.
+  run silent, apart from what it reports. `stop?`, when given, is asked before
+  each repository is claimed, and once it answers true nothing more is.
 
-  Return `{:counts :interrupted? :summary}`: how many repositories ended in
-  each outcome, whether the terminal asked the run to stop, in which case
-  repositories it had not begun were left alone, and the counts as a line,
-  "2 succeeded, 1 failed", in the order the outcomes were declared.``
-  [repositories outcomes operation &opt jobs live?]
+  Return `{:counts :interrupted? :stopped? :summary}`: how many repositories
+  ended in each outcome, whether the terminal asked the run to stop, whether
+  `stop?` did while repositories were left, in either case repositories it had
+  not begun were left alone, and the counts as a line, "2 succeeded, 1
+  failed", in the order the outcomes were declared.``
+  [repositories outcomes operation &opt jobs live? stop?]
   (unless (some (fn [[key]] (= :failed key)) outcomes)
     (error "repository outcomes must include :failed"))
   (def total (length repositories))
@@ -183,10 +185,12 @@
   (def progress (make-progress total outcomes workers live?))
   (def cursor @[0])
   (watch-for-interrupt progress)
+  (defn stopping? []
+    (or (progress :interrupted?) (and stop? (stop?))))
   (defn worker [slot]
     # An interrupted run finishes what is in flight and claims nothing more.
     # A clone killed halfway leaves a checkout worse than a slow exit does.
-    (while (and (not (progress :interrupted?)) (< (cursor 0) total))
+    (while (and (not (stopping?)) (< (cursor 0) total))
       # Claiming an index does not yield, so workers cannot claim it twice.
       (def index (cursor 0))
       (put cursor 0 (inc index))
@@ -213,8 +217,13 @@
       (file/flush stderr))
     (ev/go-gather (seq [slot :range [0 workers]] (fn [] (worker slot)))))
   (def reached (reduce + 0 (values (progress :counts))))
-  (when (progress :interrupted?)
-    (eprint "Interrupted after " reached " of " total " repositories"))
+  (def stopped? (and (not (progress :interrupted?)) (< reached total)))
+  (cond
+    (progress :interrupted?)
+    (eprint "Interrupted after " reached " of " total " repositories")
+    stopped?
+    (eprint "Stopped after " reached " of " total " repositories"))
   {:counts (progress :counts)
    :interrupted? (progress :interrupted?)
+   :stopped? stopped?
    :summary ((tally progress) 1)})

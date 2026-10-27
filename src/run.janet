@@ -70,21 +70,25 @@
     (error "command must be a string, VCS-specific command, or argument vector")))
 
 (defn run-in-repository
-  "Run and capture a command in a repository without changing herd's cwd."
-  [repository command report &opt show-output]
+  ``Run and capture a command in a repository without changing herd's cwd.
+  `reserve`, when given, is called once the command is known to run here,
+  right before it starts.``
+  [repository command report &opt show-output reserve]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
     # A blocked path holds no working copy to run in, so it counts as not
     # checked out rather than as a place to run the command.
     (if (= :ok (checkout/checkout-status repository))
       (if-let [selected (argv-for-repository repository command)]
-        (let [result (process/capture
-                       ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                        "herd" (repository :path) ;selected]
-                       :p)
-              stdout (result :out)
-              stderr (result :err)
-              status (result :status)]
+        (do
+          (when reserve (reserve))
+          (def result (process/capture
+                        ["sh" "-c" `cd "$1" && shift && exec "$@"`
+                         "herd" (repository :path) ;selected]
+                        :p))
+          (def stdout (result :out))
+          (def stderr (result :err))
+          (def status (result :status))
           (def succeeded (zero? status))
           # A successful command that printed nothing has nothing to report:
           # its heading alone would only add noise. A failing one still needs
@@ -117,11 +121,24 @@
 
 (defn run-in-repositories
   ``Run a command in parallel and return what parallel/for-each-repository does,
-  with the succeeded, failed, no-command, and not-checked-out counts.``
-  [repositories command &opt show-output jobs]
+  with the succeeded, failed, no-command, and not-checked-out counts. With a
+  `limit`, the run stops once the command has run in that many repositories;
+  those it skips or finds not checked out do not count.``
+  [repositories command &opt show-output jobs limit]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
   (def block-separator @{:needed? false})
+  # A worker asks stop? before it claims a repository and reserves right
+  # before the command starts. Nothing in between yields, so no other worker
+  # can take the budget it saw, and the command runs at most `limit` times.
+  (def budget @{:left limit})
+  (defn reserve []
+    (when limit
+      (unless (pos? (budget :left))
+        (error "the run limit was used up before the command could start"))
+      (update budget :left dec)))
+  (defn stop? []
+    (and limit (zero? (budget :left))))
   (parallel/for-each-repository
     repositories
     [[:succeeded "succeeded"]
@@ -131,5 +148,8 @@
     (fn [repository report]
       (run-in-repository repository command
                          (fn [& args] (report-command-result block-separator report ;args))
-                         show-output))
-    jobs))
+                         show-output
+                         reserve))
+    jobs
+    nil
+    stop?))

@@ -206,11 +206,11 @@
     (explain-empty reason quiet?))
   result)
 
-(defn- parse-jobs
-  ``Return the job count named by `text`, or raise a descriptive error. It
-  arrives from the command line as a string, and is weighed against the range
-  parallel/for-each-repository accepts, so an out-of-range count fails here with
-  a message instead of there with a stack trace.``
+(defn- parse-count
+  ``Return the count named by `text`, or raise a descriptive error. It arrives
+  from the command line as a string, and is weighed against the range
+  parallel/for-each-repository accepts for jobs, so an out-of-range count fails
+  here with a message instead of there with a stack trace.``
   [text]
   (def parsed (scan-number text))
   (unless (parallel/jobs? parsed)
@@ -230,7 +230,13 @@
 (defn- jobs-from
   "Return the validated --jobs count, or report the mistake and exit."
   [parsed]
-  (exit-on-error "Invalid --jobs: " (fn [] (parse-jobs (parsed "jobs")))))
+  (exit-on-error "Invalid --jobs: " (fn [] (parse-count (parsed "jobs")))))
+
+(defn- limit-from
+  "Return the validated --limit count, nil without one, or report the mistake and exit."
+  [parsed]
+  (when-let [text (parsed "limit")]
+    (exit-on-error "Invalid --limit: " (fn [] (parse-count text)))))
 
 (defn- selection-options
   "The selection options `parsed` holds: where, from which anchors, and by which -f."
@@ -412,6 +418,7 @@
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
   (def jobs (jobs-from parsed))
+  (def limit (limit-from parsed))
   (def repositories
     ((select-or-exit
        (merge (selection-options parsed)
@@ -419,7 +426,7 @@
                :jobs jobs})
        repository-settings)
       :repositories))
-  (def result (run/run-in-repositories repositories command show-output jobs))
+  (def result (run/run-in-repositories repositories command show-output jobs limit))
   (print (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 

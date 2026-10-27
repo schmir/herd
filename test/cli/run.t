@@ -40,6 +40,21 @@ The command runs in the repository.
   |   $ROOT/home/src/web
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
+-n stops once the command has run in that many repositories. The rest are
+left alone, and herd says so.
+
+  $ herd run -j 1 -n 1 --show-output always pwd
+  \xe2\x9c\x93 $ROOT/home/src/api (esc)
+  | stdout
+  |   $ROOT/home/src/api
+  Stopped after 1 of 2 repositories
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+A limit the selection does not reach changes nothing.
+
+  $ herd run --limit 5 true
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
 A failing command is reported with its exit status and fails herd.
 
   $ herd run -j 1 sh -c 'echo oops >&2; exit 3'

@@ -121,6 +121,44 @@
   (sh/rm dir))
 
 (let [dir (fixture)
+      paths (map |(string dir "/repo" $) (range 5))]
+  (each path paths
+    (sh/create-dirs (string path "/.git")))
+  # The default job count is larger than the limit, so the workers race for it.
+  (def result (run/run-in-repositories (map repository paths) ["touch" "ran"]
+                                       nil nil 2))
+  (assert (= 2 ((result :counts) :succeeded))
+          "the command runs in as many repositories as the limit allows")
+  (assert (= 2 (count |(os/stat (string $ "/ran")) paths))
+          "the limit holds while several workers run")
+  (assert (result :stopped?) "a run the limit ended says so")
+  (sh/rm dir))
+
+(let [dir (fixture)
+      missing (string dir "/missing")
+      first (string dir "/first")
+      second (string dir "/second")]
+  (sh/create-dirs (string first "/.git"))
+  (sh/create-dirs (string second "/.git"))
+  (def result (run/run-in-repositories
+                [(repository missing) (repository first) (repository second)]
+                ["touch" "ran"] nil 1 1))
+  (assert (= 1 ((result :counts) :not-checked-out)))
+  (assert (= 1 ((result :counts) :succeeded))
+          "a repository that is not checked out does not count toward the limit")
+  (assert (os/stat (string first "/ran")))
+  (assert (nil? (os/stat (string second "/ran"))))
+  (sh/rm dir))
+
+(let [dir (fixture)
+      first (string dir "/first")]
+  (sh/create-dirs (string first "/.git"))
+  (def result (run/run-in-repositories [(repository first)] ["true"] nil nil 3))
+  (assert (= 1 ((result :counts) :succeeded)))
+  (assert (not (result :stopped?)) "a limit above the selection stops nothing")
+  (sh/rm dir))
+
+(let [dir (fixture)
       blocked (string dir "/blocked")]
   (sh/create-dirs blocked)
   (spit (string blocked "/notes") "")

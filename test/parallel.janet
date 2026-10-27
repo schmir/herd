@@ -127,6 +127,33 @@
 (assert (= "12 succeeded, 0 skipped, 0 failed" (result :summary)))
 (assert (= "2 succeeded, 0 skipped, 1 failed" (failed :summary)))
 
+# stop? is asked before each claim: once it answers true, what is in flight
+# finishes and nothing more is begun.
+(def begun @[])
+(def stopped
+  (parallel/for-each-repository
+    repositories outcomes
+    (fn [repository report]
+      (array/push begun (repository :path))
+      (ev/sleep 0.001)
+      :succeeded)
+    2 false
+    (fn [] (>= (length begun) 3))))
+
+(assert (= 3 (length begun)) "no repository is claimed once stop? is true")
+(assert (= 3 ((stopped :counts) :succeeded)) "what was begun is counted")
+(assert (stopped :stopped?) "a run stop? ended early says so")
+(assert (not (stopped :interrupted?)) "a stopped run was not interrupted")
+(assert (not (result :stopped?)) "a run that reached every repository was not stopped")
+
+(def stopped-at-end
+  (parallel/for-each-repository
+    (slice repositories 0 2) outcomes
+    (fn [repository report] :succeeded)
+    1 false
+    (fn [] false)))
+(assert (not (stopped-at-end :stopped?)) "a stop? that never answers true stops nothing")
+
 # An interrupt winds the run down: what is in flight finishes, nothing more is
 # begun, and the result says so. The operation sends the interrupt to this very
 # process, which the run has taken the signal for.

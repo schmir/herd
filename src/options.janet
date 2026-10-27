@@ -19,6 +19,10 @@
   {:name "jobs" :short "j" :kind :option :value-name "N"
    :help "Run at most N repository operations at the same time."})
 
+(def- limit
+  {:name "limit" :short "n" :kind :option :value-name "N"
+   :help "Stop after the command has run in N repositories."})
+
 (def- show-output
   {:name "show-output" :kind :option :value-name "WHEN"
    :help "Show command output: never, on-failure, or always."})
@@ -74,4 +78,4 @@
     "list" [;selecting ;list-only dirty clean]
     "completions" [help]
     "tree" [help list-repositories]
-    [;selecting show-output jobs dirty clean]))
+    [;selecting show-output jobs limit dirty clean]))

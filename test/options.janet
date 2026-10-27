@@ -18,7 +18,7 @@
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help" "repositories"] (names "tree")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"
+  (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs" "limit"
                    "dirty" "clean"]
                  (names "run")))
   (assert (deep= (names "run") (names "a-command-from-config"))
