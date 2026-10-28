@@ -80,6 +80,8 @@ settings:
 
  :pager "less -FXR"
 
+ :shell ["sh" "-c"]
+
  :checkout-defaults {:anchor "src" :vcs "jj"}
 
  :checkouts
@@ -100,10 +102,13 @@ settings:
 
 `:jobs` is the default number of operations run in parallel. `:pager` is the
 command, run by the shell, that trees are shown through on a terminal; it
-defaults to `less -FXR` and `false` turns the pager off. `:filters` names
-the JMESPath expressions and shell commands that
-[select repositories](#filters). Any other key at the top level is an error,
-so a misspelt setting is not silently ignored.
+defaults to `less -FXR` and `false` turns the pager off. `:shell` is the
+shell that the pager, custom commands and shell filters run in, written as
+the argument vector a command follows, like `["bash" "-c"]` or
+`["zsh" "-o" "pipefail" "-c"]`; it defaults to `["sh" "-c"]`. Its program is
+the command's `$0`. `:filters` names the JMESPath expressions and shell
+commands that [select repositories](#filters). Any other key at the top
+level is an error, so a misspelt setting is not silently ignored.
 
 `:checkouts` is where the repository lists are anchored. Each row takes one
 repository list, either named by `:list` as it is named in the configuration
@@ -330,15 +335,15 @@ A command is either a single `:command` string, or `:command-git` and
 `:command-jj` strings chosen by what the repository actually contains — a
 `.jj` directory selects the jj command, a `.git` directory the Git one. A
 repository whose VCS has no command is skipped. Commands run through
-`sh -c`, so pipes and `&&` work. Arguments after `--` are not herd's: they
-are handed to the shell as they are, as its positional parameters, and a
-command that wants them says where, with `"$@"` or `$1`. The built-in `diff`
-is `git diff HEAD "$@"` and `jj diff "$@"`, so `herd diff -- --stat` shows
-the stat. `:show-output` sets that command's default output condition; see
-[Use](#use). Custom names cannot shadow the built-in commands `clone`,
-`completions`, `list`, `run` and `tree`. `diff` and `fetch` are themselves
-custom commands herd defines by default, so an entry of the same name in
-`:commands` replaces them.
+`sh -c`, or the [`:shell`](#settings) configured, so pipes and `&&` work.
+Arguments after `--` are not herd's: they are handed to the shell as they
+are, as its positional parameters, and a command that wants them says where,
+with `"$@"` or `$1`. The built-in `diff` is `git diff HEAD "$@"` and
+`jj diff "$@"`, so `herd diff -- --stat` shows the stat. `:show-output` sets
+that command's default output condition; see [Use](#use). Custom names
+cannot shadow the built-in commands `clone`, `completions`, `list`, `run`
+and `tree`. `diff` and `fetch` are themselves custom commands herd defines
+by default, so an entry of the same name in `:commands` replaces them.
 
 ## Shell completions
 

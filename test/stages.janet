@@ -92,7 +92,9 @@
           "a missing path never matches, and runs nothing")
   (assert (try (do (stages/command-matches? repository "no-such-command-here") false)
             ([_] true))
-          "a command the shell cannot find raises"))
+          "a command the shell cannot find raises")
+  (assert (stages/command-matches? repository `[[ "$0" == bash ]]` ["bash" "-c"])
+          "the command runs in the shell it is given"))
 
 (defn test-filter-by-commands
   "Every command must hold, and the order of the repositories is kept."

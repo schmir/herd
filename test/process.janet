@@ -41,4 +41,18 @@
 (test-a-child-reads-what-it-is-given)
 (test-no-descriptor-outlives-a-capture)
 
+(defn test-shell-argv
+  "A command follows the shell vector, with its program as $0 and the arguments after."
+  []
+  (assert (deep= ["sh" "-c" "true" "sh"] (process/shell-argv "true" []))
+          "sh -c is the default shell")
+  (assert (deep= ["bash" "-e" "-c" `echo "$@"` "bash" "a b"]
+                 (process/shell-argv `echo "$@"` ["a b"] ["bash" "-e" "-c"]))
+          "a configured shell takes the command, its name as $0, then the arguments")
+  (assert (= "bash\n"
+             (string ((process/capture (process/shell-argv `echo "$0"` [] ["bash" "-c"]) :p) :out)))
+          "the command runs in the configured shell"))
+
+(test-shell-argv)
+
 (end-suite)

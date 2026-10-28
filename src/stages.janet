@@ -52,12 +52,13 @@
   ``Whether the shell `command` exits 0 in the repository. A repository with
   no working copy never matches, and the command is not run there. Status
   126 and 127 mean the shell could not run the command, which is a mistake
-  rather than a repository that does not match, so they raise.``
-  [repository command]
+  rather than a repository that does not match, so they raise. The command
+  runs in `shell`, as process/shell-argv takes it.``
+  [repository command &opt shell]
   (if (vcs/detect (repository :path))
     (let [result (process/capture
                    ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                    "herd" (repository :path) "sh" "-c" command]
+                    "herd" (repository :path) ;(process/shell-argv command [] shell)]
                    :p)]
       (when (index-of (result :status) [126 127])
         (error (string "cannot run " (describe command) ": "
@@ -67,10 +68,11 @@
 
 (defn filter-by-commands
   ``Keep the `repositories` where every one of the shell `commands` exits 0,
-  in their order. A command is not run once an earlier one has failed.``
-  [repositories commands &opt jobs]
+  in their order. A command is not run once an earlier one has failed. They
+  run in `shell`, as process/shell-argv takes it.``
+  [repositories commands &opt jobs shell]
   (keep-repositories repositories
                      (fn [repository]
-                       (all (fn [command] (command-matches? repository command))
+                       (all (fn [command] (command-matches? repository command shell))
                             commands))
                      jobs))

@@ -90,6 +90,13 @@ So are the settings in config.jdn. They are data, never run as code.
   Configuration error: $ROOT/home/.config/herd/config.jdn: :jobs must be a positive integer no greater than 2147483647
   [1]
 
+:shell is an argument vector, not a command string.
+
+  $ settings '{:shell "bash"}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :shell must be a non-empty array of non-empty strings, like ["bash" "-c"]
+  [1]
+  $ settings '{:shell ["bash" "-c"]}'
+
 Custom commands.
 
   $ settings '{:commands []}'

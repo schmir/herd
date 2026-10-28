@@ -5,6 +5,7 @@
 (import ./checkout)
 (import ./named-filters)
 (import ./parallel)
+(import ./process)
 (import ./run)
 (import ./vcs)
 
@@ -147,11 +148,22 @@
 
 (def default-repository-settings
   "Repository settings used when the settings file is absent."
-  {:checkout-defaults {} :checkouts [] :filters {}})
+  {:checkout-defaults {} :checkouts [] :filters {} :shell process/default-shell})
+
+(defn- configured-shell
+  ``Return the configured shell, the argument vector a command string is
+  appended to, or the default.``
+  [settings-file]
+  (def shell (get settings-file :shell process/default-shell))
+  (unless (and (indexed? shell) (not (empty? shell))
+               (all (fn [word] (and (string? word) (not (empty? word)))) shell))
+    (error `:shell must be a non-empty array of non-empty strings, like ["bash" "-c"]`))
+  shell)
 
 (defn configured-repository-settings
   ``Validate repository settings. The checkout rows keep the order they were
-  written in.``
+  written in. The shell the checkout filters, custom commands and pager run
+  in is kept with them, since everything that runs one is handed these.``
   [settings-file]
   (unless (dictionary? settings-file)
     (error "expected a JDN dictionary"))
@@ -173,7 +185,8 @@
                                           (inline-list-label index))))
   {:checkout-defaults defaults
    :checkouts checkout-rows
-   :filters filters})
+   :filters filters
+   :shell (configured-shell settings-file)})
 
 (defn checkout-rows-for-list
   ``Merge each checkout row of `name` with the defaults. Return the defaults alone
@@ -574,7 +587,7 @@
 
 (def- settings-keys
   "Keys the settings file may hold at its top level."
-  [:jobs :pager :checkout-defaults :checkouts :filters :commands])
+  [:jobs :pager :shell :checkout-defaults :checkouts :filters :commands])
 
 (defn prepare-settings
   ``Validate the raw settings of config.jdn and return `{:settings :jobs

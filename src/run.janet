@@ -43,29 +43,22 @@
     (array/push sections (string "| stderr\n" (indent-command-output stderr))))
   (string/join sections "\n"))
 
-(defn- shell-argv
-  ``The argument vector that runs the shell `command` with `arguments` as its
-  positional parameters, for the command to use as "$@", $1 and so on. They
-  are never part of the shell's input.``
-  [command arguments]
-  ["sh" "-c" command "sh" ;arguments])
-
 (defn with-arguments
   ``Return the configured `command`, a string or VCS-specific commands, with
-  each command string made an argument vector that passes `arguments` on to
-  it.``
-  [command arguments]
+  each command string made an argument vector that runs it in `shell` and
+  passes `arguments` on to it.``
+  [command arguments &opt shell]
   (if (string? command)
-    (shell-argv command arguments)
+    (process/shell-argv command arguments shell)
     (tabseq [[key selected] :pairs command]
-      key (shell-argv selected arguments))))
+      key (process/shell-argv selected arguments shell))))
 
 (defn argv-for-repository
   "Return the process command selected for repository."
   [repository command]
   (cond
     (string? command)
-    (shell-argv command [])
+    (process/shell-argv command [])
 
     (dictionary? command)
     (if-let [vcs-id (vcs/detect (repository :path))]
@@ -74,7 +67,7 @@
         (def selected (get command key))
         (cond
           (nil? selected) nil
-          (string? selected) (shell-argv selected [])
+          (string? selected) (process/shell-argv selected [])
           # A custom command given arguments has an argument vector each.
           (indexed? selected) selected
           (error (string "VCS-specific command needs a string " key))))

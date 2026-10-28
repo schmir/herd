@@ -79,8 +79,8 @@
   ``Keep the `repositories` in the `:requested-state` that `options` asks for,
   and where the checkout filter `commands` succeed. An interrupt during a stage
   ends the selection there, since what it kept is only some of what it would
-  have. Return `{:repositories :interrupted?}`.``
-  [options repositories commands]
+  have. The commands run in `shell`. Return `{:repositories :interrupted?}`.``
+  [options repositories commands shell]
   (var kept repositories)
   (var interrupted? false)
   (try
@@ -91,7 +91,7 @@
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?)))
       (when (and (not interrupted?) (not (empty? commands)))
-        (def stage (stages/filter-by-commands kept commands (options :jobs)))
+        (def stage (stages/filter-by-commands kept commands (options :jobs) shell))
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?))))
     ([err] (error {:stage-error err})))
@@ -124,7 +124,7 @@
                      (sample/keep-sample located bounds)
                      located))
       (def commands (chosen :checkout-commands))
-      (def narrowed (narrow-by-stages options sampled commands))
+      (def narrowed (narrow-by-stages options sampled commands (get settings :shell)))
       (def selected (narrowed :repositories))
       (if (narrowed :interrupted?)
         {:repositories [] :catalog catalog :chosen chosen :interrupted? true}

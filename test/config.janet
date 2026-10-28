@@ -108,7 +108,8 @@
 (assert-error "an unknown top-level setting is refused"
               (prepare {:defaults {:vcs "git"}}))
 (assert-no-error "every known top-level setting is accepted"
-                 (prepare {:jobs 2 :pager false :checkout-defaults {} :checkouts []
+                 (prepare {:jobs 2 :pager false :shell ["sh" "-c"]
+                           :checkout-defaults {} :checkouts []
                            :filters {} :commands {}}))
 (assert-error "the custom command collection must be a dictionary"
               (prepare {:commands []}))
@@ -196,6 +197,17 @@
     (assert-error (string "a pager rejects " (describe invalid))
                   (prepare {:pager invalid}))))
 (test-pager-setting)
+(defn test-shell-setting
+  "The shell defaults to sh -c, and :shell can name another argument vector."
+  []
+  (assert (deep= ["sh" "-c"] (get-in (prepare {}) [:settings :shell]))
+          "sh -c is the default shell")
+  (assert (deep= ["bash" "-c"] (get-in (prepare {:shell ["bash" "-c"]}) [:settings :shell]))
+          "a shell can be configured")
+  (each invalid ["bash" [] ["bash" ""] ["bash" :c] {:bash "-c"}]
+    (assert-error (string "a shell rejects " (describe invalid))
+                  (prepare {:shell invalid}))))
+(test-shell-setting)
 (each invalid [0 -2 1.5 "4" :four 2147483648]
   (assert-error (string "a configured job count rejects " (describe invalid))
                 (prepare {:jobs invalid})))

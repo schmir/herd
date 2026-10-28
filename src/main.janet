@@ -338,14 +338,14 @@
 
 (defn- print-tree
   ``Print the `lines` of a tree. Colored for a terminal, they go through the
-  `pager` command, run by the shell, unless it is false. The default, less,
+  `pager` command, run by `shell`, unless it is false. The default, less,
   shows the color, quits at once when the lines fit on the screen, and leaves
   them there when it quits. Without a pager they are printed.``
-  [lines color? pager]
+  [lines color? pager &opt shell]
   (def text (string/join (map (fn [line] (string line "\n")) lines)))
   (def pager
     (when (and pager color? (not (empty? lines)))
-      (try (os/spawn ["sh" "-c" pager] :p {:in :pipe}) ([_] nil))))
+      (try (os/spawn (process/shell-argv pager [] shell) :p {:in :pipe}) ([_] nil))))
   (if pager
     (do
       # The reader may quit before the end, which closes the pipe.
@@ -419,7 +419,8 @@
                            rows))
                     color?)
                   color?
-                  pager))
+                  pager
+                  (get repository-settings :shell)))
     (each row rows
       (emit (row :status) ;(row :fields)))))
 
@@ -459,7 +460,8 @@
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
   (let [color? (color-output?)]
-    (print-tree (tree/render nodes color?) color? (config :pager))))
+    (print-tree (tree/render nodes color?) color? (config :pager)
+                (get-in config [:settings :shell]))))
 
 (defn custom-command-handler
   ``Return a handler that uses description for help and runs command. The
@@ -477,7 +479,9 @@
                      {"show-output" show-output
                       "jobs" (string (or jobs parallel/default-jobs))}))
     (def arguments (if separator (slice args (inc separator)) []))
-    (run-selected (run/with-arguments command arguments) parsed repository-settings)))
+    (run-selected (run/with-arguments command arguments
+                                      (get repository-settings :shell))
+                  parsed repository-settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."

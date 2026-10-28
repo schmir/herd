@@ -47,3 +47,17 @@
       (:read (process :err) :all stderr)
       (:wait process))
     {:status (process :return-code) :out stdout :err stderr}))
+
+(def default-shell
+  ``The argument vector a command string is run with, unless :shell in
+  config.jdn names another.``
+  ["sh" "-c"])
+
+(defn shell-argv
+  ``The argument vector that runs the shell `command` with `arguments` as its
+  positional parameters, for the command to use as "$@", $1 and so on. They
+  are never part of the shell's input. `shell` is the vector the command
+  follows, `default-shell` unless given; its program is the command's $0.``
+  [command arguments &opt shell]
+  (default shell default-shell)
+  [;shell command (first shell) ;arguments])

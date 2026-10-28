@@ -496,5 +496,8 @@
 (assert (deep= @{:command-git ["sh" "-c" "git log" "sh" "-1"]}
                (run/with-arguments {:command-git "git log"} ["-1"]))
         "arguments are passed to each VCS-specific command")
+(assert (deep= ["bash" "-c" "git diff" "bash" "--stat"]
+               (run/with-arguments "git diff" ["--stat"] ["bash" "-c"]))
+        "a configured shell runs the command")
 
 (end-suite)

@@ -156,3 +156,22 @@ so nothing runs or fetches there.
   notes
   $ herd fetch -C src/docs
   0 succeeded, 0 failed, 0 skipped, 1 not checked out
+
+:shell names the shell the commands run in, as the argument vector each
+command follows; its program is the command's $0. Checkout filters given
+with -f run in it too.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:shell ["bash" "-c"]
+  >  :commands
+  >  {"shell" {:command "printf '%s %s\\n' \"$0\" \"$1\""
+  >            :description "Print the shell."
+  >            :show-output "always"}}}
+  > EOF
+  $ herd shell -C src/web -- arg
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | stdout
+  |   bash arg
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd list -f '[[ $0 == bash ]]' -C src/web
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
