@@ -116,6 +116,33 @@ A Git checkout has no command in jj-only, so it is skipped.
   $ herd jj-only
   0 succeeded, 0 failed, 2 skipped, 0 not checked out
 
+Arguments after -- are not herd's: the command gets them as they are, as
+the shell's positional parameters, and one looking like an option is passed
+on.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:commands
+  >  {"words" {:command "printf '<%s>\\n' first \"$@\""
+  >            :description "Print each word."
+  >            :show-output "always"}}}
+  > EOF
+  $ herd words -C src/web -- --help "it's" 'a  $HOME' ''
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | stdout
+  |   <first>
+  |   <--help>
+  |   <it's>
+  |   <a  $HOME>
+  |   <>
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd words --help | grep Usage
+   Usage: herd words [option] ... [-- ARG...]
+
+Without --, an argument is a mistake.
+
+  $ herd words src/web 2>&1 | head -1
+  usage error: could not handle option src/web
+
 A directory holding something that is not a repository is not a checkout,
 so nothing runs or fetches there.
 

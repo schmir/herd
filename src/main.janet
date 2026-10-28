@@ -462,15 +462,22 @@
     (print-tree (tree/render nodes color?) color? (config :pager))))
 
 (defn custom-command-handler
-  "Return a handler that uses description for help and runs command."
+  ``Return a handler that uses description for help and runs command. The
+  arguments after the first `--` are not herd's: they are passed on to the
+  command.``
   [command description &opt show-output jobs repository-settings]
   (def show-output (or show-output run/default-show-output))
   (fn [args]
+    (def separator (index-of "--" args))
     (def parsed
-      (parse-command args "run" description
+      (parse-command (if separator (slice args 0 separator) args)
+                     "run"
+                     (string description "\n\n Usage: herd " (args 0)
+                             " [option] ... [-- ARG...]")
                      {"show-output" show-output
                       "jobs" (string (or jobs parallel/default-jobs))}))
-    (run-selected command parsed repository-settings)))
+    (def arguments (if separator (slice args (inc separator)) []))
+    (run-selected (run/with-arguments command arguments) parsed repository-settings)))
 
 (defn run-command
   "Run herd run with the command and repository selection in args."

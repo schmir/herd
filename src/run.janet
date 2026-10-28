@@ -43,24 +43,41 @@
     (array/push sections (string "| stderr\n" (indent-command-output stderr))))
   (string/join sections "\n"))
 
+(defn- shell-argv
+  ``The argument vector that runs the shell `command` with `arguments` as its
+  positional parameters, for the command to use as "$@", $1 and so on. They
+  are never part of the shell's input.``
+  [command arguments]
+  ["sh" "-c" command "sh" ;arguments])
+
+(defn with-arguments
+  ``Return the configured `command`, a string or VCS-specific commands, with
+  each command string made an argument vector that passes `arguments` on to
+  it.``
+  [command arguments]
+  (if (string? command)
+    (shell-argv command arguments)
+    (tabseq [[key selected] :pairs command]
+      key (shell-argv selected arguments))))
+
 (defn argv-for-repository
   "Return the process command selected for repository."
   [repository command]
   (cond
     (string? command)
-    ["sh" "-c" command]
+    (shell-argv command [])
 
     (dictionary? command)
     (if-let [vcs-id (vcs/detect (repository :path))]
       (do
         (def key (vcs/command-key vcs-id))
         (def selected (get command key))
-        (if (nil? selected)
-          nil
-          (do
-            (unless (string? selected)
-              (error (string "VCS-specific command needs a string " key)))
-            ["sh" "-c" selected])))
+        (cond
+          (nil? selected) nil
+          (string? selected) (shell-argv selected [])
+          # A custom command given arguments has an argument vector each.
+          (indexed? selected) selected
+          (error (string "VCS-specific command needs a string " key))))
       (error "repository has no .git or .jj metadata"))
 
     # herd run passes an argument vector instead of a configured command.

@@ -488,4 +488,13 @@
                  (process/find-executable "herd-test-shadow"))
               "a file that cannot be run does not shadow one that can"))))
 
+(assert (deep= ["sh" "-c" "git diff" "sh"] (run/with-arguments "git diff" []))
+        "without arguments a command runs as it would anyway")
+(assert (deep= ["sh" "-c" `printf %s "$@"` "sh" "it's" "$HOME" "" "a b"]
+               (run/with-arguments `printf %s "$@"` ["it's" "$HOME" "" "a b"]))
+        "the arguments are handed to sh, not written into the command")
+(assert (deep= @{:command-git ["sh" "-c" "git log" "sh" "-1"]}
+               (run/with-arguments {:command-git "git log"} ["-1"]))
+        "arguments are passed to each VCS-specific command")
+
 (end-suite)
