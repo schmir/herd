@@ -187,7 +187,7 @@ set at three levels, and the innermost one that names it wins:
 | the checkout   | `:vcs` on a `:checkouts` row       |
 | every checkout | `:vcs` in `:checkout-defaults`     |
 
-A repository no level settles is checked out with `jj`.
+A repository no level settles is checked out with `git`.
 
 The row is where a location, rather than a repository, decides. With the
 settings above, one `team/api` entry in `work.json` becomes a jj working

@@ -72,7 +72,7 @@ forms each expects, and moves the clone into place once it succeeds.
   jj-repo
 
 The VCS is settled by the entry, then the :checkouts row, then :checkout-defaults,
-and a checkout none of them settles uses jj.
+and a checkout none of them settles uses git.
 
   $ cat >"$CONFIG/repos.json" <<'EOF'
   > [{"path": "plain", "ssh_url": "u"},
@@ -97,4 +97,4 @@ and a checkout none of them settles uses jj.
   $ rm -f "$ROOT/git.args" "$ROOT/jj.args"
   $ herd clone -C plain > /dev/null
   $ ls "$ROOT" | sed -n 's/\.args$//p'
-  jj
+  git

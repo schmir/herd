@@ -10,7 +10,7 @@
 
 (def default
   "The VCS used for repositories that do not select one."
-  :vcs/jj)
+  :vcs/git)
 
 (defn- unsupported
   "Raise for a VCS herd does not know."

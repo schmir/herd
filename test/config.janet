@@ -328,8 +328,8 @@
   (assert (deep= @["/anchor"] ((entries 0) :anchors))
           "resolved entries retain their configuration anchor")
   (assert (= "u" ((entries 0) :clone-url)) "the rest of the entry survives")
-  (assert (= :vcs/jj ((entries 0) :vcs))
-          "a checkout no level settles is a jj checkout"))
+  (assert (= :vcs/git ((entries 0) :vcs))
+          "a checkout no level settles is a git checkout"))
 
 (let [entries (config/resolve-repository-paths
                 [{:path "org/team/repo" :clone-url "relative"}
@@ -920,16 +920,16 @@
 
   # Two files may name one checkout only while they agree on every checkout
   # option, not merely on the URL. src/alpha carries no vcs of its own above,
-  # so it is checked out with the default jj.
+  # so it is checked out with the default git.
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
-                  :vcs "git"}])
+                  :vcs "jj"}])
   (assert-error "a duplicate disagreeing about the vcs is refused"
                 (config/load-repository-lists (config/discover-repository-lists configuration)))
 
   (write-config (string configuration "/agrees.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"
-                  :vcs "jj"}])
+                  :vcs "git"}])
   (assert (= 3 (length (config/load-repository-lists (config/discover-repository-lists configuration))))
           "a duplicate naming the vcs it already has is dropped")
 

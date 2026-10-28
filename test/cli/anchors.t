@@ -144,7 +144,7 @@ while a row that names an anchor still places its list.
 
 Two lists may name one checkout while they agree on its URL and how it is
 checked out, and are refused when they do not. src/alpha carries no vcs of
-its own, so it is a jj checkout.
+its own, so it is a git checkout.
 
   $ echo '[{"path": "src/alpha", "ssh_url": "alpha"}]' >"$CONFIG/a.json"
   $ echo '[{"path": "src/alpha", "ssh_url": "alpha"}]' >"$CONFIG/agrees.json"
@@ -154,11 +154,11 @@ its own, so it is a jj checkout.
   $ herd list
   Configuration error: $ROOT/home/.config/herd/a.json and $ROOT/home/.config/herd/agrees.json disagree on the URL for $ROOT/home/src/alpha
   [1]
-  $ echo '[{"path": "src/alpha", "ssh_url": "alpha", "vcs": "git"}]' >"$CONFIG/agrees.json"
+  $ echo '[{"path": "src/alpha", "ssh_url": "alpha", "vcs": "jj"}]' >"$CONFIG/agrees.json"
   $ herd list
   Configuration error: $ROOT/home/.config/herd/a.json and $ROOT/home/.config/herd/agrees.json disagree on the vcs for $ROOT/home/src/alpha
   [1]
-  $ echo '[{"path": "src/alpha", "ssh_url": "alpha", "vcs": "jj"}]' >"$CONFIG/agrees.json"
+  $ echo '[{"path": "src/alpha", "ssh_url": "alpha", "vcs": "git"}]' >"$CONFIG/agrees.json"
   $ herd list
   $ROOT/home/src/alpha\talpha (esc)
   $ rm "$CONFIG"/*.json

@@ -18,7 +18,7 @@
   (assert (not (or (vcs/known? "svn") (vcs/known? :jj) (vcs/known? nil)
                    (vcs/known? :vcs/git)))
           "anything else is not, a keyword included")
-  (assert (= :vcs/jj vcs/default) "a repository that selects none uses jj")
+  (assert (= :vcs/git vcs/default) "a repository that selects none uses git")
   (assert (deep= @[".jj" ".git"] (vcs/marker-names))
           "the markers come in the order that decides, jj first"))
 
