@@ -226,6 +226,12 @@ dist *platforms: build
         exit 1
     fi
     # Each native module the image registers, as jpm names its static entry.
+    # A module loaded as a .so exports janet_module_entry, but linked into one
+    # binary they would clash, so each is compiled with JANET_ENTRY_NAME set to
+    # a name of its own. jpm makes it from the module name: it prefixes
+    # janet_module_entry_ and writes any byte that is not a letter, digit or _
+    # as _<decimal code>_, so spork/crc, with / being 47, becomes
+    # janet_module_entry_spork_47_crc. build/herd.c calls it by that name.
     modules=(
         "src/access.c janet_module_entry_access"
         "$spork/src/crc.c janet_module_entry_spork_47_crc"
