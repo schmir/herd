@@ -124,10 +124,13 @@
     (file/flush stderr)))
 
 (defn- report
-  "Write one message above the live block, then redraw it."
-  [progress & xs]
+  ``Write one message to `stream` above the live block, then redraw it. The
+  message is flushed first, so a stream that is not a terminal cannot hold it
+  back past the block drawn after it.``
+  [progress stream & xs]
   (erase progress)
-  (eprint ;xs)
+  (xprint stream ;xs)
+  (file/flush stream)
   (draw progress))
 
 (defn- animate
@@ -167,15 +170,18 @@
   is drawn when stderr is a terminal, unless `live?` is given: false keeps the
   run silent, apart from what it reports. `stop?`, when given, is asked before
   each repository is claimed, and once it answers true nothing more is.
+  What the callback reports goes to `output`, stderr unless given; what goes
+  wrong in running it is reported on stderr.
 
   Return `{:counts :interrupted? :stopped? :summary}`: how many repositories
   ended in each outcome, whether the terminal asked the run to stop, whether
   `stop?` did while repositories were left, in either case repositories it had
   not begun were left alone, and the counts as a line, "2 succeeded, 1
   failed", in the order the outcomes were declared.``
-  [repositories outcomes operation &opt jobs live? stop?]
+  [repositories outcomes operation &opt jobs live? stop? output]
   (unless (some (fn [[key]] (= :failed key)) outcomes)
     (error "repository outcomes must include :failed"))
+  (default output stderr)
   (def total (length repositories))
   # Only an absent count falls back, so a supplied bad one still raises.
   (default jobs default-jobs)
@@ -199,12 +205,12 @@
       (draw progress)
       (var outcome
         (try
-          (operation repository (fn [& args] (report progress ;args)))
+          (operation repository (fn [& args] (report progress output ;args)))
           ([err]
-            (report progress (repository :path) ": " err)
+            (report progress stderr (repository :path) ": " err)
             :failed)))
       (when (nil? (get (progress :counts) outcome))
-        (report progress (repository :path) ": operation returned unknown outcome " outcome)
+        (report progress stderr (repository :path) ": operation returned unknown outcome " outcome)
         (set outcome :failed))
       (put (progress :active) slot nil)
       (update (progress :counts) outcome inc)

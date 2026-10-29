@@ -505,6 +505,11 @@ Repositories that are not checked out are skipped rather than counted as
 failures, so `herd run` is safe to use before everything has been cloned. A
 blocked path holds no repository, so it counts as not checked out too.
 
+The results are what the commands produced, so they go to stdout, while the
+progress and the summary go to stderr; `clone` reports each repository and
+its summary the same way. `herd diff | less` pages the diffs,
+`herd run … > out` keeps the results, and `2>/dev/null` leaves only them.
+
 `clone`, `fetch`, `run`, and custom commands take `-j N` (or `--jobs N`) to
 override how many repositories are worked on at the same time:
 

@@ -310,13 +310,15 @@
       (:read (process :err) :all errors)
       (:wait process))
     (assert (= 0 (process :return-code)) "always run succeeds")
-    (assert (string/find (string "✓ " root "/first") errors)
-            "always reports a successful repository")
-    (assert (string/find (string "✓ " root "/first\n| shown") errors)
-            "always reports successful command output")
+    (assert (string/find (string "✓ " root "/first") output)
+            "always reports a successful repository on stdout")
+    (assert (string/find (string "✓ " root "/first\n| shown") output)
+            "always reports successful command output on stdout")
     (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
-                         output)
-            "run reports repositories that are not checked out"))
+                         errors)
+            "run reports its counts on stderr")
+    (assert (not (string/find "succeeded" output))
+            "the counts are not mixed into the command output"))
   (with [process
          (os/spawn [(path/join (os/cwd) "build/herd")
                     "run" "--at" root "--show-output" "always" "true"]
@@ -328,11 +330,11 @@
       (:read (process :err) :all errors)
       (:wait process))
     (assert (= 0 (process :return-code)) "a silent always run succeeds")
-    (assert (empty? (string errors))
+    (assert (empty? (string output))
             (string "always prints nothing for a command without output: "
-                    errors))
+                    output))
     (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
-                         output)
+                         errors)
             "a silent run still reports its counts"))
   (os/setenv "HOME" home)
   (os/setenv "XDG_CONFIG_HOME" xdg)
@@ -427,12 +429,12 @@
               (string "an interrupted run says how far it got: " errors))
       # The point of winding down rather than stopping dead: whatever was in
       # flight is finished and counted, and the rest is never begun.
-      (assert (string/find "succeeded" (string output))
-              (string "an interrupted run still reports its counts: " output))
+      (assert (string/find "succeeded" (string errors))
+              (string "an interrupted run still reports its counts: " errors))
       (assert (not (string/find (string (length names) " succeeded")
-                                (string output)))
+                                (string errors)))
               (string "an interrupted run does not reach every repository: "
-                      output))))
+                      errors))))
   (sh/rm dir))
 
 # find-executable answers for the user herd runs as, which the permission

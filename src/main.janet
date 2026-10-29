@@ -289,7 +289,7 @@
   (def repositories
     ((select-or-exit (selection-options parsed) repository-settings) :repositories))
   (def result (clone/clone-repositories repositories jobs))
-  (print (result :summary))
+  (eprint (result :summary))
   # A blocked repository was asked for and is still not checked out.
   (exit-unless-complete
     result (pos? (+ ((result :counts) :failed) ((result :counts) :blocked)))))
@@ -446,10 +446,11 @@
                :jobs jobs})
        repository-settings)
       :repositories))
-  # The results are reported on stderr, above the progress block.
+  # The results are what the commands produced, so they go to stdout, and
+  # what herd says about the run goes to stderr.
   (def result (run/run-in-repositories repositories command show-output jobs
-                                       limit (color-output? stderr)))
-  (print (result :summary))
+                                       limit (color-output?)))
+  (eprint (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 
 (defn tree-command

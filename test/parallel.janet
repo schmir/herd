@@ -77,6 +77,18 @@
 (assert (= 1 ((failed :counts) :failed)) "an operation error counts as a failure")
 (assert (= 3 (length completed)) "an error does not stop later work")
 
+(with [output (file/temp)]
+  (parallel/for-each-repository
+    (slice repositories 0 2) outcomes
+    (fn [repository report]
+      (if (= "/repo/1" (repository :path))
+        (error "planned failure")
+        (do (report "reported " (repository :path)) :succeeded)))
+    1 false nil output)
+  (file/seek output :set 0)
+  (assert (= "reported /repo/0\n" (string (file/read output :all)))
+          "what an operation reports goes to the given output, and its errors do not"))
+
 (assert-error "a misplaced live flag is rejected instead of hanging"
               (parallel/make-progress 3 outcomes false))
 (assert-error "a fractional job count is rejected"

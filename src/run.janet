@@ -165,8 +165,9 @@
   ``Run a command in parallel and return what parallel/for-each-repository does,
   with the succeeded, failed, no-command, and not-checked-out counts. With a
   `limit`, the run stops once the command has run in that many repositories;
-  those it skips or finds not checked out do not count. With `color?`, the
-  results are printed in color.``
+  those it skips or finds not checked out do not count. The results are
+  printed to stdout, as what the command produced, and with `color?` in
+  color.``
   [repositories command &opt show-output jobs limit color?]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
@@ -196,4 +197,5 @@
                          color?))
     jobs
     nil
-    stop?))
+    stop?
+    stdout))

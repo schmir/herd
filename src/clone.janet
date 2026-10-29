@@ -76,8 +76,9 @@
 
 (defn clone-repositories
   ``Clone repositories with their selected VCS and limit concurrent processes.
-  Return what parallel/for-each-repository does, with the cloned, present,
-  blocked, and failed counts.``
+  What happened to each repository is reported on stdout. Return what
+  parallel/for-each-repository does, with the cloned, present, blocked, and
+  failed counts.``
   [repositories &opt jobs]
   (def executables
     (tabseq [name :in (vcs/names)]
@@ -104,4 +105,7 @@
           (report "Clone failed: " (repository :path) ": "
                   (vcs/name vcs-id) " was not found on PATH")
           :failed)))
-    jobs))
+    jobs
+    nil
+    nil
+    stdout))
