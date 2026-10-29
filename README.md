@@ -350,12 +350,23 @@ repository whose VCS has no command is skipped. Commands run through
 `sh -c`, or the [`:shell`](#settings) configured, so pipes and `&&` work.
 Arguments after `--` are not herd's: they are handed to the shell as they
 are, as its positional parameters, and a command that wants them says where,
-with `"$@"` or `$1`. The built-in `diff` is `git diff HEAD "$@"` and
-`jj diff "$@"`, so `herd diff -- --stat` shows the stat. `:show-output` sets
-that command's default output condition; see [Use](#use). Custom names
-cannot shadow the built-in commands `clone`, `completions`, `list`, `run`
-and `tree`. `diff` and `fetch` are themselves custom commands herd defines
-by default, so an entry of the same name in `:commands` replaces them.
+with `"$@"` or `$1`. A command finds the repository it runs in described in
+its environment: `HERD_REPO_ANCHOR` is the [anchor](#anchors) it lies
+beneath, `HERD_REPO_PATH` its path there as the repository list gives it
+after `:strip-components`, absolute only when the list's is, `HERD_REPO_URL`
+the URL it is cloned from and `HERD_REPO_VCS` `git` or `jj`. `HERD_AT_PATH`
+is where the repositories were selected from, `-C` or the working directory,
+and `HERD_REPO_RELPATH` the repository's path relative to it: `.` for the
+repository at that location and `..` or further up for one containing it.
+Both have their symlinks resolved, as selection compares them. `HERD_COLOR`
+is `always` when herd prints in color and `never` when it does not, so a
+command can color what herd captures the way herd colors its own output. The
+built-in `diff` is `git diff HEAD "$@"` and `jj diff "$@"`, so
+`herd diff -- --stat` shows the stat. `:show-output` sets that command's
+default output condition; see [Use](#use). Custom names cannot shadow the
+built-in commands `clone`, `completions`, `list`, `run` and `tree`. `diff`
+and `fetch` are themselves custom commands herd defines by default, so an
+entry of the same name in `:commands` replaces them.
 
 ## Shell completions
 

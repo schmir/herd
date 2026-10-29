@@ -431,6 +431,10 @@
                 @[{:path "/anchor" :strip-components 0}])]
   (assert (= "/anchor/rel" ((entries 0) :path)) "a relative path joins the anchor")
   (assert (= "/already/absolute" ((entries 1) :path)) "an absolute path is left alone")
+  (assert (= "rel" ((entries 0) :anchored-path))
+          "a relative path stays relative beneath its anchor")
+  (assert (= "/already/absolute" ((entries 1) :anchored-path))
+          "an absolute path stays absolute beneath its anchor")
   (assert (deep= @["/anchor"] ((entries 0) :anchors))
           "resolved entries retain their configuration anchor")
   (assert (= "u" ((entries 0) :clone-url)) "the rest of the entry survives")
@@ -443,7 +447,10 @@
                 @[{:path "/anchor" :strip-components 1}])]
   (assert (deep= @["/anchor/team/repo" "/anchor/other/repo"]
                  (map (fn [repository] (repository :path)) entries))
-          "stripping makes relative and absolute paths relative to the anchor"))
+          "stripping makes relative and absolute paths relative to the anchor")
+  (assert (deep= @["team/repo" "other/repo"]
+                 (map (fn [repository] (repository :anchored-path)) entries))
+          "the anchored path is what stripping leaves"))
 
 (let [message
       (error-message

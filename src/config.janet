@@ -279,6 +279,9 @@
                     (merge settled
                            {:vcs (vcs/parse (settled :vcs))
                             :path (path/abspath listed-path)
+                            # The path as it stands beneath its anchor, for
+                            # the commands that run there to be told.
+                            :anchored-path listed-path
                             :anchors @[(placement :path)]})))))
   resolved)
 

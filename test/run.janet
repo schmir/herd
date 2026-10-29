@@ -511,4 +511,39 @@
                (run/with-arguments "git diff" ["--stat"] ["bash" "-c"]))
         "a configured shell runs the command")
 
+(let [dir (fixture)
+      jj-repository (string dir "/jj")]
+  (sh/create-dirs (string jj-repository "/.jj"))
+  (def env (run/command-environment {:path jj-repository
+                                     :anchored-path "jj"
+                                     :anchors @[dir "/elsewhere"]
+                                     :clone-url "git@example.com:jj.git"}
+                                    true))
+  (assert (= "jj" (env "HERD_REPO_PATH")) "the path is the one beneath the anchor")
+  (assert (= dir (env "HERD_REPO_ANCHOR")) "the anchor is the repository's first")
+  (assert (= "git@example.com:jj.git" (env "HERD_REPO_URL")) "the URL is the one cloned from")
+  (assert (= "jj" (env "HERD_REPO_VCS")) "the VCS is what the repository contains")
+  (assert (= "always" (env "HERD_COLOR")) "with color, a command is asked to color")
+  (assert (= (os/getenv "PATH") (env "PATH")) "herd's own environment is kept")
+  (def bare (run/command-environment {:path jj-repository} false))
+  (assert (= "never" (bare "HERD_COLOR")) "without color, a command is asked not to color")
+  (assert (= jj-repository (bare "HERD_REPO_PATH"))
+          "without an anchor, the path is the absolute one")
+  (assert (= "" (bare "HERD_REPO_ANCHOR")) "without an anchor, the anchor is empty")
+  (def resolved-dir (location/resolved-path dir))
+  (def beneath (run/command-environment {:path jj-repository} false dir))
+  (assert (= resolved-dir (beneath "HERD_AT_PATH"))
+          "the location is the one selected from")
+  (assert (= "jj" (beneath "HERD_REPO_RELPATH"))
+          "a repository beneath the location is a path beneath it")
+  (assert (= "." ((run/command-environment {:path jj-repository} false jj-repository)
+                   "HERD_REPO_RELPATH"))
+          "the repository at the location is .")
+  (def inside (string jj-repository "/sub"))
+  (sh/create-dirs inside)
+  (assert (= ".." ((run/command-environment {:path jj-repository} false inside)
+                    "HERD_REPO_RELPATH"))
+          "a repository containing the location lies above it")
+  (sh/rm dir))
+
 (end-suite)

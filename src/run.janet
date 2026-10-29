@@ -1,6 +1,8 @@
 # Running one command in each repository and reporting what it printed.
 
+(import spork/path)
 (import ./checkout)
+(import ./location)
 (import ./parallel)
 (import ./process)
 (import ./vcs)
@@ -111,11 +113,39 @@
 
     (error "command must be a string, VCS-specific command, or argument vector")))
 
+(defn command-environment
+  ``The environment a command runs in: herd's own, plus HERD_COLOR, "always"
+  with `color?` and "never" without, for a command to pass on as its --color,
+  and HERD_REPO_ANCHOR, HERD_REPO_PATH, HERD_REPO_URL and HERD_REPO_VCS
+  describing the repository it runs in. HERD_REPO_PATH is its path beneath
+  HERD_REPO_ANCHOR, the first of its anchors, as the repository list gives
+  it once stripped, so it is absolute only when the list's is. A repository
+  without an anchor has an empty one and its absolute path. HERD_AT_PATH is
+  `at`, the location the repositories were selected from, the working
+  directory unless given, and HERD_REPO_RELPATH the repository's path
+  relative to it.
+  Both have their symlinks resolved, as selection weighs them, so a
+  repository containing `at` is `..` or further up, never a detour.``
+  [repository color? &opt at]
+  (def resolved-at (location/resolved-path (or at (os/cwd))))
+  (merge (os/environ)
+         {"HERD_COLOR" (if color? "always" "never")
+          "HERD_AT_PATH" resolved-at
+          "HERD_REPO_RELPATH" (path/relpath resolved-at
+                                            (location/resolved-path (repository :path)))
+          "HERD_REPO_ANCHOR" (get-in repository [:anchors 0] "")
+          "HERD_REPO_PATH" (get repository :anchored-path (repository :path))
+          "HERD_REPO_URL" (get repository :clone-url "")
+          "HERD_REPO_VCS" (if-let [vcs-id (vcs/detect (repository :path))]
+                            (vcs/name vcs-id)
+                            "")}))
+
 (defn run-in-repository
   ``Run and capture a command in a repository without changing herd's cwd.
   `reserve`, when given, is called once the command is known to run here,
-  right before it starts. With `color?`, a result is printed in color.``
-  [repository command report &opt show-output reserve color?]
+  right before it starts. With `color?`, a result is printed in color. `at`
+  is the location the repositories were selected from.``
+  [repository command report &opt show-output reserve color? at]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
     # A blocked path holds no working copy to run in, so it counts as not
@@ -127,7 +157,8 @@
           (def result (process/capture
                         ["sh" "-c" `cd "$1" && shift && exec "$@"`
                          "herd" (repository :path) ;selected]
-                        :p))
+                        :pe
+                        (command-environment repository color? at)))
           (def stdout (result :out))
           (def stderr (result :err))
           (def status (result :status))
@@ -167,8 +198,9 @@
   `limit`, the run stops once the command has run in that many repositories;
   those it skips or finds not checked out do not count. The results are
   printed to stdout, as what the command produced, and with `color?` in
-  color.``
-  [repositories command &opt show-output jobs limit color?]
+  color. `at` is the location the repositories were selected from, which
+  each command is told its repository's path relative to.``
+  [repositories command &opt show-output jobs limit color? at]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
   (def block-separator @{:needed? false})
@@ -194,7 +226,8 @@
                          (fn [& args] (report-command-result block-separator report ;args))
                          show-output
                          reserve
-                         color?))
+                         color?
+                         at))
     jobs
     nil
     stop?

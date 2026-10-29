@@ -449,7 +449,7 @@
   # The results are what the commands produced, so they go to stdout, and
   # what herd says about the run goes to stderr.
   (def result (run/run-in-repositories repositories command show-output jobs
-                                       limit (color-output?)))
+                                       limit (color-output?) (parsed "at")))
   (eprint (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 

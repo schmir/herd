@@ -134,6 +134,40 @@ Without --, an argument is a mistake.
   $ herd words src/web 2>&1 | head -1
   usage error: could not handle option src/web
 
+A command finds the repository it runs in, and whether herd colors its
+output, in its environment.
+
+  $ herd run -C src/web --show-output always sh -c \
+  >   'printf "%s\n" "$HERD_REPO_ANCHOR" "$HERD_REPO_PATH" "$HERD_REPO_URL" "$HERD_REPO_VCS" "$HERD_COLOR"'
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | $ROOT/home
+  | src/web
+  | $ROOT/origins/web
+  | git
+  | never
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+Its path is also given relative to where it was selected from: -C, or the
+working directory, even for a repository that contains it.
+
+  $ herd run -j 1 --show-output always sh -c 'printf "%s %s\n" "$HERD_AT_PATH" "$HERD_REPO_RELPATH"'
+  \xe2\x9c\x93 $ROOT/home/src/api (esc)
+  | $ROOT/home src/api
+  
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | $ROOT/home src/web
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ mkdir -p src/web/lib
+  $ herd run -C src/web/lib --show-output always printenv HERD_REPO_RELPATH
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | ..
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd run -C src/web --show-output always printenv HERD_REPO_RELPATH
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | .
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ rmdir src/web/lib
+
 A directory holding something that is not a repository is not a checkout,
 so nothing runs or fetches there.
 
