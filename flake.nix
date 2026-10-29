@@ -67,7 +67,7 @@
               zig
             ];
 
-            # janet-lsp needs spork and the access module on the module path;
+            # janet-lsp needs spork and the native modules on the module path;
             # see .janet-path/README.md.
             shellHook = ''
               root="$PWD"

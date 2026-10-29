@@ -194,4 +194,8 @@
 (assert (not (again :interrupted?)) "a later run starts uninterrupted")
 (assert (= 2 ((again :counts) :succeeded)) "and reaches every repository")
 
+(with [f (file/temp)]
+  (assert (= 80 (parallel/terminal-width f))
+          "a stream with no terminal behind it is taken as 80 columns wide"))
+
 (end-suite)

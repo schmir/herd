@@ -11,11 +11,19 @@
   :name "access"
   :source ["src/access.c"])
 
+# spork's rawterm/size asks stdin and cannot say when there is no terminal.
+# See src/terminal.c.
+(declare-native
+  :name "terminal"
+  :source ["src/terminal.c"])
+
 (declare-executable
   :name "herd"
   :entry "src/main.janet"
   :deps ["build/access.so"
          "build/access.meta.janet"
+         "build/terminal.so"
+         "build/terminal.meta.janet"
          "src/arguments.janet"
          "src/checkout.janet"
          "src/clone.janet"

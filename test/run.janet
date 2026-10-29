@@ -244,10 +244,39 @@
     (def report (fn [& args] (array/push messages (string ;args))))
     (run/run-in-repository repo ["printf" "shown"] report "always" nil true)
     (run/run-in-repository repo ["false"] report "always" nil true)
-    (assert (deep= messages @[(string "\e[32m✓ " dir "\e[0m\n\e[2m| \e[0mshown")
-                              (string "\e[31m✗ " dir " (exit 1)\e[0m")])
+    (assert (string/has-prefix? "\e[32m✓" (messages 0)))
+    (assert (string/find dir (messages 0)))
+    (assert (string/has-suffix? "\n\e[2m| \e[0mshown" (messages 0)))
+    (assert (string/has-prefix? "\e[31m✗" (messages 1)))
+    (assert (string/find dir (messages 1)))
+    # Where the exit status goes depends on how wide the terminal is.
+    (assert (string/find "exit 1" (messages 1))
             "with color, a heading is green when it succeeded and red when it failed, and the gutter is dimmed"))
   (sh/rm dir))
+
+(assert (= "✓ /a" (run/heading "✓" "/a" "\e[32m" false nil 20))
+        "without color, a heading is the mark and the label alone")
+(assert (= (string "\e[32m✓\e[0m\e[2m ── \e[0m\e[32m/a\e[0m"
+                   "\e[2m ───────────\e[0m")
+           (run/heading "✓" "/a" "\e[32m" true nil 20))
+        "with color, a rule runs around the label and stops a column short of the edge")
+(assert (= (string "\e[31m✗\e[0m\e[2m ── \e[0m\e[31m/abcdefghijk\e[0m"
+                   "\e[2m ─\e[0m")
+           (run/heading "✗" "/abcdefghijk" "\e[31m" true nil 20))
+        "a label that leaves room for one column of rule still gets it")
+(assert (= "\e[31m✗ /abcdefghijkl\e[0m"
+           (run/heading "✗" "/abcdefghijkl" "\e[31m" true nil 20))
+        "a label too long for the rule to fit is left without one")
+
+(assert (= "✗ /a (exit 7)" (run/heading "✗" "/a" "\e[31m" false "exit 7" 20))
+        "without color, a note follows the label in parentheses")
+(assert (= (string "\e[31m✗\e[0m\e[2m ── \e[0m\e[31m/a\e[0m"
+                   "\e[2m ─\e[0m \e[31mexit 7\e[0m\e[2m ──\e[0m")
+           (run/heading "✗" "/a" "\e[31m" true "exit 7" 20))
+        "with color, a note sits as far from the end of the rule as the label from the mark")
+(assert (= "\e[31m✗ /abcd (exit 7)\e[0m"
+           (run/heading "✗" "/abcd" "\e[31m" true "exit 7" 20))
+        "a note that leaves no room for the rule follows the label in parentheses")
 
 (let [messages @[]
       separator @{:needed? false}

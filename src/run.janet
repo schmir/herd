@@ -1,6 +1,7 @@
 # Running one command in each repository and reporting what it printed.
 
 (import spork/path)
+(import spork/rawterm)
 (import ./checkout)
 (import ./location)
 (import ./parallel)
@@ -52,6 +53,34 @@
     (string color text "\e[0m")
     text))
 
+(defn heading
+  ``The heading line naming a result, its `mark` and `label` painted in
+  `color` when `color?`. Then a dimmed rule runs from the mark to the label
+  and on from it to the edge of a terminal `width` columns wide, the one
+  stdout writes to unless given, so that each result stands out from the
+  output above it while the marks stay in the first column. A `note`, such
+  as how a command exited, sits near the right end of the rule, as far from
+  it as the label is from the mark, where it does not shift the labels apart. A label too long for the rule to fit is left
+  without one, and the note follows it in parentheses.``
+  [mark label color color? &opt note width]
+  (def lead "──")
+  (def tail (if note (string " " note " " lead) ""))
+  # Leave the last column free, as a full line wraps in some terminals.
+  (def rule-width
+    (- (or width (parallel/terminal-width))
+       (rawterm/monowidth (string mark " " lead " " label " " tail))
+       1))
+  (if (and color? (pos? rule-width))
+    (string (paint mark color true)
+            (paint (string " " lead " ") gutter-color true)
+            (paint label color true)
+            (paint (string " " (string/repeat "─" rule-width)) gutter-color true)
+            (if note
+              (string " " (paint note color true) (paint (string " " lead) gutter-color true))
+              ""))
+    (paint (string mark " " label (if note (string " (" note ")") ""))
+           color color?)))
+
 (defn- indent-command-output
   ``Prefix each captured output line so command text is distinct from herd.
   With `color?`, the gutter is dimmed and the line itself left as it is.``
@@ -63,14 +92,15 @@
 
 (defn- format-command-result
   ``Format one command result as a coherent output block. With `color?`, the
-  heading is green when the command succeeded and red when it failed, and the
-  gutter of the output lines is dimmed.``
+  heading is green when the command succeeded and red when it failed and
+  ruled around the path, with the exit status of a failure at the right end
+  of the rule, and the gutter of the output lines is dimmed.``
   [repository status stdout stderr &opt color?]
-  (def heading
-    (if (zero? status)
-      (paint (string "✓ " (repository :path)) succeeded-color color?)
-      (paint (string "✗ " (repository :path) " (exit " status ")") failed-color color?)))
-  (def sections @[heading])
+  (def sections
+    @[(if (zero? status)
+        (heading "✓" (repository :path) succeeded-color color?)
+        (heading "✗" (repository :path) failed-color color?
+                 (string "exit " status)))])
   (when (pos? (length stdout))
     (array/push sections (indent-command-output stdout stdout-gutter color?)))
   (when (pos? (length stderr))
@@ -180,7 +210,7 @@
       :not-checked-out)
     ([err]
       (unless (= "never" show-output)
-        (report (paint (string "✗ " (repository :path)) failed-color color?) "\n"
+        (report (heading "✗" (repository :path) failed-color color?) "\n"
                 (indent-command-output (string err) stderr-gutter color?)))
       :failed)))
 

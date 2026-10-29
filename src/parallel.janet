@@ -1,6 +1,9 @@
 # Running an operation on each repository in parallel, with progress.
 
 (import spork/rawterm)
+# By bare name, not `./terminal`: jpm puts the build directory on the native
+# module path only for names that are neither relative nor absolute.
+(import terminal)
 
 (def default-jobs
   "Number of repository operations allowed to run at the same time."
@@ -11,10 +14,11 @@
   ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"])
 
 (defn terminal-width
-  "Usable terminal columns, falling back to 80 when the size is unknown."
-  []
-  (def [_ columns] (try (rawterm/size) ([_] [0 0])))
-  (if (< 20 columns 1000) columns 80))
+  ``Usable columns of the terminal `stream` writes to, stdout unless given,
+  falling back to 80 when the size is unknown.``
+  [&opt stream]
+  (def columns (terminal/columns (or stream stdout)))
+  (if (and columns (< 20 columns 1000)) columns 80))
 
 (def max-jobs
   ``The largest usable job count. `jobs?` accepts what `int?` does, which is
@@ -115,7 +119,7 @@
   (when (progress :live?)
     (erase progress)
     # Leave one column unused so a line cannot wrap and break cursor tracking.
-    (def width (dec (terminal-width)))
+    (def width (dec (terminal-width stderr)))
     (def lines (progress-lines progress width))
     (each line lines
       (eprin line)

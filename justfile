@@ -64,8 +64,8 @@ test-cli herd="":
     HERD="$herd" uvx {{ prysk }} test/cli/
 
 # The server evaluates a file and its imports to find definitions, so a module
-# path that misses spork or the native access module makes every lookup answer
-# null. See .janet-path/README.md. Needs the devshell for janet-lsp and the
+# path that misses spork or the native access and terminal modules makes every
+# lookup answer null. See .janet-path/README.md. Needs the devshell for janet-lsp and the
 # JANET_PATH it relies on.
 [doc('Check that janet-lsp finds a definition in config.janet.')]
 [extension('.py')]
@@ -234,6 +234,7 @@ dist *platforms: build
     # janet_module_entry_spork_47_crc. build/herd.c calls it by that name.
     modules=(
         "src/access.c janet_module_entry_access"
+        "src/terminal.c janet_module_entry_terminal"
         "$spork/src/crc.c janet_module_entry_spork_47_crc"
         "$spork/src/json.c janet_module_entry_spork_47_json"
         "$spork/src/rawterm.c janet_module_entry_spork_47_rawterm"
