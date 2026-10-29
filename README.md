@@ -361,12 +361,14 @@ repository at that location and `..` or further up for one containing it.
 Both have their symlinks resolved, as selection compares them. `HERD_COLOR`
 is `always` when herd prints in color and `never` when it does not, so a
 command can color what herd captures the way herd colors its own output. The
-built-in `diff` is `git diff HEAD "$@"` and `jj diff "$@"`, so
-`herd diff -- --stat` shows the stat. `:show-output` sets that command's
-default output condition; see [Use](#use). Custom names cannot shadow the
-built-in commands `clone`, `completions`, `list`, `run` and `tree`. `diff`
-and `fetch` are themselves custom commands herd defines by default, so an
-entry of the same name in `:commands` replaces them.
+built-in `diff` is `git diff --color="$HERD_COLOR" HEAD "$@"` and
+`jj diff --color="$HERD_COLOR" "$@"`, so `herd diff -- --stat` shows the
+stat, and the built-in `fetch` colors what `jj git fetch` prints the same
+way. `:show-output` sets that command's default output condition; see
+[Use](#use). Custom names cannot shadow the built-in commands `clone`,
+`completions`, `list`, `run` and `tree`. `diff` and `fetch` are themselves
+custom commands herd defines by default, so an entry of the same name in
+`:commands` replaces them.
 
 ## Shell completions
 
