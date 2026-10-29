@@ -22,16 +22,13 @@ repository holds, and a colocated one counts as jj.
   > EOF
   $ herd which -j 1
   ✓ $ROOT/home/git
-  | stdout
-  |   git
+  | git
   
   ✓ $ROOT/home/jj
-  | stdout
-  |   jj
+  | jj
   
   ✓ $ROOT/home/both
-  | stdout
-  |   jj
+  | jj
   3 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 A repository whose VCS has no command is skipped, and the command does not

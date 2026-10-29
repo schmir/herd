@@ -72,10 +72,8 @@ A herd started by a command reads the same configuration, wherever it runs.
   $ herd clone -a >/dev/null
   $ herd -c "$CONFIG" run -j 1 -a --show-output always printenv HERD_CONFIG
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  | stdout
-  |   $ROOT/home/.config/herd
+  | $ROOT/home/.config/herd
   
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   $ROOT/home/.config/herd
+  | $ROOT/home/.config/herd
   2 succeeded, 0 failed, 0 skipped, 0 not checked out

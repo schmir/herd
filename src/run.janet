@@ -22,25 +22,57 @@
     (error `expected "never", "on-failure", or "always"`))
   condition)
 
+(def- stdout-gutter
+  "What each line a command wrote to stdout is printed behind."
+  "| ")
+
+(def- stderr-gutter
+  ``What each line a command wrote to stderr is printed behind, so the two
+  streams stay apart without a label line naming each.``
+  "! ")
+
+(def- succeeded-color
+  "The escape sequence that starts the color a succeeded heading is printed in."
+  "\e[32m")
+
+(def- failed-color
+  "The escape sequence that starts the color a failed heading is printed in."
+  "\e[31m")
+
+(def- gutter-color
+  "The escape sequence that starts the dimmed gutter of the output lines."
+  "\e[2m")
+
+(defn- paint
+  "The `text`, in `color` when `color?`."
+  [text color color?]
+  (if color?
+    (string color text "\e[0m")
+    text))
+
 (defn- indent-command-output
-  "Prefix each captured output line so command text is distinct from herd."
-  [output]
+  ``Prefix each captured output line so command text is distinct from herd.
+  With `color?`, the gutter is dimmed and the line itself left as it is.``
+  [output gutter &opt color?]
+  (def gutter (paint gutter gutter-color color?))
   (string/join
-    (map (fn [line] (string "|   " line)) (string/split "\n" (string/trimr output)))
+    (map (fn [line] (string gutter line)) (string/split "\n" (string/trimr output)))
     "\n"))
 
 (defn- format-command-result
-  "Format one command result as a coherent output block."
-  [repository status stdout stderr]
+  ``Format one command result as a coherent output block. With `color?`, the
+  heading is green when the command succeeded and red when it failed, and the
+  gutter of the output lines is dimmed.``
+  [repository status stdout stderr &opt color?]
   (def heading
     (if (zero? status)
-      (string "✓ " (repository :path))
-      (string "✗ " (repository :path) " (exit " status ")")))
+      (paint (string "✓ " (repository :path)) succeeded-color color?)
+      (paint (string "✗ " (repository :path) " (exit " status ")") failed-color color?)))
   (def sections @[heading])
   (when (pos? (length stdout))
-    (array/push sections (string "| stdout\n" (indent-command-output stdout))))
+    (array/push sections (indent-command-output stdout stdout-gutter color?)))
   (when (pos? (length stderr))
-    (array/push sections (string "| stderr\n" (indent-command-output stderr))))
+    (array/push sections (indent-command-output stderr stderr-gutter color?)))
   (string/join sections "\n"))
 
 (defn with-arguments
@@ -82,8 +114,8 @@
 (defn run-in-repository
   ``Run and capture a command in a repository without changing herd's cwd.
   `reserve`, when given, is called once the command is known to run here,
-  right before it starts.``
-  [repository command report &opt show-output reserve]
+  right before it starts. With `color?`, a result is printed in color.``
+  [repository command report &opt show-output reserve color?]
   (def show-output (require-show-output (or show-output default-show-output)))
   (try
     # A blocked path holds no working copy to run in, so it counts as not
@@ -111,14 +143,14 @@
                        "never" false
                        "on-failure" (not succeeded)
                        "always" true))
-            (report (format-command-result repository status stdout stderr)))
+            (report (format-command-result repository status stdout stderr color?)))
           (if succeeded :succeeded :failed))
         :no-command)
       :not-checked-out)
     ([err]
       (unless (= "never" show-output)
-        (report "✗ " (repository :path) "\n"
-                (indent-command-output (string err))))
+        (report (paint (string "✗ " (repository :path)) failed-color color?) "\n"
+                (indent-command-output (string err) stderr-gutter color?)))
       :failed)))
 
 (defn report-command-result
@@ -133,8 +165,9 @@
   ``Run a command in parallel and return what parallel/for-each-repository does,
   with the succeeded, failed, no-command, and not-checked-out counts. With a
   `limit`, the run stops once the command has run in that many repositories;
-  those it skips or finds not checked out do not count.``
-  [repositories command &opt show-output jobs limit]
+  those it skips or finds not checked out do not count. With `color?`, the
+  results are printed in color.``
+  [repositories command &opt show-output jobs limit color?]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
   (def block-separator @{:needed? false})
@@ -159,7 +192,8 @@
       (run-in-repository repository command
                          (fn [& args] (report-command-result block-separator report ;args))
                          show-output
-                         reserve))
+                         reserve
+                         color?))
     jobs
     nil
     stop?))

@@ -26,8 +26,7 @@ The commands that act take the same flags.
 
   $ herd run --dirty --show-output always git status --short
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  | stdout
-  |   ?? notes
+  | ?? notes
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ herd diff --clean
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
@@ -62,8 +61,7 @@ one. Several must all hold, and they combine with --dirty and --clean.
   No repository is left of the 2 selected by --clean and -f
   $ herd run -f 'test -f marker' --show-output always git rev-parse --abbrev-ref HEAD
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   main
+  | main
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 A command that exits non-zero drops everything, which is said.

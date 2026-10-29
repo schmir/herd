@@ -15,18 +15,14 @@ stderr in one block per repository.
 
   $ herd run -j 1 --show-output always sh -c 'printf "visible\ntext\n"; printf note >&2'
   ✓ $ROOT/home/first
-  | stdout
-  |   visible
-  |   text
-  | stderr
-  |   note
+  | visible
+  | text
+  ! note
   
   ✓ $ROOT/home/second
-  | stdout
-  |   visible
-  |   text
-  | stderr
-  |   note
+  | visible
+  | text
+  ! note
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 A command that printed nothing is not reported even with `always`.
@@ -39,18 +35,14 @@ when it printed nothing.
 
   $ herd run -j 1 sh -c 'printf "visible\nsecond line\n"; printf problem >&2; exit 7'
   ✗ $ROOT/home/first (exit 7)
-  | stdout
-  |   visible
-  |   second line
-  | stderr
-  |   problem
+  | visible
+  | second line
+  ! problem
   
   ✗ $ROOT/home/second (exit 7)
-  | stdout
-  |   visible
-  |   second line
-  | stderr
-  |   problem
+  | visible
+  | second line
+  ! problem
   0 succeeded, 2 failed, 0 skipped, 0 not checked out
   [1]
 

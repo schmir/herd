@@ -46,16 +46,13 @@ run acts on the same repositories that list shows.
   $ for name in alpha beta gamma delta epsilon zeta; do mkdir -p src/$name/.git; done
   $ herd run -j 1 --sample 10 --show-output always pwd
   \xe2\x9c\x93 $ROOT/home/src/beta (esc)
-  | stdout
-  |   $ROOT/home/src/beta
+  | $ROOT/home/src/beta
   
   \xe2\x9c\x93 $ROOT/home/src/delta (esc)
-  | stdout
-  |   $ROOT/home/src/delta
+  | $ROOT/home/src/delta
   
   \xe2\x9c\x93 $ROOT/home/src/epsilon (esc)
-  | stdout
-  |   $ROOT/home/src/epsilon
+  | $ROOT/home/src/epsilon
   3 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 It combines with --limit.

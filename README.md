@@ -480,16 +480,18 @@ The command runs with the repository as its working directory.
 printed. A command that printed nothing is reported only when it failed, so
 `always` across a hundred repositories names just the ones that spoke up.
 Output is captured per repository and reported as one block, so parallel
-runs stay readable:
+runs stay readable. Lines the command wrote to stdout follow `|`, those it
+wrote to stderr follow `!`:
 
 ```
 ✓ /home/you/src/acme/api
-| stdout
-|   origin	git@github.com:acme/api.git (fetch)
-|   origin	git@github.com:acme/api.git (push)
+| origin	git@github.com:acme/api.git (fetch)
+| origin	git@github.com:acme/api.git (push)
 ```
 
-A failed command is headed by `✗` and its exit status.
+A failed command is headed by `✗` and its exit status. On a terminal the
+heading is green when the command succeeded and red when it failed, and the
+`|` and `!` in front of the output are dimmed, unless `NO_COLOR` is set.
 
 Commands do not receive terminal input, so they must be non-interactive.
 `run`, `fetch`, and custom commands finish with a summary and exit non-zero

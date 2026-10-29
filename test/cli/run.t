@@ -20,24 +20,20 @@ A successful command stays quiet by default.
   $ herd clone > /dev/null
   $ herd run -j 1 --show-output always git rev-parse --abbrev-ref HEAD
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  | stdout
-  |   main
+  | main
   
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   main
+  | main
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 The command runs in the repository.
 
   $ herd run -j 1 --show-output always pwd
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  | stdout
-  |   $ROOT/home/src/api
+  | $ROOT/home/src/api
   
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   $ROOT/home/src/web
+  | $ROOT/home/src/web
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 -n stops once the command has run in that many repositories. The rest are
@@ -45,8 +41,7 @@ left alone, and herd says so.
 
   $ herd run -j 1 -n 1 --show-output always pwd
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  | stdout
-  |   $ROOT/home/src/api
+  | $ROOT/home/src/api
   Stopped after 1 of 2 repositories
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
 
@@ -59,12 +54,10 @@ A failing command is reported with its exit status and fails herd.
 
   $ herd run -j 1 sh -c 'echo oops >&2; exit 3'
   \xe2\x9c\x97 $ROOT/home/src/api (exit 3) (esc)
-  | stderr
-  |   oops
+  ! oops
   
   \xe2\x9c\x97 $ROOT/home/src/web (exit 3) (esc)
-  | stderr
-  |   oops
+  ! oops
   0 succeeded, 2 failed, 0 skipped, 0 not checked out
   [1]
 
@@ -87,7 +80,7 @@ jj. A repository without changes prints nothing.
   $ git -C src/api add notes
   $ herd diff -j 1 | grep -E '^(.*\$ROOT|\|.*\+changed|[0-9])'
   \xe2\x9c\x93 $ROOT/home/src/api (esc)
-  |   +changed
+  | +changed
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ git -C src/api rm -q -f --cached notes && rm src/api/notes
 
@@ -107,8 +100,7 @@ default for --show-output.
     jj-only     Needs jj.
   $ herd branch -C src/web
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   main
+  | main
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 A Git checkout has no command in jj-only, so it is skipped.
@@ -128,12 +120,11 @@ on.
   > EOF
   $ herd words -C src/web -- --help "it's" 'a  $HOME' ''
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   <first>
-  |   <--help>
-  |   <it's>
-  |   <a  $HOME>
-  |   <>
+  | <first>
+  | <--help>
+  | <it's>
+  | <a  $HOME>
+  | <>
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ herd words --help | grep Usage
    Usage: herd words [option] ... [-- ARG...]
@@ -170,8 +161,7 @@ with -f run in it too.
   > EOF
   $ herd shell -C src/web -- arg
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
-  | stdout
-  |   bash arg
+  | bash arg
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ herd list -f '[[ $0 == bash ]]' -C src/web
   $ROOT/home/src/web\t$ROOT/origins/web (esc)

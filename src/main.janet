@@ -335,10 +335,12 @@
   (survey/extra-repositories discovered everything))
 
 (defn- color-output?
-  "Whether to color what is printed: on a terminal, unless NO_COLOR asks otherwise."
-  []
+  ``Whether to color what is printed to `stream`, stdout unless given: on a
+  terminal, unless NO_COLOR asks otherwise.``
+  [&opt stream]
+  (default stream stdout)
   # NO_COLOR, when set to anything, asks programs not to color.
-  (and (os/isatty stdout) (empty? (os/getenv "NO_COLOR" ""))))
+  (and (os/isatty stream) (empty? (os/getenv "NO_COLOR" ""))))
 
 (defn- print-tree
   ``Print the `lines` of a tree. Colored for a terminal, they go through the
@@ -444,7 +446,9 @@
                :jobs jobs})
        repository-settings)
       :repositories))
-  (def result (run/run-in-repositories repositories command show-output jobs limit))
+  # The results are reported on stderr, above the progress block.
+  (def result (run/run-in-repositories repositories command show-output jobs
+                                       limit (color-output? stderr)))
   (print (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 

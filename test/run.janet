@@ -207,8 +207,7 @@
                  (fn [& args] (array/push messages (string ;args))) "always")))
     (assert (= 1 (length messages)) "requested successful output is one block")
     (assert (string/find (string "✓ " dir) (messages 0)))
-    (assert (string/find "| stdout\n|   visible\n|   text" (messages 0)))
-    (assert (string/find "| stderr\n|   note" (messages 0)))
+    (assert (string/find "| visible\n| text\n! note" (messages 0)))
     (array/clear messages)
     (assert (= :succeeded
                (run/run-in-repository
@@ -228,8 +227,7 @@
                  (fn [& args] (array/push messages (string ;args))))))
     (assert (= 1 (length messages)) "failure output is one buffered block")
     (assert (string/find (string "✗ " dir " (exit 7)") (messages 0)))
-    (assert (string/find "| stdout\n|   visible\n|   second line" (messages 0)))
-    (assert (string/find "| stderr\n|   problem" (messages 0)))
+    (assert (string/find "| visible\n| second line\n! problem" (messages 0)))
     (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
@@ -241,7 +239,14 @@
                  repo ["false"] (fn [& args] (array/push messages (string ;args))))))
     (assert (and (= 1 (length messages))
                  (= (string "✗ " dir " (exit 1)") (messages 0)))
-            "a failure without output still names the repository"))
+            "a failure without output still names the repository")
+    (array/clear messages)
+    (def report (fn [& args] (array/push messages (string ;args))))
+    (run/run-in-repository repo ["printf" "shown"] report "always" nil true)
+    (run/run-in-repository repo ["false"] report "always" nil true)
+    (assert (deep= messages @[(string "\e[32m✓ " dir "\e[0m\n\e[2m| \e[0mshown")
+                              (string "\e[31m✗ " dir " (exit 1)\e[0m")])
+            "with color, a heading is green when it succeeded and red when it failed, and the gutter is dimmed"))
   (sh/rm dir))
 
 (let [messages @[]
@@ -307,7 +312,7 @@
     (assert (= 0 (process :return-code)) "always run succeeds")
     (assert (string/find (string "✓ " root "/first") errors)
             "always reports a successful repository")
-    (assert (string/find "| stdout\n|   shown" errors)
+    (assert (string/find (string "✓ " root "/first\n| shown") errors)
             "always reports successful command output")
     (assert (string/find "2 succeeded, 0 failed, 0 skipped, 1 not checked out"
                          output)
