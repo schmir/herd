@@ -41,15 +41,6 @@ Things `herd` does not do, noticed while reading the code. Each says what is
 absent, what it costs today, and roughly where a fix would land, so that
 picking one up does not start from scratch.
 
-### No option to point herd at a different configuration
-
-`HERD_CONFIG` names the configuration to read, a directory or a settings
-file, which covers scripts, CI jobs and keeping a work set apart from a
-personal one. There is no `--config PATH` option to do the same for a single
-invocation, alongside `--at` and `--all-anchors`; prefixing the command with
-the variable does that job today. The option would take what the variable
-takes, a directory or a file, which is why it is not named `--config-dir`.
-
 ### Little to read but a path and a URL
 
 `herd list` prints `path`, a tab, and `ssh_url`, and `--status` puts the

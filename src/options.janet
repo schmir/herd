@@ -68,6 +68,10 @@
 (def top-level
   "The options of bare herd."
   [help
+   {:name "config" :short "c" :kind :option :value-name "PATH"
+    :help (string "Read the configuration from PATH, a directory or a settings "
+                  "file, in place of HERD_CONFIG.")
+    :summary "Read the configuration from PATH."}
    {:name "version" :short "V" :kind :flag
     :help "Show the version and exit."}])
 

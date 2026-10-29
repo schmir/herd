@@ -585,6 +585,9 @@
   (when (arguments/version-requested? args)
     (print "herd " version)
     (os/exit 0))
+  # Taken before the configuration is read, since it says which one to read.
+  (when-let [named (arguments/config-given args)]
+    (exit-on-error "Configuration error: " (fn [] (config/use-config named))))
   (def subcommands
     (exit-on-error "Configuration error: " available-subcommands))
   (def spec

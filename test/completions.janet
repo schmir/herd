@@ -32,7 +32,7 @@
         (assert (string/find (or (option :summary) (option :help)) text)
                 (string shell " describes --" (option :name) " for " command))))
     (each option options/top-level
-      (assert (string/find (option :help) text)
+      (assert (string/find (or (option :summary) (option :help)) text)
               (string shell " describes the top-level --" (option :name))))))
 
 (defn test-every-shell-offers-the-top-level-options

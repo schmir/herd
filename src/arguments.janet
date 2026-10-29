@@ -47,3 +47,30 @@
     (and (string/has-prefix? "-" arg) (> (length arg) 1))
     (all (fn [character] (= character (chr "V"))) (string/slice arg 1))
     false))
+
+(defn config-given
+  ``The configuration -c or --config names in `args`, or nil. Only the
+  options before the command name are bare herd's, and the last one given
+  wins, as argparse has it. The configuration is needed before argparse runs,
+  since the commands it defines are part of what argparse is told, so the
+  scan follows argparse through those options: -c in a cluster of short
+  flags takes the next argument, and options end at `--` or the command.
+  A -c with no value is left for argparse to refuse.``
+  [args]
+  (var i 1)
+  (var found nil)
+  (while (< i (length args))
+    (def arg (args i))
+    (++ i)
+    (cond
+      (= "--" arg) (break)
+      (string/has-prefix? "--config=" arg) (set found (string/slice arg 9))
+      (= "--config" arg) (do (set found (get args i)) (++ i))
+      (string/has-prefix? "--" arg) nil
+      (string/has-prefix? "-" arg)
+      (each flag (string/slice arg 1)
+        (when (= flag (chr "c"))
+          (set found (get args i))
+          (++ i)))
+      (break)))
+  found)

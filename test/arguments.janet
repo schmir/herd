@@ -95,7 +95,25 @@
   (assert (not (asked "-")) "a lone hyphen is a word, not a flag")
   (assert (not (asked "")) "an empty argument is not one"))
 
+(defn test-the-configuration-is-named-before-the-command
+  "-c and --config name the configuration among bare herd's own options."
+  []
+  (defn given [& args] (arguments/config-given ["herd" ;args]))
+  (assert (= "work" (given "-c" "work" "list")))
+  (assert (= "work" (given "--config" "work" "list")))
+  (assert (= "work" (given "--config=work" "list")))
+  (assert (= "a=b" (given "--config=a=b")) "only the first = ends the name")
+  (assert (= "work" (given "-hc" "work")) "-c in a cluster takes the next argument")
+  (assert (= "second" (given "-c" "first" "-c" "second" "list"))
+          "the last one wins, as argparse has it")
+  (assert (nil? (given "-c")) "a missing value is left to argparse")
+  (assert (nil? (given)) "no arguments")
+  (assert (nil? (given "list" "-c" "work")) "a command owns its own options")
+  (assert (nil? (given "--" "-c" "work")))
+  (assert (nil? (given "--configs=work")) "only --config itself names one"))
+
 (test-a-flag-given-a-value-is-found)
+(test-the-configuration-is-named-before-the-command)
 (test-an-option-may-be-given-a-value)
 (test-a-value-is-not-an-option)
 (test-options-end-where-argparse-stops-reading-them)

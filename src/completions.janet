@@ -17,8 +17,9 @@
 (def- value-flags
   "Every spelling of every option that takes a value, whichever command has it."
   (distinct (flags-of (filter (fn [option] (option :value-name))
-                              (mapcat options/for-command
-                                      ["clone" "list" "run" "completions" "tree"])))))
+                              [;options/top-level
+                               ;(mapcat options/for-command
+                                        ["clone" "list" "run" "completions" "tree"])]))))
 
 (defn- bash-script []
   (string
@@ -32,6 +33,9 @@ _herd() {
             return ;;
         -C|--at)
             COMPREPLY=($(compgen -d -- "$cur"))
+            return ;;
+        -c|--config)
+            COMPREPLY=($(compgen -f -- "$cur"))
             return ;;
         # A number cannot be completed, and flag names would be misleading.
         -j|--jobs|-n|--limit|--sample|--max-depth)
@@ -129,7 +133,7 @@ complete -F _herd herd
     "    for word in (commandline -opc)[2..-1]\n"
     "        if test $skip = 1\n"
     "            set skip 0\n"
-    "        else if contains -- $word -C --at -d --depth -f --filter -j --jobs --show-output\n"
+    "        else if contains -- $word " (string/join value-flags " ") "\n"
     "            set skip 1\n"
     "        else if not string match -q -- '-*' $word\n"
     "            echo $word\n"
@@ -188,6 +192,7 @@ complete -F _herd herd
                 "filter" " _herd_filters"
                 "show-output" (string "(" (string/join run/show-output-conditions " ") ")")
                 "at" " _files -/"
+                "config" " _files"
                 ""))
       ""))
   (if (nil? short)

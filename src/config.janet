@@ -613,28 +613,45 @@
     (put commands name (command-from-definition name definition reserved)))
   {:settings settings :jobs jobs :pager pager :commands commands})
 
+(defn- named-location
+  ``The `{:directory :settings-file}` of the configuration `named`, a
+  directory read as the configuration directory or a settings file read in
+  place of config.jdn with the lists beside it. A name that is neither is an
+  error naming `source`, where it came from: unlike the default directory, a
+  configuration asked for by name is not merely absent.``
+  [named source]
+  (def target (path/abspath named))
+  (case (os/stat target :mode)
+    :directory {:directory target
+                :settings-file (path/join target settings-file-name)}
+    :file {:directory (parent-path target) :settings-file target}
+    nil (error (string source " names " target ", which does not exist"))
+    (error (string source " names " target
+                   ", which is neither a file nor a directory"))))
+
 (defn config-location
   ``Return `{:directory :settings-file}`: the directory holding the JSON
   repository lists, and the settings file. HERD_CONFIG, when set, names
-  either a directory, read as the configuration directory, or a settings
-  file, read in place of config.jdn with the lists beside it. Otherwise the
-  directory is the default one, and nil is returned without one. A
-  HERD_CONFIG naming nothing is an error: unlike the default directory, a
-  configuration asked for by name is not merely absent.``
+  them as `named-location` reads a name. Otherwise the directory is the
+  default one, and nil is returned without one.``
   []
   (def named (os/getenv "HERD_CONFIG"))
   (if (and named (not (empty? named)))
-    (let [target (path/abspath named)]
-      (case (os/stat target :mode)
-        :directory {:directory target
-                    :settings-file (path/join target settings-file-name)}
-        :file {:directory (parent-path target) :settings-file target}
-        nil (error (string "HERD_CONFIG names " target ", which does not exist"))
-        (error (string "HERD_CONFIG names " target
-                       ", which is neither a file nor a directory"))))
+    (named-location named "HERD_CONFIG")
     (when-let [directory (default-config-directory)]
       {:directory directory
        :settings-file (path/join directory settings-file-name)})))
+
+(defn use-config
+  ``Read the configuration `named` from now on, in place of HERD_CONFIG, as
+  --config asks. A name that names nothing is an error naming --config.
+  HERD_CONFIG is set to the absolute path, so that a herd started by a
+  command, in a repository of its own, reads the same configuration.``
+  [named]
+  (when (empty? named)
+    (error "--config names no configuration"))
+  (named-location named "--config")
+  (os/setenv "HERD_CONFIG" (path/abspath named)))
 
 (defn config-directory
   ``Directory holding the JSON repository lists, as `config-location` finds

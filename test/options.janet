@@ -25,9 +25,9 @@
           "a command the configuration defines takes what run does"))
 
 (defn test-top-level-options
-  "Bare herd takes help and version."
+  "Bare herd takes help, config and version."
   []
-  (assert (deep= @["help" "version"]
+  (assert (deep= @["help" "config" "version"]
                  (map (fn [option] (option :name)) options/top-level))))
 
 (defn test-options-are-well-formed

@@ -367,6 +367,28 @@
                          ", which does not exist")
                  message)
               "HERD_CONFIG naming nothing is an error")))
+  (with-environment
+    {"HERD_CONFIG" (path/join dir "work.jdn")}
+    (fn []
+      (def cwd (os/cwd))
+      (os/cd dir)
+      (config/use-config ".")
+      (os/cd cwd)
+      (assert (= dir (os/getenv "HERD_CONFIG"))
+              "--config takes the place of HERD_CONFIG, as an absolute path")
+      (def message
+        (try (do (config/use-config (path/join dir "gone")) nil)
+          ([err] (string err))))
+      (assert (= (string "--config names " (path/join dir "gone")
+                         ", which does not exist")
+                 message)
+              "--config naming nothing is an error that names --config")
+      (assert (= dir (os/getenv "HERD_CONFIG"))
+              "a refused --config leaves HERD_CONFIG alone")
+      (def empty-message
+        (try (do (config/use-config "") nil) ([err] (string err))))
+      (assert (= "--config names no configuration" empty-message)
+              "an empty --config is refused rather than read as here")))
   (sh/rm dir))
 
 # --- parse-settings-file -------------------------------------------------------

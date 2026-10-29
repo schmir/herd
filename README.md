@@ -36,6 +36,11 @@ are read from the directory holding it, so `HERD_CONFIG=~/work/herd.jdn`
 keeps a configuration of its own beside the lists in `~/work`. A
 `HERD_CONFIG` that names nothing is an error.
 
+`-c PATH` or `--config PATH`, given before the command as in
+`herd -c ~/work/herd.jdn list`, names a configuration the same way for one
+invocation, in place of `HERD_CONFIG`. A command `herd run` starts sees it
+as `HERD_CONFIG`, so a `herd` it runs in turn reads the same configuration.
+
 ### Repositories
 
 Every `*.json` file in the configuration directory holds an array of
