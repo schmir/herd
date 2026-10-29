@@ -7,6 +7,10 @@
 
 (start-suite "config")
 
+# A HERD_CONFIG of the user's own would take the place of every configuration
+# the tests arrange.
+(os/setenv "HERD_CONFIG" nil)
+
 (var fixture-count 0)
 
 (defn- fixture
@@ -251,7 +255,7 @@
   (spit settings-path `(error "this code must not run")`)
   (def message
     (try
-      (do (config/load-settings dir reserved) nil)
+      (do (config/load-settings (path/join dir "config.jdn") reserved) nil)
       ([err] (string err))))
   (assert (and message (string/find "expected a JDN dictionary" message))
           "loading JDN parses an expression as data instead of running it")
@@ -260,7 +264,7 @@
 (let [dir (fixture)
       settings-path (path/join dir "config.jdn")]
   (spit settings-path `{:checkout-defaults {:vcs "git"}}`)
-  (assert (= "git" (get-in (config/load-settings dir reserved)
+  (assert (= "git" (get-in (config/load-settings (path/join dir "config.jdn") reserved)
                            [:settings :checkout-defaults :vcs]))
           "the default VCS is loaded from config.jdn")
   (sh/rm dir))
@@ -268,15 +272,15 @@
 # --- load-settings --------------------------------------------------------
 
 (let [dir (fixture)]
-  (def loaded (config/load-settings dir reserved))
+  (def loaded (config/load-settings (path/join dir "config.jdn") reserved))
   (assert (= 6 (loaded :jobs)) "an absent file reads as the defaults")
   (assert (get-in loaded [:commands "diff"]) "with the default commands")
   (assert (empty? (get-in loaded [:settings :checkouts])) "and no checkouts")
   (def unconfigured (config/load-settings nil reserved))
-  (assert (= 6 (unconfigured :jobs)) "no directory to read is no settings either")
+  (assert (= 6 (unconfigured :jobs)) "no file to read is no settings either")
   (sh/create-dirs (path/join dir "config.jdn"))
   (def message
-    (try (do (config/load-settings dir reserved) nil) ([err] (string err))))
+    (try (do (config/load-settings (path/join dir "config.jdn") reserved) nil) ([err] (string err))))
   (assert (and message (string/find "is not a file" message)
                (string/find (path/join dir "config.jdn") message))
           "a directory where the file belongs is named")
@@ -285,17 +289,85 @@
 (let [dir (fixture)]
   (spit (path/join dir "config.jdn") "{:jobs 0}")
   (def message
-    (try (do (config/load-settings dir reserved) nil) ([err] (string err))))
+    (try (do (config/load-settings (path/join dir "config.jdn") reserved) nil) ([err] (string err))))
   (assert (and message (string/has-prefix? (path/join dir "config.jdn") message)
                (string/find ":jobs must be a positive integer" message))
           "a mistake in the file is reported with the file's path first")
   (sh/rm dir))
 
-(let [xdg (os/getenv "XDG_CONFIG_HOME")]
-  (os/setenv "XDG_CONFIG_HOME" "/xdg")
-  (assert (= "/xdg/herd/config.jdn" (config/settings-file-path))
-          "the file is config.jdn in the configuration directory")
-  (os/setenv "XDG_CONFIG_HOME" xdg))
+(let [dir (fixture)]
+  (spit (path/join dir "work.jdn") `{:checkouts [{:list "gone.json"}]}`)
+  (assert (= "work.jdn" (get-in (config/load-settings (path/join dir "work.jdn")
+                                                      reserved)
+                                [:settings :file-name]))
+          "the settings keep the name of the file they came from")
+  (def message
+    (try (do (config/load-repository-catalog
+               dir (get (config/load-settings (path/join dir "work.jdn") reserved)
+                        :settings))
+           nil)
+      ([err] (string err))))
+  (assert (and message (string/has-prefix? "work.jdn: :checkouts reads" message))
+          "a message about the settings names the file they came from")
+  (sh/rm dir))
+
+# --- config-location ----------------------------------------------------------
+
+(defn- with-environment
+  ``Call `f` with the environment variables in `values` set, and restore
+  them afterwards.``
+  [values f]
+  (def saved (tabseq [name :keys values] name (os/getenv name)))
+  (eachp [name value] values (os/setenv name value))
+  (defer (eachp [name value] saved (os/setenv name value))
+    (f)))
+
+(with-environment
+  {"XDG_CONFIG_HOME" "/xdg"}
+  (fn []
+    (assert (= "/xdg/herd/config.jdn" (config/settings-file-path))
+            "the file is config.jdn in the configuration directory")
+    (assert (= "/xdg/herd" (config/config-directory))
+            "the directory is herd under XDG_CONFIG_HOME")))
+
+(with-environment
+  {"HERD_CONFIG" "" "XDG_CONFIG_HOME" "/xdg"}
+  (fn []
+    (assert (= "/xdg/herd" (config/config-directory))
+            "an empty HERD_CONFIG is no HERD_CONFIG")))
+
+(let [dir (fixture)]
+  (with-environment
+    {"HERD_CONFIG" dir "XDG_CONFIG_HOME" "/xdg"}
+    (fn []
+      (assert (deep= {:directory dir :settings-file (path/join dir "config.jdn")}
+                     (config/config-location))
+              "HERD_CONFIG naming a directory is the configuration directory")))
+  (spit (path/join dir "work.jdn") "{}")
+  (with-environment
+    {"HERD_CONFIG" (path/join dir "work.jdn")}
+    (fn []
+      (assert (deep= {:directory dir :settings-file (path/join dir "work.jdn")}
+                     (config/config-location))
+              "HERD_CONFIG naming a file reads it, with the lists beside it")))
+  (def cwd (os/cwd))
+  (os/cd dir)
+  (with-environment
+    {"HERD_CONFIG" "work.jdn"}
+    (fn []
+      (assert (= (path/join dir "work.jdn") (config/settings-file-path))
+              "a relative HERD_CONFIG resolves from the working directory")))
+  (os/cd cwd)
+  (with-environment
+    {"HERD_CONFIG" (path/join dir "gone")}
+    (fn []
+      (def message
+        (try (do (config/config-location) nil) ([err] (string err))))
+      (assert (= (string "HERD_CONFIG names " (path/join dir "gone")
+                         ", which does not exist")
+                 message)
+              "HERD_CONFIG naming nothing is an error")))
+  (sh/rm dir))
 
 # --- parse-settings-file -------------------------------------------------------
 
@@ -313,7 +385,7 @@
                 `{:commands {"hi" {:command "echo hi" :description "say hi"}}}`))
   (def message
     (try
-      (do (config/load-settings dir reserved) nil)
+      (do (config/load-settings (path/join dir "config.jdn") reserved) nil)
       ([err] (string err))))
   (assert (and message (string/find "2 top-level values" message))
           "settings split across two dictionaries are refused, not truncated")
@@ -322,7 +394,7 @@
 (let [dir (fixture)
       settings-path (path/join dir "config.jdn")]
   (spit settings-path "# nothing configured yet\n")
-  (def settings (get (config/load-settings dir reserved) :settings))
+  (def settings (get (config/load-settings (path/join dir "config.jdn") reserved) :settings))
   (assert (and (empty? (settings :checkout-defaults))
                (empty? (settings :checkouts))
                (empty? (settings :filters)))

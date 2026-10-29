@@ -25,6 +25,7 @@ fi
 ROOT=$(pwd -P)
 export HOME="$ROOT/home"
 export XDG_CONFIG_HOME="$HOME/.config"
+unset HERD_CONFIG
 CONFIG="$XDG_CONFIG_HOME/herd"
 mkdir -p "$CONFIG" "$ROOT/bin"
 

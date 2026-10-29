@@ -81,10 +81,10 @@ Nothing configured yet is not a failure.
   $ herd list
   No repository lists in $ROOT/home/.config/herd
 
-Without XDG_CONFIG_HOME and HOME there is nowhere to look.
+Without HERD_CONFIG, XDG_CONFIG_HOME or HOME there is nowhere to look.
 
   $ env -u HOME -u XDG_CONFIG_HOME "$HERD" list
-  Neither XDG_CONFIG_HOME nor HOME is set, so there is no configuration directory to read
+  None of HERD_CONFIG, XDG_CONFIG_HOME and HOME is set, so there is no configuration directory to read
   [1]
 
 -V is the short form of --version.

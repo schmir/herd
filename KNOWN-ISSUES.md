@@ -41,24 +41,14 @@ Things `herd` does not do, noticed while reading the code. Each says what is
 absent, what it costs today, and roughly where a fix would land, so that
 picking one up does not start from scratch.
 
-### No way to point herd at a different configuration
+### No option to point herd at a different configuration
 
-`config-directory` in `config.janet` reads `XDG_CONFIG_HOME`, falls back to
-`HOME`, and that is the whole of it. There is no `--config-dir` and no
-`HERD_CONFIG`.
-
-This is the largest gap, because it is the one that makes other things
-awkward rather than merely absent. Trying a configuration out means moving
-the real one aside. Keeping a work set and a personal set apart means
-setting `XDG_CONFIG_HOME` for every invocation, which also moves every other
-program's configuration. Running `herd` from a script or a CI job means
-arranging a fake `HOME`, which is what the test suite already does in half a
-dozen places.
-
-A `--config-dir PATH` option alongside `--at` and `--all-anchors`, read
-before `config-directory` is consulted, would cover all three. An
-environment variable is the cheaper half of it and covers the scripting case
-alone.
+`HERD_CONFIG` names the configuration to read, a directory or a settings
+file, which covers scripts, CI jobs and keeping a work set apart from a
+personal one. There is no `--config PATH` option to do the same for a single
+invocation, alongside `--at` and `--all-anchors`; prefixing the command with
+the variable does that job today. The option would take what the variable
+takes, a directory or a file, which is why it is not named `--config-dir`.
 
 ### Little to read but a path and a URL
 

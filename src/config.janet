@@ -9,9 +9,9 @@
 (import ./run)
 (import ./vcs)
 
-(defn config-directory
-  ``Directory holding the JSON repository lists and the settings file,
-  or nil when neither XDG_CONFIG_HOME nor HOME is set.``
+(defn- default-config-directory
+  ``The configuration directory when HERD_CONFIG names none: the herd
+  directory under XDG_CONFIG_HOME or HOME, or nil when neither is set.``
   []
   (if-let [xdg (os/getenv "XDG_CONFIG_HOME")]
     (path/join xdg "herd")
@@ -148,7 +148,8 @@
 
 (def default-repository-settings
   "Repository settings used when the settings file is absent."
-  {:checkout-defaults {} :checkouts [] :filters {} :shell process/default-shell})
+  {:checkout-defaults {} :checkouts [] :filters {} :shell process/default-shell
+   :file-name settings-file-name})
 
 (defn- configured-shell
   ``Return the configured shell, the argument vector a command string is
@@ -454,7 +455,8 @@
   (def present (map path/basename list-paths))
   (each name (distinct (filter string? (map (fn [checkout-row] (checkout-row :list)) (get settings :checkouts []))))
     (unless (index-of name present)
-      (error (string settings-file-name ": :checkouts reads " (describe name)
+      (error (string (get settings :file-name settings-file-name)
+                     ": :checkouts reads " (describe name)
                      ", which is not in the configuration directory")))))
 
 (defn inline-lists
@@ -464,7 +466,8 @@
   (def defaults (get settings :checkout-defaults {}))
   (seq [[index row] :pairs (get settings :checkouts [])
         :when (indexed? (row :list))]
-    [(string settings-file-name ": " (inline-list-label index))
+    [(string (get settings :file-name settings-file-name) ": "
+             (inline-list-label index))
      (merge defaults row)]))
 
 (defn load-repository-lists
@@ -610,23 +613,55 @@
     (put commands name (command-from-definition name definition reserved)))
   {:settings settings :jobs jobs :pager pager :commands commands})
 
-(defn settings-file-path
-  "Return the path of config.jdn, or nil without a configuration directory."
+(defn config-location
+  ``Return `{:directory :settings-file}`: the directory holding the JSON
+  repository lists, and the settings file. HERD_CONFIG, when set, names
+  either a directory, read as the configuration directory, or a settings
+  file, read in place of config.jdn with the lists beside it. Otherwise the
+  directory is the default one, and nil is returned without one. A
+  HERD_CONFIG naming nothing is an error: unlike the default directory, a
+  configuration asked for by name is not merely absent.``
   []
-  (when-let [directory (config-directory)]
-    (path/join directory settings-file-name)))
+  (def named (os/getenv "HERD_CONFIG"))
+  (if (and named (not (empty? named)))
+    (let [target (path/abspath named)]
+      (case (os/stat target :mode)
+        :directory {:directory target
+                    :settings-file (path/join target settings-file-name)}
+        :file {:directory (parent-path target) :settings-file target}
+        nil (error (string "HERD_CONFIG names " target ", which does not exist"))
+        (error (string "HERD_CONFIG names " target
+                       ", which is neither a file nor a directory"))))
+    (when-let [directory (default-config-directory)]
+      {:directory directory
+       :settings-file (path/join directory settings-file-name)})))
+
+(defn config-directory
+  ``Directory holding the JSON repository lists, as `config-location` finds
+  it, or nil without one.``
+  []
+  (get (config-location) :directory))
+
+(defn settings-file-path
+  ``Return the path of the settings file, as `config-location` finds it, or
+  nil without a configuration directory.``
+  []
+  (get (config-location) :settings-file))
 
 (defn load-settings
-  ``Read and validate config.jdn in `directory`, as `prepare-settings` does
-  with `reserved`. Without the file, or without a directory to look in, the
-  settings are the defaults. Errors from the file name it.``
-  [directory reserved]
-  (def file (when directory (path/join directory settings-file-name)))
+  ``Read and validate the settings `file`, as `prepare-settings` does with
+  `reserved`. Without the file, or without a file to look for, the settings
+  are the defaults. Errors from the file name it, and the repository
+  settings keep its name as `:file-name` for the messages that cite it.``
+  [file reserved]
   (def stat (when file (os/stat file)))
   (cond
     (nil? stat) (prepare-settings {} reserved)
     (not= :file (stat :mode))
     (error (string file " is not a file"))
-    (try
-      (prepare-settings (parse-settings-file (slurp file)) reserved)
-      ([err] (error (string file ": " err))))))
+    (let [loaded (try
+                   (prepare-settings (parse-settings-file (slurp file)) reserved)
+                   ([err] (error (string file ": " err))))]
+      (merge loaded
+             {:settings (merge (loaded :settings)
+                               {:file-name (path/basename file)})}))))

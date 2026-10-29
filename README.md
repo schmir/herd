@@ -29,6 +29,13 @@ To build from source, see [README-dev.md](README-dev.md).
 `herd` reads its configuration from `$XDG_CONFIG_HOME/herd`, or from
 `~/.config/herd` when `XDG_CONFIG_HOME` is not set.
 
+`HERD_CONFIG` names another configuration instead. When it names a
+directory, that directory is read in place of the default one. When it names
+a file, that file is read in place of `config.jdn`, and the repository lists
+are read from the directory holding it, so `HERD_CONFIG=~/work/herd.jdn`
+keeps a configuration of its own beside the lists in `~/work`. A
+`HERD_CONFIG` that names nothing is an error.
+
 ### Repositories
 
 Every `*.json` file in the configuration directory holds an array of

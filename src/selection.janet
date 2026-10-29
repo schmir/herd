@@ -66,7 +66,8 @@
   [options list-filters settings repositories anchors]
   (cond
     (and (empty? repositories) (filters-in-play? list-filters settings))
-    {:kind :emptied-by-filters :list-filters list-filters}
+    {:kind :emptied-by-filters :list-filters list-filters
+     :file-name (get settings :file-name config/settings-file-name)}
 
     (empty? repositories) {:kind :empty-catalog}
 

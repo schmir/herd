@@ -8,6 +8,10 @@
 
 (start-suite "selection")
 
+# A HERD_CONFIG of the user's own would take the place of every configuration
+# the tests arrange.
+(os/setenv "HERD_CONFIG" nil)
+
 (def repositories
   [{:path "/srv/foo" :clone-url "git@example.com:foo.git" :anchors @["/srv"]}
    {:path "/srv/foo/bar" :clone-url "git@example.com:bar.git" :anchors @["/srv"]}
@@ -248,10 +252,12 @@
   (assert (deep= @["/srv/foo"]
                  (chosen {:at-path "/srv" :filter-values ["foo"]} filter-settings))
           "the filter keeps what it matches")
-  (assert (deep= {:kind :emptied-by-filters :list-filters @["none"]}
+  (assert (deep= {:kind :emptied-by-filters :list-filters @["none"]
+                  :file-name "config.jdn"}
                  (reason-of {:at-path "/srv" :filter-values ["none"]} filter-settings))
           "a filter that removes everything is named")
-  (assert (deep= {:kind :emptied-by-filters :list-filters @[]}
+  (assert (deep= {:kind :emptied-by-filters :list-filters @[]
+                  :file-name "config.jdn"}
                  (reason-of {:at-path "/srv"}
                             (config/configured-repository-settings
                               {:checkouts [{:list "repos.json" :anchor "/srv"

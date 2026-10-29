@@ -109,6 +109,13 @@
   (eprint "No repository lists in " (catalog :directory))
   (os/exit 0))
 
+(defn- exit-no-config-directory
+  "Say that nothing names a configuration directory, and fail."
+  []
+  (eprint "None of HERD_CONFIG, XDG_CONFIG_HOME and HOME is set, so there "
+          "is no configuration directory to read")
+  (os/exit 1))
+
 (defn- resolve-filters
   "Sort what `parsed` was given with -f, as selection/resolve-filters does."
   [parsed repository-settings]
@@ -142,7 +149,7 @@
     (unless quiet?
       (eprint "No configured repository is left by "
               (if (empty? (reason :list-filters))
-                (string "the filters in " config/settings-file-name)
+                (string "the filters in " (reason :file-name))
                 (describe-filters (reason :list-filters)))))
 
     :no-anchor-contains-path
@@ -199,10 +206,7 @@
       (os/exit 1))
 
     :no-config-directory
-    (do
-      (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
-              "configuration directory to read")
-      (os/exit 1))
+    (exit-no-config-directory)
 
     :unconfigured
     (unless unconfigured-ok?
@@ -453,9 +457,7 @@
                 ;(command-spec "tree" {})))
   (def directory (config/config-directory))
   (unless directory
-    (eprint "Neither XDG_CONFIG_HOME nor HOME is set, so there is no "
-            "configuration directory to read")
-    (os/exit 1))
+    (exit-no-config-directory))
   (def nodes
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
@@ -564,7 +566,7 @@
   "Return built-in subcommands merged with the configured custom commands."
   []
   (def config
-    (config/load-settings (config/config-directory) built-in-subcommand-names))
+    (config/load-settings (config/settings-file-path) built-in-subcommand-names))
   (merge (built-in-subcommands config) (custom-commands config)))
 
 (defn- subcommand-list

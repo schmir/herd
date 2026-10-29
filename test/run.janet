@@ -10,6 +10,10 @@
 
 (start-suite "run")
 
+# A HERD_CONFIG of the user's own would take the place of every configuration
+# the tests arrange.
+(os/setenv "HERD_CONFIG" nil)
+
 (var fixture-count 0)
 
 (defn- fixture

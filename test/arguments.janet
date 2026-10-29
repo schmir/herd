@@ -10,6 +10,10 @@
 
 (start-suite "arguments")
 
+# A HERD_CONFIG of the user's own would take the place of every configuration
+# the tests arrange.
+(os/setenv "HERD_CONFIG" nil)
+
 # --- the fix-ups for what argparse lets through --------------------------
 
 (def spec
@@ -234,7 +238,7 @@
               :show-output "always"}}`)
   (assert (= settings-file (config/settings-file-path))
           "the JDN configuration uses the XDG configuration directory")
-  (assert (get-in (config/load-settings (path/parent settings-file) herd/built-in-subcommand-names)
+  (assert (get-in (config/load-settings settings-file herd/built-in-subcommand-names)
                   [:commands "mark"])
           "the JDN configuration loads a custom command")
   (def top-help (invoke ["--help"]))
