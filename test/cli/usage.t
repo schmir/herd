@@ -76,6 +76,12 @@ An option another command has is unknown to list.
   herd run needs a command
   [1]
 
+--pager and --no-pager say opposite things.
+
+  $ herd diff --pager --no-pager
+  usage error: --pager and --no-pager exclude each other
+  [1]
+
 Nothing configured yet is not a failure.
 
   $ herd list

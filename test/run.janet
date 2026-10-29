@@ -53,6 +53,12 @@
   (assert (= :file (os/stat (string second "/command ran") :mode))
           "arguments are preserved in later repositories")
   (assert (= previous (os/cwd)) "running commands restores the working directory")
+  (def collected @"")
+  (run/run-in-repositories [(repository first) (repository second)]
+                           ["echo" "collected"] "always" 1 nil false nil collected)
+  (assert (= (string "✓ " first "\n| collected\n\n✓ " second "\n| collected\n")
+             (string collected))
+          "the results can be collected rather than printed")
   (sh/rm dir))
 
 (let [dir (fixture)

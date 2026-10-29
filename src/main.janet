@@ -9,8 +9,8 @@
 (import ./discover)
 (import ./named-filters)
 (import ./options)
+(import ./pager)
 (import ./parallel)
-(import ./process)
 (import ./run)
 (import ./sample)
 (import ./selection)
@@ -272,6 +272,18 @@
     (parsed "dirty") :dirty
     (parsed "clean") :clean))
 
+(defn- paged-from-flags
+  ``Whether --pager or --no-pager asks for the results to be paged, or
+  `default` when neither does. Asking for both is a mistake.``
+  [parsed default]
+  (when (and (parsed "pager") (parsed "no-pager"))
+    (eprint "usage error: --pager and --no-pager exclude each other")
+    (os/exit 1))
+  (cond
+    (parsed "pager") true
+    (parsed "no-pager") false
+    default))
+
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt repository-settings jobs]
@@ -343,22 +355,9 @@
   (and (os/isatty stream) (empty? (os/getenv "NO_COLOR" ""))))
 
 (defn- print-tree
-  ``Print the `lines` of a tree. Colored for a terminal, they go through the
-  `pager` command, run by `shell`, unless it is false. The default, less,
-  shows the color, quits at once when the lines fit on the screen, and leaves
-  them there when it quits. Without a pager they are printed.``
+  "Print the `lines` of a tree, through the `pager` as pager/page does."
   [lines color? pager &opt shell]
-  (def text (string/join (map (fn [line] (string line "\n")) lines)))
-  (def pager
-    (when (and pager color? (not (empty? lines)))
-      (try (os/spawn (process/shell-argv pager [] shell) :p {:in :pipe}) ([_] nil))))
-  (if pager
-    (do
-      # The reader may quit before the end, which closes the pipe.
-      (try (:write (pager :in) text) ([_] nil))
-      (try (:close (pager :in)) ([_] nil))
-      (os/proc-wait pager))
-    (prin text)))
+  (pager/page (string/join (map (fn [line] (string line "\n")) lines)) color? pager shell))
 
 (defn list-command
   ``Run `herd list`: print the selected repositories, one tab-separated path
@@ -431,9 +430,13 @@
       (emit (row :status) ;(row :fields)))))
 
 (defn- run-selected
-  "Run a command in the selected repositories and report its outcome."
-  [command parsed &opt repository-settings]
+  ``Run a command in the selected repositories and report its outcome. With
+  `paged?`, the results are collected and shown through the `pager` once the
+  run is over, as long as they are colored for a terminal; otherwise they
+  are printed as they arrive.``
+  [command parsed &opt repository-settings pager paged?]
   (def requested-state (state-from-flags parsed))
+  (def paged? (paged-from-flags parsed paged?))
   (def show-output
     (exit-on-error "Invalid --show-output: "
                    (fn [] (run/require-show-output (parsed "show-output")))))
@@ -448,8 +451,15 @@
       :repositories))
   # The results are what the commands produced, so they go to stdout, and
   # what herd says about the run goes to stderr.
+  (def color? (color-output?))
+  (def shell (get repository-settings :shell))
+  # A pager and the live progress block would both draw on the terminal, so
+  # the results wait for the run to end, when the block is gone.
+  (def collected (when (and paged? pager color?) @""))
   (def result (run/run-in-repositories repositories command show-output jobs
-                                       limit (color-output?) (parsed "at")))
+                                       limit color? (parsed "at") collected))
+  (when collected
+    (pager/page collected color? pager shell))
   (eprint (result :summary))
   (exit-unless-complete result (pos? ((result :counts) :failed))))
 
@@ -474,7 +484,7 @@
   ``Return a handler that uses description for help and runs command. The
   arguments after the first `--` are not herd's: they are passed on to the
   command.``
-  [command description &opt show-output jobs repository-settings]
+  [command description &opt show-output jobs repository-settings pager paged?]
   (def show-output (or show-output run/default-show-output))
   (fn [args]
     (def separator (index-of "--" args))
@@ -488,11 +498,12 @@
     (def arguments (if separator (slice args (inc separator)) []))
     (run-selected (run/with-arguments command arguments
                                       (get repository-settings :shell))
-                  parsed repository-settings)))
+                  parsed repository-settings pager paged?)))
 
 (defn run-command
-  "Run herd run with the command and repository selection in args."
-  [args &opt jobs repository-settings]
+  ``Run herd run with the command and repository selection in args. Its
+  results go through the `pager` only when --pager asks.``
+  [args &opt jobs repository-settings pager]
   (def parsed
     (parse-command args "run"
                    (string "Run a command in each configured repository beneath a path.\n\n"
@@ -506,7 +517,7 @@
   (when (empty? command)
     (eprint "herd run needs a command")
     (os/exit 1))
-  (run-selected command parsed repository-settings))
+  (run-selected command parsed repository-settings pager false))
 
 (defn completions-command
   ``Run `herd completions`: print the script for a shell, or, for the scripts
@@ -535,10 +546,11 @@
 (defn custom-commands
   "Build the handler of each custom command that `config` holds."
   [config]
-  (def {:settings repository-settings :jobs jobs :commands definitions} config)
+  (def {:settings repository-settings :jobs jobs :pager pager :commands definitions} config)
   (tabseq [[name {:command command :description description
-                  :show-output show-output}] :pairs definitions]
-    name {:run (custom-command-handler command description show-output jobs repository-settings)
+                  :show-output show-output :pager paged?}] :pairs definitions]
+    name {:run (custom-command-handler command description show-output jobs
+                                       repository-settings pager paged?)
           :help description}))
 
 (defn built-in-subcommands
@@ -560,7 +572,7 @@
            :help "Print the configured repositories beneath a path."}
    "tree" {:run (fn [args] (tree-command args config))
            :help "Print the repositories as a tree of the filesystem."}
-   "run" {:run (fn [args] (run-command args jobs repository-settings))
+   "run" {:run (fn [args] (run-command args jobs repository-settings pager))
           :help "Run a command in each configured repository beneath a path."}})
 
 (def built-in-subcommand-names

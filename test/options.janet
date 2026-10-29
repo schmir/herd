@@ -18,8 +18,8 @@
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help" "repositories"] (names "tree")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "jobs" "limit"
-                   "dirty" "clean"]
+  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "pager"
+                   "no-pager" "jobs" "limit" "dirty" "clean"]
                  (names "run")))
   (assert (deep= (names "run") (names "a-command-from-config"))
           "a command the configuration defines takes what run does"))

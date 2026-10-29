@@ -128,13 +128,14 @@
     (file/flush stderr)))
 
 (defn- report
-  ``Write one message to `stream` above the live block, then redraw it. The
-  message is flushed first, so a stream that is not a terminal cannot hold it
-  back past the block drawn after it.``
+  ``Write one message to `stream`, a file or a buffer, above the live block,
+  then redraw it. A file is flushed first, so one that is not a terminal
+  cannot hold the message back past the block drawn after it.``
   [progress stream & xs]
   (erase progress)
   (xprint stream ;xs)
-  (file/flush stream)
+  (when (= :core/file (type stream))
+    (file/flush stream))
   (draw progress))
 
 (defn- animate
@@ -174,8 +175,8 @@
   is drawn when stderr is a terminal, unless `live?` is given: false keeps the
   run silent, apart from what it reports. `stop?`, when given, is asked before
   each repository is claimed, and once it answers true nothing more is.
-  What the callback reports goes to `output`, stderr unless given; what goes
-  wrong in running it is reported on stderr.
+  What the callback reports goes to `output`, a file or a buffer, stderr
+  unless given; what goes wrong in running it is reported on stderr.
 
   Return `{:counts :interrupted? :stopped? :summary}`: how many repositories
   ended in each outcome, whether the terminal asked the run to stop, whether

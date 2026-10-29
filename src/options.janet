@@ -31,6 +31,12 @@
   {:name "show-output" :kind :option :value-name "WHEN"
    :help "Show command output: never, on-failure, or always."})
 
+(def- pager
+  [{:name "pager" :short "p" :kind :flag
+    :help "Show the results through the pager on a terminal, once the run is over."}
+   {:name "no-pager" :short "P" :kind :flag
+    :help "Print the results as they arrive, without the pager."}])
+
 (def- dirty
   {:name "dirty" :kind :flag
    :help "Select only repositories with uncommitted changes."})
@@ -86,4 +92,4 @@
     "list" [;selecting sample ;list-only dirty clean]
     "completions" [help]
     "tree" [help list-repositories]
-    [;selecting sample show-output jobs limit dirty clean]))
+    [;selecting sample show-output ;pager jobs limit dirty clean]))

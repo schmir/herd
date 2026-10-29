@@ -227,10 +227,11 @@
   with the succeeded, failed, no-command, and not-checked-out counts. With a
   `limit`, the run stops once the command has run in that many repositories;
   those it skips or finds not checked out do not count. The results are
-  printed to stdout, as what the command produced, and with `color?` in
-  color. `at` is the location the repositories were selected from, which
-  each command is told its repository's path relative to.``
-  [repositories command &opt show-output jobs limit color? at]
+  printed to `output`, stdout unless given, as what the command produced,
+  and with `color?` in color. `at` is the location the repositories were
+  selected from, which each command is told its repository's path relative
+  to.``
+  [repositories command &opt show-output jobs limit color? at output]
   (def show-output (require-show-output (or show-output default-show-output)))
   # Capture output per process so each visible result is one coherent block.
   (def block-separator @{:needed? false})
@@ -261,4 +262,4 @@
     jobs
     nil
     stop?
-    stdout))
+    (or output stdout)))

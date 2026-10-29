@@ -522,7 +522,8 @@
   jobs)
 
 (def default-pager
-  "The command trees are shown through on a terminal, unless :pager says otherwise."
+  ``The command trees, and the results of commands that ask for it, are shown
+  through on a terminal, unless :pager says otherwise.``
   "less -FXR")
 
 (defn- configured-pager
@@ -535,7 +536,7 @@
 
 (def- custom-command-keys
   "Keys a custom-command definition may contain."
-  [:command :command-git :command-jj :description :show-output])
+  [:command :command-git :command-jj :description :show-output :pager])
 
 (def- default-command-definitions
   ``Custom commands herd defines itself, written as they would be in :commands
@@ -543,13 +544,16 @@
   {"diff" {:command-git `git diff --color="$HERD_COLOR" HEAD "$@"`
            :command-jj `jj diff --color="$HERD_COLOR" "$@"`
            :description "Show working copy changes in configured repositories beneath a path."
-           :show-output "always"}
+           :show-output "always"
+           :pager true}
    "fetch" {:command-git `git fetch "$@"`
             :command-jj `jj git fetch --color="$HERD_COLOR" "$@"`
             :description "Fetch Git remotes in configured repositories beneath a path."}})
 
 (defn- command-from-definition
-  "Validate one custom-command definition and return its :command, :description, and :show-output."
+  ``Validate one custom-command definition and return its :command,
+  :description, :show-output, and :pager, whether its results are shown
+  through the pager, false unless it says.``
   [name definition reserved]
   (unless (and (string? name) (not (empty? name)))
     (error "custom command names must be non-empty strings"))
@@ -589,7 +593,11 @@
     (run/require-show-output show-output)
     ([err]
       (fail (string "has an invalid :show-output; " err))))
-  {:command command-or-vcs-specific :description description :show-output show-output})
+  (def pager (get definition :pager false))
+  (unless (boolean? pager)
+    (fail "needs true or false for :pager"))
+  {:command command-or-vcs-specific :description description :show-output show-output
+   :pager pager})
 
 (def- settings-keys
   "Keys the settings file may hold at its top level."
@@ -599,7 +607,7 @@
   ``Validate the raw settings of config.jdn and return `{:settings :jobs
   :pager :commands}`: the repository settings, the job count, the pager
   command (false for none), and each custom command
-  by name with its `:command`, `:description` and `:show-output`. `reserved`
+  by name with its `:command`, `:description`, `:show-output` and `:pager`. `reserved`
   names the commands a custom command may not replace. The commands herd
   defines itself are there unless the settings define one of the same name.``
   [settings-file reserved]

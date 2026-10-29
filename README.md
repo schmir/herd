@@ -115,14 +115,15 @@ settings:
 ```
 
 `:jobs` is the default number of operations run in parallel. `:pager` is the
-command, run by the shell, that trees are shown through on a terminal; it
-defaults to `less -FXR` and `false` turns the pager off. `:shell` is the
-shell that the pager, custom commands and shell filters run in, written as
-the argument vector a command follows, like `["bash" "-c"]` or
-`["zsh" "-o" "pipefail" "-c"]`; it defaults to `["sh" "-c"]`. Its program is
-the command's `$0`. `:filters` names the JMESPath expressions and shell
-commands that [select repositories](#filters). Any other key at the top
-level is an error, so a misspelt setting is not silently ignored.
+command, run by the shell, that trees and the results of commands that ask
+for it are shown through on a terminal; it defaults to `less -FXR` and
+`false` turns the pager off. `:shell` is the shell that the pager, custom
+commands and shell filters run in, written as the argument vector a command
+follows, like `["bash" "-c"]` or `["zsh" "-o" "pipefail" "-c"]`; it defaults
+to `["sh" "-c"]`. Its program is the command's `$0`. `:filters` names the
+JMESPath expressions and shell commands that
+[select repositories](#filters). Any other key at the top level is an error,
+so a misspelt setting is not silently ignored.
 
 `:checkouts` is where the repository lists are anchored. Each row takes one
 repository list, either named by `:list` as it is named in the configuration
@@ -366,11 +367,12 @@ command can color what herd captures the way herd colors its own output. The
 built-in `diff` is `git diff --color="$HERD_COLOR" HEAD "$@"` and
 `jj diff --color="$HERD_COLOR" "$@"`, so `herd diff -- --stat` shows the
 stat, and the built-in `fetch` colors what `jj git fetch` prints the same
-way. `:show-output` sets that command's default output condition; see
-[Use](#use). Custom names cannot shadow the built-in commands `clone`,
-`completions`, `list`, `run` and `tree`. `diff` and `fetch` are themselves
-custom commands herd defines by default, so an entry of the same name in
-`:commands` replaces them.
+way. `:show-output` sets that command's default output condition, and
+`:pager true` shows its results through the [pager](#settings) once the run
+is over, as the built-in `diff` does; see [Use](#use). Custom names cannot
+shadow the built-in commands `clone`, `completions`, `list`, `run` and
+`tree`. `diff` and `fetch` are themselves custom commands herd defines by
+default, so an entry of the same name in `:commands` replaces them.
 
 ## Shell completions
 
@@ -504,9 +506,17 @@ wrote to stderr follow `!`:
 | origin	git@github.com:acme/api.git (push)
 ```
 
+On a terminal, `--pager` holds the results back until the run is over and
+then shows them through the [pager](#settings), so a pager and the progress
+display never draw over each other. `herd run` prints them as they arrive
+unless asked, `herd diff` pages them unless `--no-pager` says otherwise, and
+a [custom command](#custom-commands) pages them when it sets `:pager`.
+
 A failed command is headed by `✗` and its exit status. On a terminal the
-heading is green when the command succeeded and red when it failed, and the
-`|` and `!` in front of the output are dimmed, unless `NO_COLOR` is set.
+heading is green when the command succeeded and red when it failed, a dimmed
+rule runs through it to the edge of the screen with the exit status near its
+end, and the `|` and `!` in front of the output are dimmed, unless
+`NO_COLOR` is set.
 
 Commands do not receive terminal input, so they must be non-interactive.
 `run`, `fetch`, and custom commands finish with a summary and exit non-zero

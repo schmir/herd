@@ -33,6 +33,7 @@
          "src/named-filters.janet"
          "src/location.janet"
          "src/options.janet"
+         "src/pager.janet"
          "src/parallel.janet"
          "src/process.janet"
          "src/run.janet"

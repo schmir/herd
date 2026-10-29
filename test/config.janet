@@ -182,6 +182,15 @@
                 {:commands {"check" {:command "true"
                                      :description "Check repositories."
                                      :show-output "sometimes"}}}))
+(assert-error "a custom command pager choice must be a boolean"
+              (prepare
+                {:commands {"check" {:command "true"
+                                     :description "Check repositories."
+                                     :pager "yes"}}}))
+(assert (= true (get-in (prepare {}) [:commands "diff" :pager]))
+        "the built-in diff shows its results through the pager")
+(assert (= false (get-in (prepare {}) [:commands "fetch" :pager]))
+        "the built-in fetch prints its results as they arrive")
 (assert-error "a command cannot mix common and VCS-specific forms"
               (prepare
                 {:commands {"check"
@@ -222,7 +231,9 @@
           "a custom command retains its description")
   (assert (= "true" (command :command)) "and its command")
   (assert (= "on-failure" (command :show-output))
-          "and settles the output to show when none is configured"))
+          "and settles the output to show when none is configured")
+  (assert (= false (command :pager))
+          "and prints its results as they arrive unless it asks for the pager"))
 
 (assert (deep= {:command-git "git status" :command-jj "jj status"}
                (get (command-of "check"
