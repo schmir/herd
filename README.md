@@ -38,8 +38,10 @@ keeps a configuration of its own beside the lists in `~/work`. A
 
 `-c PATH` or `--config PATH`, given before the command as in
 `herd -c ~/work/herd.jdn list`, names a configuration the same way for one
-invocation, in place of `HERD_CONFIG`. A command `herd run` starts sees it
-as `HERD_CONFIG`, so a `herd` it runs in turn reads the same configuration.
+invocation, in place of `HERD_CONFIG`. A command `herd run` starts sees the
+configuration in use as an absolute `HERD_CONFIG`, whether it was named by
+`-c`, by a relative `HERD_CONFIG`, or is the default directory, so a `herd`
+it runs in turn reads the same configuration.
 
 ### Repositories
 

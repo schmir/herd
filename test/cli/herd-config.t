@@ -77,3 +77,15 @@ A herd started by a command reads the same configuration, wherever it runs.
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
   | $ROOT/home/.config/herd
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+So does one started without -c: a relative HERD_CONFIG is handed on as an
+absolute path, and the default directory is named too.
+
+  $ (export HERD_CONFIG=home/.config/herd && herd run -C home/src/web --show-output always printenv HERD_CONFIG)
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | $ROOT/home/.config/herd
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd run -C home/src/web --show-output always printenv HERD_CONFIG
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | $ROOT/home/.config/herd
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out

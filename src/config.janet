@@ -656,6 +656,22 @@
   (named-location named "--config")
   (os/setenv "HERD_CONFIG" (path/abspath named)))
 
+(defn pin-config
+  ``Set HERD_CONFIG to the absolute path of the configuration in use: the one
+  it names, or the default directory when it names none and that exists. A
+  command then finds the configuration herd reads, and a herd started by one,
+  in a repository of its own, reads it too. Without a configuration it is
+  left alone.``
+  []
+  (def named (os/getenv "HERD_CONFIG"))
+  (if (and named (not (empty? named)))
+    (do
+      (named-location named "HERD_CONFIG")
+      (os/setenv "HERD_CONFIG" (path/abspath named)))
+    (when-let [directory (default-config-directory)]
+      (when (= :directory (os/stat directory :mode))
+        (os/setenv "HERD_CONFIG" (path/abspath directory))))))
+
 (defn config-directory
   ``Directory holding the JSON repository lists, as `config-location` finds
   it, or nil without one.``
