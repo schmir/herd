@@ -472,6 +472,13 @@ blocked:
 2 cloned, 1 already checked out, 0 blocked, 0 failed
 ```
 
+A clone cannot ask you anything, so one that would have to fails instead. A
+host ssh does not know yet fails with `Host key verification failed`, until
+you connect to it once by hand, and a key with a passphrase needs an agent
+holding it. To answer through a program of your own, set `SSH_ASKPASS`,
+which `herd` then leaves in place. This relies on OpenSSH 8.4 or later; an
+older ssh ignores it, and still waits on the terminal.
+
 Fetch the Git remotes of every checked-out repository:
 
 ```sh
@@ -518,9 +525,10 @@ rule runs through it to the edge of the screen with the exit status near its
 end, and the `|` and `!` in front of the output are dimmed, unless
 `NO_COLOR` is set.
 
-Commands do not receive terminal input, so they must be non-interactive.
-`run`, `fetch`, and custom commands finish with a summary and exit non-zero
-if any command failed:
+Commands do not receive terminal input, so they must be non-interactive; Git
+and ssh are told to fail rather than ask, as they are for a clone. `run`,
+`fetch`, and custom commands finish with a summary and exit non-zero if any
+command failed:
 
 ```
 3 succeeded, 0 failed, 0 skipped, 1 not checked out

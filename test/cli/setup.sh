@@ -39,7 +39,7 @@ PATH="$ROOT/bin:$PATH"
 for name in $(env | sed -n -E 's/^((GIT|JJ)_[A-Za-z0-9_]*)=.*/\1/p'); do
     unset "$name"
 done
-unset EDITOR VISUAL PAGER EMAIL SSH_ASKPASS NO_COLOR XDG_CACHE_HOME
+unset EDITOR VISUAL PAGER EMAIL SSH_ASKPASS SSH_ASKPASS_REQUIRE NO_COLOR XDG_CACHE_HOME
 unset RUST_LOG RUST_BACKTRACE
 
 # Keep the user's Git and jj configuration out, and give commits an author
