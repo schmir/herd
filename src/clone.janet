@@ -5,6 +5,7 @@
 (import ./checkout)
 (import ./parallel)
 (import ./process)
+(import ./run)
 (import ./vcs)
 
 (defn staging-path
@@ -43,15 +44,19 @@
 
 (defn clone-repository
   ``Clone a repository with `vcs-id` unless it is already checked out, or
-  something that is not a repository stands in its way.
+  something that is not a repository stands in its way. What happened is
+  reported as herd run reports a command, as `show-output` asks and with
+  `color?` in color.
   Return :present, :blocked, :cloned, or :failed.``
-  [executable report url path &opt vcs-id]
-  (case (checkout/checkout-status {:path path})
+  [executable report url path &opt vcs-id show-output color?]
+  (def show-output (run/require-show-output (or show-output run/default-show-output)))
+  (def repository {:path path})
+  (case (checkout/checkout-status repository)
     :ok :present
     :blocked
     (do
-      (report "Clone blocked: " path
-              " holds something that is not a repository")
+      (run/report-failure repository "holds something that is not a repository"
+                          report show-output color?)
       :blocked)
     (try
       (do
@@ -61,28 +66,31 @@
               (vcs/clone-command (or vcs-id vcs/default)
                                  executable url staging))
             path))
-        (if (zero? (result :status))
-          (do
-            (report "Clone complete: " path)
-            :cloned)
-          (do
-            (report "Clone failed: " path)
-            (when (pos? (length (result :err))) (report (result :err)))
-            (when (pos? (length (result :out))) (report (result :out)))
-            :failed)))
+        (run/report-result repository result report show-output color?)
+        (if (zero? (result :status)) :cloned :failed))
       ([err]
-        (report "Clone failed: " path ": " err)
+        (run/report-failure repository err report show-output color?)
         :failed))))
 
 (defn clone-repositories
   ``Clone repositories with their selected VCS and limit concurrent processes.
-  What happened to each repository is reported on stdout. Return what
-  parallel/for-each-repository does, with the cloned, present, blocked, and
-  failed counts.``
-  [repositories &opt jobs]
+  What happened to each repository is reported on stdout, as herd run reports
+  a command, as `show-output` asks and with `color?` in color. A clone that
+  worked is otherwise named on a line of its own when only failures would show
+  its output. Return what parallel/for-each-repository does, with the cloned,
+  present, blocked, and failed counts.``
+  [repositories &opt jobs show-output color?]
+  (def show-output (run/require-show-output (or show-output run/default-show-output)))
   (def executables
     (tabseq [name :in (vcs/names)]
       (vcs/parse name) (process/find-executable name)))
+  # Lines naming clones stay together, and a block stands apart from anything.
+  (def spacing @{:last nil})
+  (defn report-spaced [kind report & xs]
+    (when (and (spacing :last) (or (= kind :block) (= (spacing :last) :block)))
+      (report ""))
+    (put spacing :last kind)
+    (report ;xs))
   (parallel/for-each-repository
     repositories
     [[:cloned "cloned"]
@@ -90,6 +98,8 @@
      [:blocked "blocked"]
      [:failed "failed"]]
     (fn [repository report]
+      (defn report-block [& args]
+        (report-spaced :block report ;args))
       # Each checkout has its final VCS after loading.
       (def vcs-id (get repository :vcs vcs/default))
       (def executable (get executables vcs-id))
@@ -97,13 +107,19 @@
       # cloned is reported as what it is rather than as a missing VCS.
       (if (or executable
               (not= :missing (checkout/checkout-status repository)))
-        (clone-repository executable report
-                          (repository :clone-url)
-                          (repository :path)
-                          vcs-id)
+        (let [outcome (clone-repository executable report-block
+                                        (repository :clone-url)
+                                        (repository :path)
+                                        vcs-id
+                                        show-output
+                                        color?)]
+          (when (and (= :cloned outcome) (= "on-failure" show-output))
+            (report-spaced :line report "Clone complete: " (repository :path)))
+          outcome)
         (do
-          (report "Clone failed: " (repository :path) ": "
-                  (vcs/name vcs-id) " was not found on PATH")
+          (run/report-failure repository
+                              (string (vcs/name vcs-id) " was not found on PATH")
+                              report-block show-output color?)
           :failed)))
     jobs
     nil

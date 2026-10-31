@@ -12,7 +12,7 @@
 (defn test-each-command-declares-its-options
   "A command's options come in the order its help and its scripts list them."
   []
-  (assert (deep= @["at" "all-anchors" "filter" "help" "jobs"] (names "clone")))
+  (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"] (names "clone")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "missing" "extra"
                    "status" "tree" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))

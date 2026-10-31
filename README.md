@@ -465,11 +465,21 @@ A target holding a Git or Jujutsu repository is already checked out, and an
 empty directory is cloned into. Anything else at the target blocks the
 clone: `clone` names it and leaves it unchanged, since it cannot tell what
 is there. `herd list --status` reports such a path as `blocked`. `clone`
-finishes with a summary and exits non-zero if any clone failed or was
-blocked:
+reports its results as `herd run` does, and takes the same `--show-output`:
+by default a clone that worked is named on one line, and each one that
+failed or was blocked is shown as a block of its own. `always` shows what a
+clone that worked printed in place of that line, and `never` shows neither.
+`clone` finishes with a summary and exits non-zero if any clone failed or
+was blocked:
 
 ```
-2 cloned, 1 already checked out, 0 blocked, 0 failed
+Clone complete: /home/you/src/acme/web
+
+✗ /home/you/src/acme/api (exit 128)
+! Cloning into '/home/you/src/acme/.api.herd-clone'...
+! git@github.com: Permission denied (publickey).
+! fatal: Could not read from remote repository.
+1 cloned, 1 already checked out, 0 blocked, 1 failed
 ```
 
 A clone cannot ask you anything, so one that would have to fails instead. A

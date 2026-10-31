@@ -26,9 +26,10 @@
                                             (fn [& args] (array/push blocked-messages (string ;args)))
                                             "unused" occupied))
         "something that is not a repository blocks the clone")
-(assert (deep= @[(string "Clone blocked: " occupied
-                         " holds something that is not a repository")]
-               blocked-messages))
+(assert (deep= @[(string "✗ " occupied
+                         "\n! holds something that is not a repository")]
+               blocked-messages)
+        "a blocked clone is reported as a failed command is")
 
 (defn fake-vcs
   ``Write an executable at `name` in the test directory that runs `body` as
@@ -51,7 +52,7 @@
              (clone/clone-repository cloning-vcs
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" success)))
-  (assert (= 1 (length messages)) "a successful clone reports completion")
+  (assert (empty? messages) "a successful clone stays quiet by default")
   (assert (= :directory (os/stat (path/join success ".git") :mode))
           "a successful clone is moved into place")
   (assert (nil? (os/lstat (clone/staging-path success)))
@@ -86,7 +87,8 @@
              (clone/clone-repository (process/find-executable "false")
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" failure)))
-  (assert (= 1 (length messages)) "a failed clone reports its path")
+  (assert (deep= @[(string "✗ " failure " (exit 1)")] messages)
+          "a failed clone is headed by its path and exit status")
 
   (def crashed (path/join dir "crashed"))
   (assert (= :failed (clone/clone-repository dying-vcs (fn [&]) "unused"
@@ -103,7 +105,27 @@
                                      (fn [& args] (array/push messages (string ;args)))
                                      "unused" vanished))
           "a VCS that succeeds without writing a clone has failed")
-  (assert (= 2 (length messages)) "the failed move is reported"))
+  (assert (= 1 (length messages)) "the failed move is one block")
+  (assert (string/has-prefix? (string "✗ " vanished " (exit 1)\n! ") (messages 0))
+          "the failed move is reported as what went wrong")
+
+  (set messages @[])
+  (def shown (path/join dir "shown"))
+  (def talking-vcs (fake-vcs "talking" `echo said; mkdir -p "$dest/.git"`))
+  (assert (= :cloned
+             (clone/clone-repository talking-vcs
+                                     (fn [& args] (array/push messages (string ;args)))
+                                     "unused" shown nil "always")))
+  (assert (deep= @[(string "✓ " shown "\n| said")] messages)
+          "show-output always shows what a successful clone printed")
+
+  (set messages @[])
+  (def hidden (path/join dir "hidden"))
+  (assert (= :failed
+             (clone/clone-repository (process/find-executable "false")
+                                     (fn [& args] (array/push messages (string ;args)))
+                                     "unused" hidden nil "never")))
+  (assert (empty? messages) "show-output never hides a failure"))
 
 (def result
   (clone/clone-repositories [{:path existing :clone-url "unused"}

@@ -107,6 +107,7 @@ on repositories document their defaults.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
+   --show-output WHEN=on-failure Show command output: never, on-failure, or always.
    -a, --all-anchors Consider repositories from every configuration anchor.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.

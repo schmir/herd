@@ -284,13 +284,29 @@
     (parsed "no-pager") false
     default))
 
+(defn- color-output?
+  ``Whether to color what is printed to `stream`, stdout unless given: on a
+  terminal, unless NO_COLOR asks otherwise.``
+  [&opt stream]
+  (default stream stdout)
+  # NO_COLOR, when set to anything, asks programs not to color.
+  (and (os/isatty stream) (empty? (os/getenv "NO_COLOR" ""))))
+
+(defn- show-output-from
+  "Return the validated --show-output condition, or report the mistake and exit."
+  [parsed]
+  (exit-on-error "Invalid --show-output: "
+                 (fn [] (run/require-show-output (parsed "show-output")))))
+
 (defn clone-command
   "Run herd clone with each repository's configured VCS."
   [args &opt repository-settings jobs]
   (def parsed
     (parse-command args "clone"
                    "Check out the configured repositories beneath a path."
-                   {"jobs" (string (or jobs parallel/default-jobs))}))
+                   {"jobs" (string (or jobs parallel/default-jobs))
+                    "show-output" run/default-show-output}))
+  (def show-output (show-output-from parsed))
   (def jobs (jobs-from parsed))
   (def selection (resolve-filters parsed repository-settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
@@ -300,7 +316,7 @@
     (os/exit 1))
   (def repositories
     ((select-or-exit (selection-options parsed) repository-settings) :repositories))
-  (def result (clone/clone-repositories repositories jobs))
+  (def result (clone/clone-repositories repositories jobs show-output (color-output?)))
   (eprint (result :summary))
   # A blocked repository was asked for and is still not checked out.
   (exit-unless-complete
@@ -345,14 +361,6 @@
                                   :follow-links? (parsed "follow-links"))
       @[]))
   (survey/extra-repositories discovered everything))
-
-(defn- color-output?
-  ``Whether to color what is printed to `stream`, stdout unless given: on a
-  terminal, unless NO_COLOR asks otherwise.``
-  [&opt stream]
-  (default stream stdout)
-  # NO_COLOR, when set to anything, asks programs not to color.
-  (and (os/isatty stream) (empty? (os/getenv "NO_COLOR" ""))))
 
 (defn- print-tree
   "Print the `lines` of a tree, through the `pager` as pager/page does."
@@ -437,9 +445,7 @@
   [command parsed &opt repository-settings pager paged?]
   (def requested-state (state-from-flags parsed))
   (def paged? (paged-from-flags parsed paged?))
-  (def show-output
-    (exit-on-error "Invalid --show-output: "
-                   (fn [] (run/require-show-output (parsed "show-output")))))
+  (def show-output (show-output-from parsed))
   (def jobs (jobs-from parsed))
   (def limit (limit-from parsed))
   (def repositories

@@ -170,6 +170,32 @@
                             (vcs/name vcs-id)
                             "")}))
 
+(defn report-result
+  ``Report what `result`, as process/capture returns it, did in `repository`
+  through `report`, if `show-output` asks for it. A successful command that
+  printed nothing has nothing to report: its heading alone would only add
+  noise. A failing one still needs a heading, because the counts do not name
+  the repository. With `color?`, a result is printed in color.``
+  [repository result report show-output color?]
+  (def {:status status :out stdout :err stderr} result)
+  (def succeeded (zero? status))
+  (when (and (or (not succeeded)
+                 (pos? (+ (length stdout) (length stderr))))
+             (case show-output
+               "never" false
+               "on-failure" (not succeeded)
+               "always" true))
+    (report (format-command-result repository status stdout stderr color?))))
+
+(defn report-failure
+  ``Report through `report` that `repository` failed for the reason `message`,
+  with no command's exit status to show, unless `show-output` is "never". With
+  `color?`, the result is printed in color.``
+  [repository message report show-output color?]
+  (unless (= "never" show-output)
+    (report (heading "✗" (repository :path) failed-color color?) "\n"
+            (indent-command-output (string message) stderr-gutter color?))))
+
 (defn run-in-repository
   ``Run and capture a command in a repository without changing herd's cwd.
   `reserve`, when given, is called once the command is known to run here,
@@ -189,29 +215,12 @@
                          "herd" (repository :path) ;selected]
                         :pe
                         (command-environment repository color? at)))
-          (def stdout (result :out))
-          (def stderr (result :err))
-          (def status (result :status))
-          (def succeeded (zero? status))
-          # A successful command that printed nothing has nothing to report:
-          # its heading alone would only add noise. A failing one still needs
-          # a heading, because the counts do not name the repository.
-          (def worth-reporting
-            (or (not succeeded)
-                (pos? (+ (length stdout) (length stderr)))))
-          (when (and worth-reporting
-                     (case show-output
-                       "never" false
-                       "on-failure" (not succeeded)
-                       "always" true))
-            (report (format-command-result repository status stdout stderr color?)))
-          (if succeeded :succeeded :failed))
+          (report-result repository result report show-output color?)
+          (if (zero? (result :status)) :succeeded :failed))
         :no-command)
       :not-checked-out)
     ([err]
-      (unless (= "never" show-output)
-        (report (heading "✗" (repository :path) failed-color color?) "\n"
-                (indent-command-output (string err) stderr-gutter color?)))
+      (report-failure repository err report show-output color?)
       :failed)))
 
 (defn report-command-result

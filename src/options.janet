@@ -88,7 +88,7 @@
   [command]
   (def selecting [at all-anchors filter-option help])
   (case command
-    "clone" [;selecting jobs]
+    "clone" [;selecting show-output jobs]
     "list" [;selecting sample ;list-only dirty clean]
     "completions" [help]
     "tree" [help list-repositories]
