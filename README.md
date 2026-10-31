@@ -476,7 +476,7 @@ was blocked:
 Clone complete: /home/you/src/acme/web
 
 ✗ /home/you/src/acme/api (exit 128)
-! Cloning into '/home/you/src/acme/.api.herd-clone'...
+! Cloning into '/home/you/src/acme/.herd-clone-api'...
 ! git@github.com: Permission denied (publickey).
 ! fatal: Could not read from remote repository.
 1 cloned, 1 already checked out, 0 blocked, 1 failed

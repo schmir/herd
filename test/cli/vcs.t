@@ -55,14 +55,14 @@ forms each expects, and moves the clone into place once it succeeds.
   clone
   --
   git-url
-  $ROOT/home/.git-repo.herd-clone
+  $ROOT/home/.herd-clone-git-repo
   $ sed "s|$ROOT|\$ROOT|" "$ROOT/jj.args"
   git
   clone
   --colocate
   --
   jj-url
-  $ROOT/home/.jj-repo.herd-clone
+  $ROOT/home/.herd-clone-jj-repo
   $ ls -A
   .config
   git-repo

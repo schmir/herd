@@ -13,7 +13,7 @@
   place: a hidden sibling, so the move stays on one file system.``
   [target]
   (path/join (path/dirname target)
-             (string "." (path/basename target) ".herd-clone")))
+             (string ".herd-clone-" (path/basename target))))
 
 (defn- clone-into-place
   ``Run the clone command `make-clone-command` returns for a staging path beside

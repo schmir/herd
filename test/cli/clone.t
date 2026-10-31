@@ -108,7 +108,7 @@ around it.
   > #!/bin/sh
   > for dest; do :; done
   > case "$dest" in
-  > */."$FAIL".herd-clone) echo err >&2; exit 128 ;;
+  > */.herd-clone-"$FAIL") echo err >&2; exit 128 ;;
   > esac
   > mkdir -p "$dest/.git"
   > EOF

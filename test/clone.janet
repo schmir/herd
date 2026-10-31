@@ -8,6 +8,11 @@
 
 (start-suite "clone")
 
+(assert (= "/a/.herd-clone-b" (clone/staging-path "/a/b"))
+        "a clone is staged in a hidden sibling")
+(assert (= "/a/.herd-clone-.b" (clone/staging-path "/a/.b"))
+        "a hidden target does not share the staging path of its unhidden namesake")
+
 (def dir (path/join (os/getenv "TMPDIR" "/tmp")
                     (string "herd-clone-test-" (os/getpid))))
 (sh/rm dir)
@@ -57,6 +62,12 @@
           "a successful clone is moved into place")
   (assert (nil? (os/lstat (clone/staging-path success)))
           "a successful clone leaves no staging directory")
+
+  (def hidden-target (path/join dir ".hidden-target"))
+  (assert (= :cloned (clone/clone-repository cloning-vcs (fn [&]) "unused"
+                                             hidden-target))
+          "a hidden target is cloned")
+  (assert (= :directory (os/stat (path/join hidden-target ".git") :mode)))
 
   (def empty (path/join dir "empty"))
   (sh/create-dirs empty)
