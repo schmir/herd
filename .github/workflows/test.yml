@@ -76,24 +76,34 @@ jobs:
       fail-fast: false
       matrix:
         # jp is the release binary of jp 0.2.1, the version the dev shells
-        # use, pinned by the hash jp-checksums.sha256.asc gives for it.
+        # use, pinned by the hash jp-checksums.sha256.asc gives for it. jj is
+        # the release archive of jj 0.46.0, the version the dev shells use,
+        # pinned by the digest GitHub lists for it.
         include:
           - runner: ubuntu-26.04
             platform: linux-x86_64
             jp: jp-linux-amd64
             jp-sha256: f3c5d4cd38a971d9c1666555deb208f080b62708b89d0f5f615e4ae605a0cb8e
+            jj: x86_64-unknown-linux-musl
+            jj-sha256: fce0271158e665ceb82dc66c5eb95b1728649094e9133074f3b5baece345fc08
           - runner: ubuntu-26.04-arm
             platform: linux-aarch64
             jp: jp-linux-arm64
             jp-sha256: eba658170bfbcad1b5a49c0b087ce153544575e082f77b049de3563f0c5dd536
+            jj: aarch64-unknown-linux-musl
+            jj-sha256: 80e28f7501c11e50e0ca06cd6a1fa1d982cff9cc59bfe4411a9d36aa501d867e
           - runner: macos-15
             platform: macos-arm64
             jp: jp-darwin-arm64
             jp-sha256: 2c11cb17f376273cb0066d0f27533c1bdc4f4b64891205b826f3bf0a6a4d3324
+            jj: aarch64-apple-darwin
+            jj-sha256: 43daa37ce0f9716cdf6fb65a29cbcae74a3160aef048cf3cb3d166d41cb4ab58
           - runner: macos-15-intel
             platform: macos-x86_64
             jp: jp-darwin-amd64
             jp-sha256: ca1ec721273a578f2747e413342b26cc01656648fafc1f6436d935043b4d2cbe
+            jj: x86_64-apple-darwin
+            jj-sha256: 10d941de276c7c5074ef5d395312813b4575f4ce92cb9c0b05738efb90bd3b60
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -128,6 +138,15 @@ jobs:
           echo "${{ matrix.jp-sha256 }}  $jp" | shasum -a 256 -c -
           chmod +x "$jp"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The jj tests skip themselves without jj, which the runner lacks.
+      - name: Install jj
+        run: |
+          archive="jj-v0.46.0-${{ matrix.jj }}.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/jj-vcs/jj/releases/download/v0.46.0/$archive"
+          echo "${{ matrix.jj-sha256 }}  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bin" ./jj
 
       # The prysk version just test-cli names.
       - name: Run the command-line tests
