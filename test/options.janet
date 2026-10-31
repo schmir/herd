@@ -14,10 +14,10 @@
   []
   (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"] (names "clone")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "missing" "extra"
-                   "status" "tree" "max-depth" "hidden" "follow-links" "dirty" "clean"]
+                   "status" "tree" "no-pager" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
-  (assert (deep= @["help" "repositories"] (names "tree")))
+  (assert (deep= @["help" "repositories" "no-pager"] (names "tree")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "pager"
                    "no-pager" "jobs" "limit" "dirty" "clean"]
                  (names "run")))

@@ -379,6 +379,9 @@
   (def parsed
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}))
+  (when (and (parsed "no-pager") (not (parsed "tree")))
+    (eprint "usage error: --no-pager applies only with --tree")
+    (os/exit 1))
   (def requested-state (state-from-flags parsed))
   (def show-status? (parsed "status"))
   (def picked? (or (parsed "ok") (parsed "missing") (parsed "extra")))
@@ -432,7 +435,7 @@
                            rows))
                     color?)
                   color?
-                  pager
+                  (unless (parsed "no-pager") pager)
                   (get repository-settings :shell)))
     (each row rows
       (emit (row :status) ;(row :fields)))))
@@ -483,7 +486,8 @@
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
   (let [color? (color-output?)]
-    (print-tree (tree/render nodes color?) color? (config :pager)
+    (print-tree (tree/render nodes color?) color?
+                (unless (parsed "no-pager") (config :pager))
                 (get-in config [:settings :shell]))))
 
 (defn custom-command-handler

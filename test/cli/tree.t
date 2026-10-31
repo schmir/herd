@@ -136,3 +136,12 @@ A repository inside another is an error, as it is for the other commands.
   $ herd tree -r
   Configuration error: self.json names /srv/work/a, which lies inside the repository /srv/work from self.json
   [1]
+
+--no-pager prints the tree directly. The pager only runs on a terminal, which
+a test does not have, so this shows that the option is taken.
+
+  $ echo '[{"path": ".", "clone_url": "u"}]' >"$CONFIG/self.json"
+  $ herd tree -P
+  /srv/work (self.json, 1 repository)
+  $ herd tree --no-pager
+  /srv/work (self.json, 1 repository)

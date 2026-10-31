@@ -451,8 +451,9 @@ links. `--max-depth N`, `--hidden` and `--follow-links` change that.
 
 `--tree` draws what would be printed as a tree, from the directory that
 holds the selected repositories, instead of as lines, and in color and
-through `less` as `herd tree` is. With `--status`, each repository is marked
-with its status. URLs are not drawn.
+through `less` as `herd tree` is, unless `-P` (`--no-pager`) says otherwise.
+With `--status`, each repository is marked with its status. URLs are not
+drawn.
 
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
 plain Git ones, following the repository options in force for each:
@@ -607,7 +608,8 @@ A directory gives the number of repositories directly in it; `-r`
 (`--repositories`) also lists them. On a terminal, repositories are printed
 in green and the notes on a directory dimmed, unless `NO_COLOR` is set, and
 the tree is shown through the `:pager`, by default `less -FXR`, which prints
-a short tree and lets you scroll a long one.
+a short tree and lets you scroll a long one. `-P` (`--no-pager`) prints it
+directly instead.
 
 ## Selection
 

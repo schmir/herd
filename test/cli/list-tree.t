@@ -36,3 +36,15 @@ Nothing selected draws nothing.
 
   $ herd list --tree --missing -C src/api
   $ herd list --tree --ok -C src/web
+
+--no-pager prints the tree directly. The pager only runs on a terminal, which
+a test does not have, so this shows that the option is taken. There is no pager
+to turn off without --tree.
+
+  $ herd list --tree -P -C src/web
+  $ROOT/home/src/web
+  $ herd list --tree --no-pager -C src/web
+  $ROOT/home/src/web
+  $ herd list --no-pager
+  usage error: --no-pager applies only with --tree
+  [1]
