@@ -64,10 +64,32 @@ jobs:
           name: herd-macos-x86_64
           path: dist/macos-x86_64/herd
           if-no-files-found: error
+      # GitHub has no BSD runners, so the check job below does not run these,
+      # and the release publishes them unchecked.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-openbsd-amd64
+          path: dist/openbsd-amd64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-openbsd-arm64
+          path: dist/openbsd-arm64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-freebsd-amd64
+          path: dist/freebsd-amd64/herd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: herd-freebsd-arm64
+          path: dist/freebsd-arm64/herd
+          if-no-files-found: error
 
   # A cross-compiled binary has run nowhere yet, so each one runs the
   # command-line tests on the platform it is for. This is what tests herd on
-  # macOS, on ARM64 and on musl.
+  # macOS, on ARM64 and on musl. The BSD binaries have no runner to go to.
   check:
     name: check-${{ matrix.platform }}
     needs: build

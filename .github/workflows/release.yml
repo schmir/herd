@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   # Builds the binaries on one machine and runs each on the platform it is
-  # for, so publishing waits on the same checks every push runs.
+  # for, so publishing waits on the same checks every push runs. The BSD
+  # binaries are the exception: GitHub has no runners for them, so they are
+  # published without having run.
   test:
     uses: ./.github/workflows/test.yml
 

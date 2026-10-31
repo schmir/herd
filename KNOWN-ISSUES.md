@@ -143,3 +143,24 @@ Across a few hundred repositories on an uncertain network, the last of those
 is the one that bites: a single transient failure means running the whole
 command again, even though `clone` will correctly skip everything it already
 did.
+
+### The BSD binaries have never run
+
+Every Linux and macOS binary runs the command-line tests on its own platform
+before a release publishes it. GitHub has no OpenBSD or FreeBSD runners, so
+the four BSD binaries are cross-compiled and published without having run
+anywhere. A build that does not start, or that misbehaves on the BSDs, ships
+unnoticed, and `herd self-update` will install it.
+
+OpenBSD adds a risk of its own. Its binaries link the system libc, and
+OpenBSD keeps no binary compatibility across releases, so the binary built
+for 7.8 can stop working on a later OpenBSD that bumps libc's major version.
+Moving the target in the justfile's `dist` recipe to the newer release fixes
+that, for that release.
+
+The fix is a check job in `.github/workflows/test.yml` that boots each BSD
+in a VM on an Ubuntu runner, for instance with
+`cross-platform-actions/action`, and runs the binary there. `--version`
+alone would catch a binary that does not start. The CLI tests would need
+git, Python and prysk installed in the VM, and the jj and jp tests would
+skip, since neither has BSD builds.

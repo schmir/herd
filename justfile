@@ -152,18 +152,19 @@ check-lsp: build
 ci: && test test-cli
     treefmt
 
-# The platforms are linux-x86_64, linux-aarch64, macos-arm64 and macos-x86_64.
+# The platforms are linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64,
+# openbsd-arm64, openbsd-amd64, freebsd-arm64 and freebsd-amd64.
 #
 # jpm's own build runs src/main.janet with the host janet and writes the
 # marshaled image into build/herd.c. That step has to run here, since it loads
 # native modules, but what it writes is portable C. Only the final compile needs
 # the target, and that is plain C: herd.c, the amalgamated janet.c, and every
 # native module the image registers, built in statically.
-[doc('Cross-compile release binaries with zig cc, for the platforms named or all four.')]
+[doc('Cross-compile release binaries with zig cc, for the platforms named or all of them.')]
 dist *platforms: build
     #!/usr/bin/env bash
     set -euo pipefail
-    known=(linux-x86_64 linux-aarch64 macos-arm64 macos-x86_64)
+    known=(linux-x86_64 linux-aarch64 macos-arm64 macos-x86_64 openbsd-arm64 openbsd-amd64 freebsd-arm64 freebsd-amd64)
     # The zig target for a platform, or nothing for one there is no build of.
     target_of() {
         case "$1" in
@@ -171,6 +172,10 @@ dist *platforms: build
             linux-aarch64) echo aarch64-linux-musl ;;
             macos-arm64) echo aarch64-macos.11.0 ;;
             macos-x86_64) echo x86_64-macos.11.0 ;;
+            openbsd-arm64) echo aarch64-openbsd.7.8 ;;
+            openbsd-amd64) echo x86_64-openbsd.7.8 ;;
+            freebsd-arm64) echo aarch64-freebsd.14.0 ;;
+            freebsd-amd64) echo x86_64-freebsd.14.0 ;;
         esac
     }
     platforms=({{ platforms }})

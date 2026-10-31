@@ -7,10 +7,12 @@ repositories.
 
 ## Install
 
-Binaries for Linux and macOS (ARM64 and x86-64) are on the
-[releases page](https://github.com/schmir/herd/releases/latest). Unpack the
-archive for your platform and put `herd` on your `PATH`. Run
-`herd self-update` later to replace that binary with the latest release.
+Binaries for Linux, macOS, OpenBSD and FreeBSD (ARM64 and x86-64) are on the
+[releases page](https://github.com/schmir/herd/releases/latest). The OpenBSD
+and FreeBSD binaries are built like the others, but CI cannot run them, so
+they are untested. Unpack the archive for your platform and put `herd` on
+your `PATH`. Run `herd self-update` later to replace that binary with the
+latest release.
 
 `herd` is not signed with an Apple Developer ID, so if macOS refuses to run
 a binary that was unpacked by Safari or Finder, clear the quarantine mark:
