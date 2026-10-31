@@ -33,10 +33,29 @@ mkdir -p "$CONFIG" "$ROOT/bin"
 ln -s "$HERD" "$ROOT/bin/herd"
 PATH="$ROOT/bin:$PATH"
 
-# Keep the user's Git configuration out, and give commits an author.
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
-export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
+# Git and jj take much of their behaviour from the environment, which can also
+# override what a configuration file says, and a Git hook runs with GIT_DIR
+# set. Clear all of their own variables, and the general ones they consult.
+for name in $(env | sed -n -E 's/^((GIT|JJ)_[A-Za-z0-9_]*)=.*/\1/p'); do
+    unset "$name"
+done
+unset EDITOR VISUAL PAGER EMAIL SSH_ASKPASS NO_COLOR XDG_CACHE_HOME
+unset RUST_LOG RUST_BACKTRACE
+
+# Keep the user's Git and jj configuration out, and give commits an author
+# from files of the test's own.
+cat >"$ROOT/.gitconfig" <<EOF
+[user]
+	name = test
+	email = test@example.com
+EOF
+cat >"$ROOT/.jjconfig.toml" <<EOF
+[user]
+name = "test"
+email = "test@example.com"
+EOF
+export GIT_CONFIG_GLOBAL="$ROOT/.gitconfig" GIT_CONFIG_NOSYSTEM=1
+export JJ_CONFIG="$ROOT/.jjconfig.toml"
 
 # Run herd with $ROOT in place of the temp directory, which differs on every
 # run, keeping its exit status.
