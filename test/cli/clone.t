@@ -172,8 +172,8 @@ next clone starts over.
   1 cloned, 0 already checked out, 0 blocked, 0 failed
 
 ssh asks on the terminal even with standard input closed, which would hang a
-clone nobody can answer, such as one of a host not known yet. Whichever VCS
-runs it, ssh is told to fail instead.
+clone nobody can answer, such as one of a host not known yet. ssh is told to
+fail instead. clone-jj.t checks the same when jj runs it.
 
   $ cat >"$ROOT/bin/ssh" <<EOF
   > #!/bin/sh
@@ -182,13 +182,9 @@ runs it, ssh is told to fail instead.
   > EOF
   $ chmod +x "$ROOT/bin/ssh"
   $ cat >"$CONFIG/ssh.json" <<EOF
-  > [{"path": "src/over-git", "ssh_url": "git@example.invalid:over.git", "vcs": "git"},
-  >  {"path": "src/over-jj", "ssh_url": "git@example.invalid:over.git", "vcs": "jj"}]
+  > [{"path": "src/over-git", "ssh_url": "git@example.invalid:over.git", "vcs": "git"}]
   > EOF
   $ herd clone -j 1 -C src/over-git > /dev/null
   [1]
-  $ herd clone -j 1 -C src/over-jj > /dev/null
-  [1]
   $ cat "$ROOT/ssh.env"
-  force false
   force false
