@@ -35,6 +35,29 @@ resolves under `$HOME` as intended. An anchor that should not resolve from
 The fix is to reject a leading `~` or `$` where the anchor is validated,
 since neither can be meant literally by anyone.
 
+### A command asking on the terminal can still hang a run
+
+`herd` tells Git and ssh not to prompt, through `GIT_TERMINAL_PROMPT`,
+`SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE`, and closes standard input. Neither
+reaches a program that opens the terminal itself, and an ssh older than
+OpenSSH 8.4 ignores `SSH_ASKPASS_REQUIRE`. The question then waits behind
+the progress display, for an answer nobody is likely to give.
+
+```sh
+$ herd run -- sh -c 'read answer </dev/tty'
+```
+
+This never finishes on a terminal, and neither does `sudo` without cached
+credentials or a clone from an unknown host with such an ssh.
+
+Ctrl-C ends the run. For an older ssh,
+`GIT_SSH_COMMAND='ssh -o BatchMode=yes'` in front of the command stops it
+asking.
+
+The fix is to run each command in a session of its own, which has no
+terminal to open. Janet's `os/spawn` cannot do that, so it takes native
+code, and Ctrl-C would then have to be passed on to the commands by hand.
+
 ## Gaps
 
 Things `herd` does not do, noticed while reading the code. Each says what is
