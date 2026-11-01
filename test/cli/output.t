@@ -115,7 +115,7 @@ Nor does it use up --limit: more.json is read first, so the missing repository
 comes first, and the command still runs in the one after it.
 
   $ herd run -j 1 -n 1 touch limited
-  Stopped after 2 of 3 repositories
+  Stopped after 1 of 3 repositories
   1 succeeded, 0 failed, 0 skipped, 1 not checked out
   $ ls */limited
   first/limited

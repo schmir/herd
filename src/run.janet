@@ -255,20 +255,25 @@
       (update budget :left dec)))
   (defn stop? []
     (and limit (zero? (budget :left))))
-  (parallel/for-each-repository
-    repositories
-    [[:succeeded "succeeded"]
-     [:failed "failed"]
-     [:no-command "skipped"]
-     [:not-checked-out "not checked out"]]
-    (fn [repository report]
-      (run-in-repository repository command
-                         (fn [& args] (report-command-result block-separator report ;args))
-                         show-output
-                         reserve
-                         color?
-                         at))
-    jobs
-    nil
-    stop?
-    (or output stdout)))
+  (def result
+    (parallel/for-each-repository
+      repositories
+      [[:succeeded "succeeded"]
+       [:failed "failed"]
+       [:no-command "skipped"]
+       [:not-checked-out "not checked out"]]
+      (fn [repository report]
+        (run-in-repository repository command
+                           (fn [& args] (report-command-result block-separator report ;args))
+                           show-output
+                           reserve
+                           color?
+                           at))
+      jobs
+      nil
+      stop?
+      (or output stdout)))
+  # Only the used-up budget stops a run, so the command started `limit` times.
+  (when (result :stopped?)
+    (eprint "Stopped after " limit " of " (length repositories) " repositories"))
+  result)

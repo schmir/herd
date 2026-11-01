@@ -182,7 +182,8 @@
   ended in each outcome, whether the terminal asked the run to stop, whether
   `stop?` did while repositories were left, in either case repositories it had
   not begun were left alone, and the counts as a line, "2 succeeded, 1
-  failed", in the order the outcomes were declared.``
+  failed", in the order the outcomes were declared. Saying that `stop?` ended
+  the run is left to the caller, which knows what it was counting.``
   [repositories outcomes operation &opt jobs live? stop? output]
   (unless (some (fn [[key]] (= :failed key)) outcomes)
     (error "repository outcomes must include :failed"))
@@ -229,11 +230,8 @@
     (ev/go-gather (seq [slot :range [0 workers]] (fn [] (worker slot)))))
   (def reached (reduce + 0 (values (progress :counts))))
   (def stopped? (and (not (progress :interrupted?)) (< reached total)))
-  (cond
-    (progress :interrupted?)
-    (eprint "Interrupted after " reached " of " total " repositories")
-    stopped?
-    (eprint "Stopped after " reached " of " total " repositories"))
+  (when (progress :interrupted?)
+    (eprint "Interrupted after " reached " of " total " repositories"))
   {:counts (progress :counts)
    :interrupted? (progress :interrupted?)
    :stopped? stopped?

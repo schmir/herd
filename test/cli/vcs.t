@@ -45,7 +45,7 @@ Nor does such a repository use up --limit: git comes first and has no command
 here, so the command still runs in jj.
 
   $ herd jj-only -j 1 -n 1
-  Stopped after 2 of 3 repositories
+  Stopped after 1 of 3 repositories
   1 succeeded, 0 failed, 1 skipped, 0 not checked out
   $ ls */selected-jj
   jj/selected-jj
