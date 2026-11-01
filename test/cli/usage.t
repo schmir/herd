@@ -86,6 +86,23 @@ Nothing configured yet is not a failure.
 
   $ herd list
   No repository lists in $ROOT/home/.config/herd
+  $ herd clone
+  No repository lists in $ROOT/home/.config/herd
+  $ herd run true
+  No repository lists in $ROOT/home/.config/herd
+  $ herd fetch
+  No repository lists in $ROOT/home/.config/herd
+
+Nor is a configuration directory that does not exist yet.
+
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list)
+  No repository lists in $ROOT/absent/herd
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd clone)
+  No repository lists in $ROOT/absent/herd
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd run true)
+  No repository lists in $ROOT/absent/herd
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd fetch)
+  No repository lists in $ROOT/absent/herd
 
 Without HERD_CONFIG, XDG_CONFIG_HOME or HOME there is nowhere to look.
 
@@ -195,6 +212,11 @@ documented default, whatever the command line asks for.
   $ herd run --jobs 5 --help | grep -o 'jobs N=[0-9]*'
   jobs N=2
 
+A custom command with no list to work on says so, as the others do.
+
+  $ herd mark
+  No repository lists in $ROOT/home/.config/herd
+
 The bare invocation prints exactly what --help prints.
 
   $ herd --help > help.txt
@@ -209,3 +231,9 @@ The bare invocation prints exactly what --help prints.
   [1]
   $ herd -V
   herd \S+ (re)
+
+Only as the first argument does it answer before the configuration is read.
+
+  $ herd list --version
+  Configuration error: $ROOT/home/.config/herd/config.jdn: unexpected end of source, { opened at line 1, column 1
+  [1]

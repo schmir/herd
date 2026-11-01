@@ -48,3 +48,18 @@ to turn off without --tree.
   $ herd list --no-pager
   usage error: --no-pager applies only with --tree
   [1]
+
+The tree draws extra repositories like the others, and the discovery options
+apply to it as they do to the lines.
+
+  $ git init -q src/scratch
+  $ herd list --tree --extra
+  $ROOT/home/src/scratch
+  $ herd list --tree --status
+  $ROOT/home/src (2 repositories)
+  ├── scratch (extra)
+  └── web (missing)
+  $ herd list --tree --extra --max-depth 1
+  $ herd list --tree --hidden
+  usage error: --hidden applies only when extra repositories are listed, by --extra or a plain --status
+  [1]

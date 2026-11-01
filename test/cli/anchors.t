@@ -135,6 +135,13 @@ while a row that names an anchor still places its list.
   $ herd list -a -C /
   $ROOT/home/one/gamma\tgamma-url (esc)
   $ROOT/home/two/delta\tdelta-url (esc)
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:checkout-defaults {:anchor false}
+  >  :checkouts [{:list "link.json"} {:list "other.json" :anchor "two"}]}
+  > EOF
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json: the default anchor is disabled
+  [1]
   $ echo '{:checkout-defaults {:anchor false} :checkouts [{:list "other.json" :anchor false}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list
@@ -190,3 +197,26 @@ places it there.
   $ herd list -a -C /
   $ROOT/home/root/outer\to (esc)
   $ROOT/home/root/outer-two/x\ti (esc)
+
+A command is told the first anchor of a repository that several rows reach,
+and its path as the list gives it once stripped.
+
+  $ mkdir -p abs/.git three/repo/.git
+  $ rm "$CONFIG/repos.json"
+  $ echo "[{\"path\": \"$HOME/abs\", \"ssh_url\": \"abs-url\"}]" >"$CONFIG/abs.json"
+  $ echo '[{"path": "org/repo", "ssh_url": "repo-url"}]' >"$CONFIG/rel.json"
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:checkouts [{:list "abs.json" :anchor "one"}
+  >              {:list "abs.json" :anchor "two"}
+  >              {:list "rel.json" :anchor "three" :strip-components 1}]}
+  > EOF
+  $ herd run -a -C abs --show-output always sh -c 'printf "%s\n" "$HERD_REPO_ANCHOR" "$HERD_REPO_PATH"'
+  \xe2\x9c\x93 $ROOT/home/abs (esc)
+  | $ROOT/home/one
+  | $ROOT/home/abs
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd run -C three/repo --show-output always sh -c 'printf "%s\n" "$HERD_REPO_ANCHOR" "$HERD_REPO_PATH"'
+  \xe2\x9c\x93 $ROOT/home/three/repo (esc)
+  | $ROOT/home/three
+  | repo
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out

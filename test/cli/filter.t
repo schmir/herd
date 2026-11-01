@@ -31,6 +31,15 @@ nothing is checked out yet, so nothing is left.
   $ herd list -f true
   No repository is left of the 2 selected by -f
 
+clone takes a filter that narrows the lists, and leaves the rest uncloned.
+
+  $ herd clone -j 1 -f platform
+  Clone complete: $ROOT/home/src/api
+  1 cloned, 0 already checked out, 0 blocked, 0 failed
+  $ ls src
+  api
+  $ rm -rf src
+
 A row's :use-filters applies to its own list.
 
   $ cat >"$CONFIG/config.jdn" <<'EOF'
@@ -42,6 +51,39 @@ A row's :use-filters applies to its own list.
   $ herd clone -j 1
   Clone complete: $ROOT/home/src/api
   1 cloned, 0 already checked out, 0 blocked, 0 failed
+
+:use-filters in :checkout-defaults applies to a list with no row of its own,
+and to a row that does not say. A row's own value replaces it, and [] clears
+it.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"platform" "[?group=='platform']" "web" "[?path=='src/web']"}
+  >  :checkout-defaults {:use-filters ["platform"]}}
+  > EOF
+  $ herd list
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"platform" "[?group=='platform']" "web" "[?path=='src/web']"}
+  >  :checkout-defaults {:use-filters ["platform"]}
+  >  :checkouts [{:list "repos.json"}]}
+  > EOF
+  $ herd list
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"platform" "[?group=='platform']" "web" "[?path=='src/web']"}
+  >  :checkout-defaults {:use-filters ["platform"]}
+  >  :checkouts [{:list "repos.json" :use-filters ["web"]}]}
+  > EOF
+  $ herd list
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"platform" "[?group=='platform']"}
+  >  :checkout-defaults {:use-filters ["platform"]}
+  >  :checkouts [{:list "repos.json" :use-filters []}]}
+  > EOF
+  $ herd list
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A filter has to select an array; an expression that is not a filter
 answers null, which is refused rather than read as selecting nothing.

@@ -43,6 +43,15 @@ too.
   $ herd --help
   Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "list" conflicts with a built-in command
   [1]
+  $ for name in clone run tree completions; do
+  >   echo "{:commands {\"$name\" {:command \"true\" :description \"x\"}}}" >"$CONFIG/config.jdn"
+  >   herd --help
+  > done
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "clone" conflicts with a built-in command
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "run" conflicts with a built-in command
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "tree" conflicts with a built-in command
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "completions" conflicts with a built-in command
+  [1]
 
 Each entry in a list is checked.
 
@@ -66,6 +75,9 @@ Each entry in a list is checked.
   [1]
   $ entries '[{"path": "a", "ssh_url": "b", "vcs": false}]'
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has an invalid "vcs"; expected "git" or "jj"
+  [1]
+  $ entries '[{"path": "a", "clone_url": "b", "ssh_url": "c"}]'
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has both "clone_url" and "ssh_url"
   [1]
   $ entries '[]'
   $ cp repos.json.saved "$CONFIG/repos.json"
@@ -95,7 +107,24 @@ So are the settings in config.jdn. They are data, never run as code.
   $ settings '{:shell "bash"}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :shell must be a non-empty array of non-empty strings, like ["bash" "-c"]
   [1]
+  $ settings '{:shell []}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :shell must be a non-empty array of non-empty strings, like ["bash" "-c"]
+  [1]
   $ settings '{:shell ["bash" "-c"]}'
+
+:pager is a command string, or false for none.
+
+  $ settings '{:pager 1}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :pager must be a non-empty command string, or false for no pager
+  [1]
+  $ settings '{:pager ""}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :pager must be a non-empty command string, or false for no pager
+  [1]
+  $ settings '{:pager true}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :pager must be a non-empty command string, or false for no pager
+  [1]
+  $ settings '{:pager "less"}'
+  $ settings '{:pager false}'
 
 Custom commands.
 
@@ -120,6 +149,10 @@ Custom commands.
   $ settings '{:commands {"check" {:command "true" :description "Check." :show-output "sometimes"}}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" has an invalid :show-output; expected "never", "on-failure", or "always"
   [1]
+  $ settings '{:commands {"check" {:command "true" :description "Check." :pager "yes"}}}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" needs true or false for :pager
+  [1]
+  $ settings '{:commands {"check" {:command "true" :description "Check." :pager true}}}'
   $ settings '{:commands {"check" {:command-jj "jj st" :description "Check."}}}'
 
 Only the known settings may stand at the top level, so a misspelt or renamed

@@ -70,6 +70,38 @@ The command's own options need no separator.
   second:
   -command-argument
 
+No shell reads the command, so its syntax means nothing: this names a program
+called `true && true`, which is not there.
+
+  $ herd run --show-output never 'true && true'
+  0 succeeded, 2 failed, 0 skipped, 0 not checked out
+  [1]
+  $ herd run --show-output never sh -c 'true && true'
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+One failure among successes fails herd.
+
+  $ herd run -j 1 sh -c 'test "$HERD_REPO_PATH" = first'
+  ✗ $ROOT/home/second (exit 1)
+  1 succeeded, 1 failed, 0 skipped, 0 not checked out
+  [1]
+
+--jobs is how many run at once. With two, each command waits until the other
+has started, which it could not do if they ran in turn. With one, each holds
+a lock the other would fail to take if they overlapped.
+
+  $ herd run -j 2 sh -c '
+  >   touch "$HOME/started-$HERD_REPO_PATH"
+  >   for _ in $(seq 100); do
+  >     test -e "$HOME/started-first" && test -e "$HOME/started-second" && exit 0
+  >     sleep 0.1
+  >   done
+  >   exit 1'
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ rm "$HOME"/started-*
+  $ herd run -j 1 sh -c 'mkdir "$HOME/lock" && sleep 0.2 && rmdir "$HOME/lock"'
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
 A repository that is not there is counted, and does not stop the others.
 
   $ echo '[{"path": "missing", "ssh_url": "u"}]' >"$CONFIG/more.json"
@@ -78,3 +110,12 @@ A repository that is not there is counted, and does not stop the others.
   $ ls first/ran second/ran
   first/ran
   second/ran
+
+Nor does it use up --limit: more.json is read first, so the missing repository
+comes first, and the command still runs in the one after it.
+
+  $ herd run -j 1 -n 1 touch limited
+  Stopped after 2 of 3 repositories
+  1 succeeded, 0 failed, 0 skipped, 1 not checked out
+  $ ls */limited
+  first/limited

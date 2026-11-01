@@ -41,6 +41,21 @@ share no repository. A missing HIGH is 100.
   $ herd list --sample 60: | cut -f1
   $ROOT/home/src/zeta
 
+A missing LOW is 0, and 1 and 100 are whole percentages like any other.
+
+  $ herd list --sample :9 | cut -f1
+  $ROOT/home/src/beta
+  $ROOT/home/src/delta
+  $ herd list --sample 1 | cut -f1
+  $ROOT/home/src/beta
+  $ herd list --sample 100 | cut -f1
+  $ROOT/home/src/alpha
+  $ROOT/home/src/beta
+  $ROOT/home/src/gamma
+  $ROOT/home/src/delta
+  $ROOT/home/src/epsilon
+  $ROOT/home/src/zeta
+
 run acts on the same repositories that list shows.
 
   $ for name in alpha beta gamma delta epsilon zeta; do mkdir -p src/$name/.git; done
@@ -60,6 +75,22 @@ It combines with --limit.
   $ herd run -j 1 --sample 10 -n 1 true
   Stopped after 1 of 3 repositories
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+A custom command takes it too, and clone does not.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:commands {"where" {:command "pwd" :description "Say where." :show-output "always"}}}
+  > EOF
+  $ herd where -j 1 --sample 0:9
+  \xe2\x9c\x93 $ROOT/home/src/beta (esc)
+  | $ROOT/home/src/beta
+  
+  \xe2\x9c\x93 $ROOT/home/src/delta (esc)
+  | $ROOT/home/src/delta
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ rm "$CONFIG/config.jdn"
+  $ herd clone --sample 10 2>&1 | head -1
+  usage error: unknown option sample
 
 A sample that picks nothing says so.
 

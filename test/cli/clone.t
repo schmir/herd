@@ -188,3 +188,24 @@ fail instead. clone-jj.t checks the same when jj runs it.
   [1]
   $ cat "$ROOT/ssh.env"
   force false
+
+Git is told not to ask either. What the environment already says about any of
+this is left as it is.
+
+  $ cat >"$ROOT/bin/git" <<'EOF'
+  > #!/bin/sh
+  > echo "$GIT_TERMINAL_PROMPT $SSH_ASKPASS $SSH_ASKPASS_REQUIRE"
+  > exit 1
+  > EOF
+  $ chmod +x "$ROOT/bin/git"
+  $ herd clone -C src/over-git
+  \xe2\x9c\x97 $ROOT/home/src/over-git (exit 1) (esc)
+  | 0 false force
+  0 cloned, 0 already checked out, 0 blocked, 1 failed
+  [1]
+  $ (export GIT_TERMINAL_PROMPT=1 SSH_ASKPASS=mine SSH_ASKPASS_REQUIRE=prefer
+  >  herd clone -C src/over-git)
+  \xe2\x9c\x97 $ROOT/home/src/over-git (exit 1) (esc)
+  | 1 mine prefer
+  0 cloned, 0 already checked out, 0 blocked, 1 failed
+  [1]

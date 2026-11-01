@@ -84,6 +84,13 @@ jj. A repository without changes prints nothing.
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ git -C src/api rm -q -f --cached notes && rm src/api/notes
 
+--pager is taken, but off a terminal it changes nothing.
+
+  $ herd run -p true
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd run --pager true
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
 A custom command is listed in --help and runs like run, with its own
 default for --show-output.
 
@@ -134,6 +141,57 @@ Without --, an argument is a mistake.
   $ herd words src/web 2>&1 | head -1
   usage error: could not handle option src/web
 
+A custom command selects as run does: -a looks past the anchors, and -f
+narrows.
+
+  $ herd words -C /
+  No configuration anchor contains /; use -a/--all-anchors to consider every anchor
+  0 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd words -j 1 -a -C /
+  \xe2\x9c\x93 $ROOT/home/src/api (esc)
+  | <first>
+  
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | <first>
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd words -f 'test "$HERD_REPO_PATH" = src/web'
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | <first>
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+A custom command that does not say keeps quiet on success, and shows a
+failure's output. Any failure among successes fails herd.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:commands
+  >  {"api-only" {:command "echo \"$HERD_REPO_PATH\"; test \"$HERD_REPO_PATH\" = src/api"
+  >               :description "Succeed in src/api."}}}
+  > EOF
+  $ herd api-only -j 1
+  \xe2\x9c\x97 $ROOT/home/src/web (exit 1) (esc)
+  | src/web
+  1 succeeded, 1 failed, 0 skipped, 0 not checked out
+  [1]
+
+A definition of diff or fetch replaces the one herd supplies.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:commands
+  >  {"diff" {:command "echo my diff" :description "My diff." :show-output "always"}
+  >   "fetch" {:command "echo my fetch" :description "My fetch." :show-output "always"}}}
+  > EOF
+  $ herd --help | grep -E '^  (diff|fetch) '
+    diff        My diff.
+    fetch       My fetch.
+  $ herd diff -C src/web
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | my diff
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd fetch -C src/web
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | my fetch
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+
 A command finds the repository it runs in, and whether herd colors its
 output, in its environment.
 
@@ -167,6 +225,28 @@ working directory, even for a repository that contains it.
   | .
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ rmdir src/web/lib
+
+A command finds its standard input closed, so it reads nothing of herd's.
+
+  $ echo from-herd | herd run -C src/web --show-output always sh -c 'cat; echo "read $?"'
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | read 0
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ echo from-herd | herd list -C src/web -f 'test -z "$(cat)"'
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+
+It finds Git's and ssh's prompts turned off, unless the environment already
+says otherwise.
+
+  $ herd run -C src/web --show-output always sh -c 'echo "$GIT_TERMINAL_PROMPT $SSH_ASKPASS $SSH_ASKPASS_REQUIRE"'
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | 0 false force
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ (export GIT_TERMINAL_PROMPT=1 SSH_ASKPASS=mine SSH_ASKPASS_REQUIRE=prefer
+  >  herd run -C src/web --show-output always sh -c 'echo "$GIT_TERMINAL_PROMPT $SSH_ASKPASS $SSH_ASKPASS_REQUIRE"')
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | 1 mine prefer
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
 
 A directory holding something that is not a repository is not a checkout,
 so nothing runs or fetches there.

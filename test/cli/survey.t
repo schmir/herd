@@ -117,3 +117,40 @@ the configured side is reported there.
   $ herd list --extra -C nowhere
   $ herd list --status -a -C src/web
   missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
+
+An empty directory is missing too, since a clone could still go there.
+
+  $ mkdir src/web
+  $ herd list --status -C src/web
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ rmdir src/web
+
+A symbolic link is not followed unless --follow-links asks for it. A link back
+up does not make the walk go round forever.
+
+  $ git init -q "$ROOT/outside/linked"
+  $ ln -s "$ROOT/outside" src/link
+  $ ln -s "$HOME" src/up
+  $ herd list --extra
+  $ROOT/home/src/bare\t (esc)
+  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  $ herd list --extra --follow-links
+  $ROOT/home/src/bare\t (esc)
+  $ROOT/home/src/link/linked\t (esc)
+  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  $ herd list --follow-links
+  usage error: --follow-links applies only when extra repositories are listed, by --extra or a plain --status
+  [1]
+
+Discovery needs no configuration: with no lists, or no configuration directory,
+it goes on without the message the other forms of list print.
+
+  $ mkdir "$ROOT/empty"
+  $ herd -c "$ROOT/empty" list --extra -C src/bare
+  $ROOT/home/src/bare\t (esc)
+  $ herd -c "$ROOT/empty" list --status -C src/bare
+  extra\t$ROOT/home/src/bare\t (esc)
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list --extra -C src/bare)
+  $ROOT/home/src/bare\t (esc)
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list --status -C src/bare)
+  extra\t$ROOT/home/src/bare\t (esc)

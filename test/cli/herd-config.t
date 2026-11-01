@@ -5,6 +5,12 @@ assignment in front of a function, as herd is here, after the call.
   $ . "$TESTDIR/setup.sh"
   $ two_repos
 
+Without XDG_CONFIG_HOME, the configuration is in .config under the home.
+
+  $ (unset XDG_CONFIG_HOME; herd list --all-anchors)
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+
 A directory is read as the configuration directory.
 
   $ mkdir work

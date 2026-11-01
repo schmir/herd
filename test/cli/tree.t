@@ -129,6 +129,9 @@ A repository at the anchor itself is counted, and listed as ".".
   $ herd tree -r
   /srv/work (self.json, 1 repository)
   └── .
+  $ herd tree --repositories
+  /srv/work (self.json, 1 repository)
+  └── .
 
 A repository inside another is an error, as it is for the other commands.
 
