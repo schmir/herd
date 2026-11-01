@@ -92,7 +92,8 @@
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?)))
       (when (and (not interrupted?) (not (empty? commands)))
-        (def stage (stages/filter-by-commands kept commands (options :jobs) shell))
+        (def stage (stages/filter-by-commands kept commands (options :jobs) shell
+                                              (options :at-path)))
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?))))
     ([err] (error {:stage-error err})))

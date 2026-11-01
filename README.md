@@ -315,12 +315,15 @@ herd list -f platform -f 'git branch --show-current | grep -qx main'
 
 A command runs through `sh -c` with the repository as its working directory,
 nothing on its input and its output discarded, and keeps the repository when
-it exits 0. It cannot run where nothing is checked out, so a repository that
-is not checked out is dropped. Status 126 and 127 mean the shell could not
-run the command, which is reported as a mistake rather than as a repository
-that does not match. A single word that is neither a filter nor a program on
-`PATH` is reported before anything is read, with the filters there are,
-since it is most likely a filter name with a typo in it.
+it exits 0. It finds the repository described in the same `HERD_*` variables
+as a [custom command](#custom-commands), with `HERD_COLOR` always `never`
+since nobody sees what it prints. It cannot run where nothing is checked
+out, so a repository that is not checked out is dropped. Status 126 and 127
+mean the shell could not run the command, which is reported as a mistake
+rather than as a repository that does not match. A single word that is
+neither a filter nor a program on `PATH` is reported before anything is
+read, with the filters there are, since it is most likely a filter name with
+a typo in it.
 
 Commands run after the selection, so the JMESPath filters among the `-f`
 values narrow the lists first, in the order written, and the commands then

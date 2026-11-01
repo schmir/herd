@@ -85,6 +85,18 @@ match.
   Selection error: cannot check 2 repositories
   [1]
 
+A filter command finds its repository described in the environment a command
+of herd run does, and what it would print is discarded, so it is asked not to
+color.
+
+  $ herd list -f 'test "$HERD_REPO_PATH" = src/api'
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ herd list -f 'test "$HERD_REPO_VCS" = git && test "$HERD_COLOR" = never'
+  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ herd list -C src -f 'test "$HERD_REPO_RELPATH" = web'
+  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+
 A filter in :filters can stand for a shell command, and -f then takes its
 name. A name that no filter defines is still a command of its own.
 

@@ -111,7 +111,36 @@
                  (paths ((stages/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
           "all commands must pass"))
 
+(defn test-command-sees-the-command-environment
+  "A checkout filter finds its repository described as a command does."
+  []
+  (def repository (merge (make-repository "described")
+                         {:anchors [dir]
+                          :anchored-path "described"
+                          :clone-url "git@example.com:described.git"}))
+  (assert (stages/command-matches? repository `test "$HERD_REPO_PATH" = described`)
+          "the path beneath the anchor is there")
+  (assert (stages/command-matches? repository (string `test "$HERD_REPO_ANCHOR" = "` dir `"`))
+          "the anchor is there")
+  (assert (stages/command-matches? repository `test "$HERD_REPO_URL" = git@example.com:described.git`)
+          "the URL is there")
+  (assert (stages/command-matches? repository `test "$HERD_REPO_VCS" = git`)
+          "the VCS is there")
+  (assert (stages/command-matches? repository `test "$HERD_COLOR" = never`)
+          "what a filter prints is discarded, so it is asked not to color")
+  (assert (stages/command-matches? repository `test "$HERD_REPO_RELPATH" = described` nil dir)
+          "the relative path is from the location given")
+  (assert (stages/command-matches? repository `test -n "$HERD_AT_PATH"` nil dir)
+          "the location is there")
+  (assert (deep= @[(repository :path)]
+                 (map (fn [r] (r :path))
+                      ((stages/filter-by-commands [repository]
+                                                  [`test "$HERD_REPO_RELPATH" = described`]
+                                                  nil nil dir) :repositories)))
+          "the location reaches the commands of a stage"))
+
 (test-command-matches)
+(test-command-sees-the-command-environment)
 (test-filter-by-commands)
 (test-repository-state)
 (test-no-working-copy-has-no-state)

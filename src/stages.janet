@@ -5,6 +5,7 @@
 (import ./vcs)
 (import ./parallel)
 (import ./process)
+(import ./run)
 
 (defn repository-state
   ``Say whether the repository has changes: :dirty or :clean, or nil when no
@@ -53,13 +54,17 @@
   no working copy never matches, and the command is not run there. Status
   126 and 127 mean the shell could not run the command, which is a mistake
   rather than a repository that does not match, so they raise. The command
-  runs in `shell`, as process/shell-argv takes it.``
-  [repository command &opt shell]
+  runs in `shell`, as process/shell-argv takes it, and in the environment
+  run/command-environment gives a command, with `at` the location the
+  repositories were selected from. Its output is discarded, so it is asked not
+  to color.``
+  [repository command &opt shell at]
   (if (vcs/detect (repository :path))
     (let [result (process/capture
                    ["sh" "-c" `cd "$1" && shift && exec "$@"`
                     "herd" (repository :path) ;(process/shell-argv command [] shell)]
-                   :p)]
+                   :p
+                   (run/command-environment repository false at))]
       (when (index-of (result :status) [126 127])
         (error (string "cannot run " (describe command) ": "
                        (string/trim (string (result :err))))))
@@ -69,10 +74,11 @@
 (defn filter-by-commands
   ``Keep the `repositories` where every one of the shell `commands` exits 0,
   in their order. A command is not run once an earlier one has failed. They
-  run in `shell`, as process/shell-argv takes it.``
-  [repositories commands &opt jobs shell]
+  run in `shell`, as process/shell-argv takes it, and are told `at`, the
+  location the repositories were selected from.``
+  [repositories commands &opt jobs shell at]
   (keep-repositories repositories
                      (fn [repository]
-                       (all (fn [command] (command-matches? repository command shell))
+                       (all (fn [command] (command-matches? repository command shell at))
                             commands))
                      jobs))
