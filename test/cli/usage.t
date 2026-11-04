@@ -22,6 +22,7 @@ not stop it.
     fetch       Fetch Git remotes in configured repositories beneath a path.
     list        Print the configured repositories beneath a path.
     run         Run a command in each configured repository beneath a path.
+    self-update Replace this herd with the latest release.
     tree        Print the repositories as a tree of the filesystem.
   \s* (re)
 

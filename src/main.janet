@@ -14,6 +14,7 @@
 (import ./run)
 (import ./sample)
 (import ./selection)
+(import ./self-update)
 (import ./survey)
 (import ./tree)
 
@@ -553,6 +554,29 @@
                 (string/join completions/shells ", "))
       (os/exit 1))))
 
+(defn self-update-command
+  ``Run `herd self-update`: replace the running herd with the release the
+  arguments name, or the latest release, unless it is that release already.``
+  [args]
+  (def parsed
+    (parse-args args (string "Replace this herd with the latest release, or the release VERSION names.\n\n"
+                             " Usage: herd self-update [VERSION]")
+                :default {:kind :accumulate
+                          :short-circuit true
+                          :help "Release to install, such as v0.3.1 or 0.3.1."}))
+  (def rest (rest-arguments parsed))
+  (when (> (length rest) 1)
+    (eprint "usage error: herd self-update takes at most one version")
+    (os/exit 1))
+  (exit-on-error "self-update failed: "
+                 (fn []
+                   (def executable (self-update/own-executable (dyn :executable)))
+                   # Run from source, the executable is the Janet interpreter,
+                   # which is not herd's to replace.
+                   (when (string/has-prefix? "janet" (last (string/split "/" executable)))
+                     (error (string "herd is running from source under " executable)))
+                   (self-update/update-executable version executable (first rest)))))
+
 (defn custom-commands
   "Build the handler of each custom command that `config` holds."
   [config]
@@ -583,7 +607,9 @@
    "tree" {:run (fn [args] (tree-command args config))
            :help "Print the repositories as a tree of the filesystem."}
    "run" {:run (fn [args] (run-command args jobs repository-settings pager))
-          :help "Run a command in each configured repository beneath a path."}})
+          :help "Run a command in each configured repository beneath a path."}
+   "self-update" {:run self-update-command
+                  :help "Replace this herd with the latest release."}})
 
 (def built-in-subcommand-names
   "Names of the built-in subcommands, which a custom command may not reuse."

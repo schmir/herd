@@ -59,7 +59,7 @@ _herd() {
     case $cmd in
 ``
     (string/join
-      (seq [cmd :in ["clone" "list" "completions" "tree"]]
+      (seq [cmd :in ["clone" "list" "completions" "tree" "self-update"]]
         (string "        " cmd ")\n"
                 "            COMPREPLY=($(compgen -W \""
                 (string/join (flags-of (options/for-command cmd)) " ")
@@ -146,7 +146,7 @@ complete -F _herd herd
     "end\n"
     "function __herd_command_other\n"
     "    set -l command (__herd_command)\n"
-    "    test -n \"$command\"; and not contains -- $command clone list completions tree\n"
+    "    test -n \"$command\"; and not contains -- $command clone list completions tree self-update\n"
     "end\n"
     # Where the command to run starts, as a position in the command line: the
     # first word after run that is neither an option nor its value.
@@ -180,6 +180,7 @@ complete -F _herd herd
     (string/join (fish-lines (fish-quote "__herd_command_is list") (options/for-command "list")) "")
     (string/join (fish-lines (fish-quote "__herd_command_is completions") (options/for-command "completions")) "")
     (string/join (fish-lines (fish-quote "__herd_command_is tree") (options/for-command "tree")) "")
+    (string/join (fish-lines (fish-quote "__herd_command_is self-update") (options/for-command "self-update")) "")
     (string/join (fish-lines (fish-quote "__herd_command_other") (options/for-command "run")) "")))
 
 (defn- zsh-spec [option]
@@ -246,6 +247,7 @@ complete -F _herd herd
     "        clone)\n            _arguments \\\n" (specs clone) "                ;;\n"
     "        list)\n            _arguments \\\n" (specs list-opts) "                ;;\n"
     "        tree)\n            _arguments \\\n" (specs (options/for-command "tree")) "                ;;\n"
+    "        self-update)\n            _arguments \\\n" (specs (options/for-command "self-update")) "                ;;\n"
     # Only run takes a command. -A stops option completion at the command, so
     # its own options are left to _normal.
     "        run)\n            _arguments -A '-*' \\\n" (specs run) "                '*::command:_normal' ;;\n"

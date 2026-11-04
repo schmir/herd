@@ -17,6 +17,7 @@
                    "status" "tree" "no-pager" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
+  (assert (deep= @["help"] (names "self-update")))
   (assert (deep= @["help" "repositories" "no-pager"] (names "tree")))
   (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "pager"
                    "no-pager" "jobs" "limit" "dirty" "clean"]
@@ -33,7 +34,7 @@
 (defn test-options-are-well-formed
   "Every option has a name, a kind and help, and a value name when it takes one."
   []
-  (each command ["clone" "list" "completions" "run"]
+  (each command ["clone" "list" "completions" "run" "self-update"]
     (each option (options/for-command command)
       (assert (string? (option :name)) "a name")
       (assert (index-of (option :kind) [:flag :option :accumulate])
@@ -49,7 +50,7 @@
 (defn test-a-summary-only-where-help-is-long
   "Completion menus get a short summary for the options whose help runs long."
   []
-  (each command ["clone" "list" "completions" "run"]
+  (each command ["clone" "list" "completions" "run" "self-update"]
     (each option (options/for-command command)
       (when (option :summary)
         (assert (< (length (option :summary)) (length (option :help)))

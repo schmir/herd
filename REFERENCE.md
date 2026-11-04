@@ -94,6 +94,52 @@ herd tree [-r, --repositories] [-P, --no-pager]
 `--repositories` includes repository entries. The default tree shows the
 configuration's placements and their anchors.
 
+### `herd self-update`
+
+Replace the running `herd` with the latest release, or with the release
+`VERSION` names:
+
+```text
+herd self-update [VERSION]
+```
+
+`VERSION` is a release tag such as `v0.3.1`, or the same version without the
+`v`, such as `0.3.1`. It can name an older release as well as a newer one.
+Releases before the first one that has `herd self-update` cannot update
+themselves again, so after installing one of them, download the next release
+from the releases page instead.
+
+herd asks GitHub for the release. If its tag is the version `herd --version`
+reports, nothing changes. Otherwise herd downloads the archive for this
+platform and the release's `SHA256SUMS` file, and checks the archive against
+its checksum. It then unpacks the archive and runs the new binary with
+`--version`. If that binary fails, for example because the system cannot run
+it, or reports a different release, herd keeps the old binary. Otherwise
+herd renames the new binary over the old one. When `herd` was started
+through a symbolic link, the file the link points to is replaced and the
+link stays. The download is staged in a hidden directory next to that file,
+so herd must be able to write to that directory. A binary in a read-only
+location, such as the Nix store, cannot update itself.
+
+`HERD_RELEASES_URL` replaces
+`https://api.github.com/repos/schmir/herd/releases` as the URL the releases
+are described under. herd reads the latest release from `<URL>/latest` and a
+named release from `<URL>/tags/<TAG>`, in the format of GitHub's
+[releases API](https://docs.github.com/en/rest/releases/releases). herd
+downloads each asset from the `browser_download_url` the description lists.
+Only `https` and `file` URLs are accepted.
+
+GitHub allows 60 API requests an hour from one address without a token, so
+on a shared address the release lookup can fail with status 403 or 429. When
+`GH_TOKEN` or else `GITHUB_TOKEN` holds a token, as `gh` reads them, herd
+sends it with the release lookup to `https://api.github.com`, which raises
+the limit. Any token works, even one granted no scopes. herd never sends it
+to another host, to the asset downloads, or on curl's command line, where
+other users of the machine could read it.
+
+The command needs `curl`, `tar`, and either `sha256sum` or `shasum` on
+`PATH`. Any failure exits 1 and leaves the old binary in place.
+
 ### `herd completions`
 
 Print a completion script for one of the supported shells, or answer an

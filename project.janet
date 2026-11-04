@@ -39,6 +39,7 @@
          "src/run.janet"
          "src/sample.janet"
          "src/selection.janet"
+         "src/self-update.janet"
          "src/stages.janet"
          "src/survey.janet"
          "src/vcs.janet"])

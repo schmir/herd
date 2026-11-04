@@ -96,5 +96,6 @@
     "clone" [;selecting show-output jobs]
     "list" [;selecting sample ;list-only dirty clean]
     "completions" [help]
+    "self-update" [help]
     "tree" [help list-repositories tree-no-pager]
     [;selecting sample show-output ;pager jobs limit dirty clean]))
