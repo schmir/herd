@@ -58,6 +58,7 @@
     :jobs jobs
     :outcomes outcomes
     :counts counts
+    # Each busy worker slot's repository path and when it began on it.
     :active @{}
     :frame 0
     :drawn 0
@@ -98,14 +99,46 @@
     (array/push fields (string outcome-count " " label)))
   [completed (string/join fields ", ")])
 
+(defn format-elapsed
+  ``A running time of `seconds` as a short label: "42s" under a minute,
+  "3m07s" under an hour, and "2h05m" beyond.``
+  [seconds]
+  (def whole (math/floor (max 0 seconds)))
+  (def minutes (div whole 60))
+  (cond
+    (< whole 60) (string/format "%ds" whole)
+    (< whole 3600) (string/format "%dm%02ds" minutes (% whole 60))
+    (string/format "%dh%02dm" (div minutes 60) (% minutes 60))))
+
+(def elapsed-width
+  ``Columns of the field the running time is right-aligned in, as wide as
+  the longest label format-elapsed gives under 100 hours, "59m59s" or
+  "99h59m", so the paths beside it line up.``
+  6)
+
+(def quiet-seconds
+  ``How long a repository runs before its row shows the time, so only one
+  that is slow to finish draws attention to itself.``
+  5)
+
 (defn progress-lines
-  "Render the active repositories and generic outcome tally."
-  [progress width]
+  ``Render the active repositories, each with how long it has been running at
+  `now`, a monotonic clock reading taken when not given, and the generic
+  outcome tally.``
+  [progress width &opt now]
+  (default now (os/clock :monotonic))
   (def frame (spinner-frames (% (progress :frame) (length spinner-frames))))
   (def lines @[])
   (for slot 0 (progress :jobs)
-    (when-let [path (get (progress :active) slot)]
-      (array/push lines (string frame " " (fit-path path (- width 2))))))
+    (when-let [{:path path :started started} (get (progress :active) slot)]
+      (def seconds (- now started))
+      (def label (if (<= seconds quiet-seconds) "" (format-elapsed seconds)))
+      # A label wider than the field, from 100 hours on, pushes the path over.
+      (def padding (max 0 (- elapsed-width (length label))))
+      (def elapsed (string (string/repeat " " padding) label " "))
+      (array/push lines
+                  (string frame " " elapsed
+                          (fit-path path (- width 2 (length elapsed)))))))
   (def [completed counted] (tally progress))
   (array/push lines
               (string (rawterm/slice-monowidth
@@ -207,7 +240,8 @@
       (def index (cursor 0))
       (put cursor 0 (inc index))
       (def repository (repositories index))
-      (put (progress :active) slot (repository :path))
+      (put (progress :active) slot {:path (repository :path)
+                                    :started (os/clock :monotonic)})
       (draw progress)
       (var outcome
         (try

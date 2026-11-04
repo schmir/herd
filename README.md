@@ -548,6 +548,9 @@ command failed:
 3 succeeded, 0 failed, 0 skipped, 1 not checked out
 ```
 
+On a terminal the progress block shows each repository's running time in
+front of its path once it has run for more than five seconds.
+
 Repositories that are not checked out are skipped rather than counted as
 failures, so `herd run` is safe to use before everything has been cloned. A
 blocked path holds no repository, so it counts as not checked out too.

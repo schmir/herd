@@ -1,5 +1,6 @@
 # Tests for parallel repository scheduling and progress rendering.
 (use spork/test)
+(import spork/rawterm)
 (import ../src/parallel)
 
 (start-suite "parallel")
@@ -106,16 +107,45 @@
                     count))))
 
 (def progress (parallel/make-progress 3 outcomes 1 false))
-(put (progress :active) 0 "/a/long/common/path/first")
+(put (progress :active) 0 {:path "/a/long/common/path/first" :started 100})
 (put (progress :counts) :succeeded 1)
 (put (progress :counts) :failed 1)
-(def lines (parallel/progress-lines progress 32))
+(def lines (parallel/progress-lines progress 32 165.5))
 
 (assert (= 2 (length lines)) "progress has one active row and one tally")
 (assert (string/has-prefix? "⠋ " (lines 0)) "an active row starts with a spinner")
+(assert (= "⠋  1m05s …/common/path/first" (lines 0))
+        "an active row shows how long its repository has been running, then its path")
+(put (progress :active) 0 {:path "/a/long/common/path/first" :started 160})
+(assert (= "⠋     5s …/common/path/first"
+           ((parallel/progress-lines progress 32 165.5) 0))
+        "a short running time is padded, so the paths line up")
+(each started [165 160.5]
+  (put (progress :active) 0 {:path "/a/long/common/path/first" :started started})
+  (assert (= "⠋        …/common/path/first"
+             ((parallel/progress-lines progress 32 165.5) 0))
+          (string "a repository running " (- 165.5 started)
+                  " seconds leaves the field blank")))
+(assert (<= (rawterm/monowidth (lines 0)) 32)
+        "the running time fits within the width, the path giving way")
 (assert (= "2/3  1 succeeded, 0 skipped, 1 f"
            (lines 1))
         "the tally is truncated to the terminal width")
+(each [seconds label] [[0 "0s"] [59.9 "59s"] [60 "1m00s"] [187 "3m07s"]
+                       [3599 "59m59s"] [3600 "1h00m"] [7500 "2h05m"]]
+  (assert (= label (parallel/format-elapsed seconds))
+          (string seconds " seconds read as " label)))
+
+# Below 100 hours every label fits the field the paths are lined up behind.
+(each seconds [59 3599 (dec (* 100 3600))]
+  (assert (<= (length (parallel/format-elapsed seconds)) parallel/elapsed-width)
+          (string "the label for " seconds " seconds fits the field")))
+
+(put (progress :active) 0 {:path "/a/long/common/path/first" :started 0})
+(assert (= "⠋ 100h00m …/common/path/first"
+           ((parallel/progress-lines progress 32 (* 100 3600)) 0))
+        "a label wider than the field pushes the path over rather than failing")
+
 (assert (= "…/common/path/first"
            (parallel/fit-path "/a/long/common/path/first" 20))
         "long paths keep their distinguishing tail")
