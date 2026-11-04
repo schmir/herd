@@ -18,11 +18,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1792506237,
-        "narHash": "sha256-Q/8KLB6jNfpaUN1HAedE/u/Et9feE/zYSsutBLKrCFk=",
+        "lastModified": 1793735720,
+        "narHash": "sha256-smoxPKrzAhdGuFd2LLnG4m8P6IrZuW95DVyzjnlab7w=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "5adc50831c259f87faeb09ddf930d43597197473",
+        "rev": "9d3b8db48266c17be0b5f9c6360c3ecfbac3d1f5",
         "type": "github"
       },
       "original": {
@@ -42,11 +42,11 @@
     "spork": {
       "flake": false,
       "locked": {
-        "lastModified": 1792203590,
-        "narHash": "sha256-jfm9+g9PCh3TH3vDp9B8cFuw0e24BMTnD6wJwKhoZPE=",
+        "lastModified": 1793143634,
+        "narHash": "sha256-Jg3esmOPHo3lSak+cQvBoIf3CVgGnaXQIE+GCqAmURg=",
         "owner": "janet-lang",
         "repo": "spork",
-        "rev": "26af769b7fd8f7214ea8f95dad5c2d360a79f6b4",
+        "rev": "328240916032ec3834a1fb56b81ca398df80f084",
         "type": "github"
       },
       "original": {
