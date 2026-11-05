@@ -638,6 +638,12 @@
   (when (arguments/version-requested? args)
     (print "herd " version)
     (os/exit 0))
+  # Likewise, so that a broken configuration cannot stop herd from updating
+  # itself. It reads no settings, so it needs none; only a command name
+  # given first is recognised.
+  (when (= "self-update" (get args 1))
+    (self-update-command (tuple/slice args 1))
+    (os/exit 0))
   # Taken before the configuration is read, since it says which one to read.
   (when-let [named (arguments/config-given args)]
     (exit-on-error "Configuration error: " (fn [] (config/use-config named))))

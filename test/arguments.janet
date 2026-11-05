@@ -249,6 +249,14 @@
   (assert (= 0 (no-repository :status)) "an empty anchor is not an error")
   (assert (string/find "-a/--all-anchors" (no-repository :output))
           "an empty anchor suggests all-anchor selection")
+  # self-update reads no settings, so a broken file cannot stop it.
+  (spit settings-file "{:bad")
+  (assert (not= 0 ((invoke ["list"]) :status)) "a broken settings file stops list")
+  (def updating (invoke ["self-update" "--help"]))
+  (assert (and (= 0 (updating :status))
+               (string/find "self-update" (updating :output)))
+          (string "self-update ignores a broken settings file: " (updating :output)))
+  (write-settings-file)
   (write-settings-file
     `:commands
      {"mark" {:command "printf marker | grep marker && touch custom-command"

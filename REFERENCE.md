@@ -109,6 +109,9 @@ Releases before the first one that has `herd self-update` cannot update
 themselves again, so after installing one of them, download the next release
 from the releases page instead.
 
+`herd self-update` does not read the configuration, so a broken `config.jdn`
+cannot stop it. This holds when `self-update` is the first argument.
+
 herd asks GitHub for the release. If its tag is the version `herd --version`
 reports, nothing changes. Otherwise herd downloads the archive for this
 platform and the release's `SHA256SUMS` file, and checks the archive against
