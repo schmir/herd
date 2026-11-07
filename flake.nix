@@ -46,6 +46,7 @@
               jp
               jpm
               just
+              ninja
               zig
             ];
           };
@@ -61,6 +62,7 @@
               jpm
               jujutsu
               just
+              ninja
               prettier
               treefmt
               uv

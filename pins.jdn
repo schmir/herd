@@ -1,0 +1,8 @@
+# The sources every build is pinned to, as commits. project.janet and
+# tools/gen-ninja.janet read this file. To update one, change it here; after
+# changing :spork also run `just deps`.
+{# Janet 1.41.2, which the release binaries are cross-compiled from. The Janet
+ # that runs jpm must be the same release.
+ :janet "0fea20c82182fe661f75b00a8889d801fe2d79b6"
+ # spork, which jpm fetches and the release binaries link in.
+ :spork "26af769b7fd8f7214ea8f95dad5c2d360a79f6b4"}

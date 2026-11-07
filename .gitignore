@@ -2,3 +2,7 @@
 /dist/
 /jpm_tree/
 /test/cli/*.t.err
+/build.ninja
+/.ninja_log
+/.ninja_deps
+/.ninja_lock

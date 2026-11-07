@@ -36,9 +36,9 @@ it is given, such as a release binary: `just test-cli path/to/herd`.
 `git describe` unless `HERD_VERSION` names one; release builds pass their
 tag.
 
-`project.janet` pins every JPM dependency to a commit, so every build
-compiles the same sources. To update one, change its `:tag` and run
-`just deps`.
+`pins.jdn` pins Janet and every JPM dependency to a commit, so every build
+compiles the same sources. `project.janet` and `tools/gen-ninja.janet` both
+read it. To update one, change it there and run `just deps`.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
@@ -46,3 +46,15 @@ artifacts and locally installed JPM dependencies are stored in `build/` and
 `jpm_tree/`. `just dist` compiles the release binaries for every platform
 with `zig cc` into `dist/`, and `just install` installs the one for this
 machine.
+
+`just dist` runs [ninja](https://ninja-build.org/). `tools/gen-ninja.janet`
+writes `build.ninja` first, and ninja runs it again by itself when a source
+file is added or removed. ninja compiles the platforms in parallel and only
+recompiles what changed: after an edit to a Janet file, `janet.c` and the
+native modules are not compiled again. It also notices when `HERD_VERSION`,
+or else `git describe`, names another version. `just dist macos-arm64`
+builds one platform and `ninja host` builds only `build/herd`.
+
+`tools/build-deps.sh` fetches the dependencies for ninja and works around
+ninja making directories inside jpm's cache; `test/build-deps.janet` tests
+it with a stub `jpm`.
