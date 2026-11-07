@@ -53,7 +53,11 @@
 
           default = pkgs.mkShell {
             packages = with pkgs; [
+              # The shells `just test-cli-shells` runs the command-line tests
+              # under, standing in for the sh of the platforms herd ships for.
+              bash
               coreutils
+              dash
               gitMinimal
               janet
               janet-format
@@ -62,12 +66,15 @@
               jpm
               jujutsu
               just
+              mksh
               ninja
               prettier
               treefmt
               uv
               zig
-            ];
+            ]
+            # busybox builds only for Linux.
+            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.busybox;
 
             # janet-lsp needs spork and the native modules on the module path;
             # see .janet-path/README.md.

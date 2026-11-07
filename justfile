@@ -53,6 +53,42 @@ test-cli herd="":
     [[ "$herd" == /* ]] || herd="$PWD/$herd"
     HERD="$herd" uvx {{ prysk }} test/cli/
 
+# herd runs commands with `sh -c`, found on PATH, and the message a shell
+# gives for an unknown command differs from one shell to the next. Put each
+# shell ahead of PATH as `sh` and run the command-line tests under it:
+# dash (Debian, Ubuntu), bash (macOS, Fedora), busybox ash (Alpine) and mksh,
+# which stands in for OpenBSD's ksh. The devshell provides them. The first
+# run uses the system's own /bin/sh: bash 3.2 on macOS, usually dash on Linux.
+[doc('Run the command-line tests with each of several shells as sh.')]
+test-cli-shells herd="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    herd="{{ herd }}"
+    if [[ -z "$herd" ]]; then
+        just build
+        herd=build/herd
+    fi
+    [[ "$herd" == /* ]] || herd="$PWD/$herd"
+    bin=$(mktemp -d)
+    trap 'rm -rf "$bin"' EXIT
+    failed=()
+    for shell in /bin/sh dash bash busybox mksh; do
+        if ! target=$(command -v "$shell"); then
+            echo "skipping $shell: not found" >&2
+            continue
+        fi
+        rm -f "$bin/sh"
+        ln -s "$target" "$bin/sh"
+        echo "== sh is $shell ($target)" >&2
+        if ! PATH="$bin:$PATH" HERD="$herd" uvx {{ prysk }} test/cli/; then
+            failed+=("$shell")
+        fi
+    done
+    if (( ${#failed[@]} )); then
+        echo "failed with: ${failed[*]}" >&2
+        exit 1
+    fi
+
 # The server evaluates a file and its imports to find definitions, so a module
 # path that misses spork or the native access and terminal modules makes every
 # lookup answer null. See .janet-path/README.md. Needs the devshell for janet-lsp and the
