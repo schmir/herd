@@ -25,19 +25,12 @@ run *args: build
 repl file="src/main.janet": build
     jpm --local janet -e '{{ native_path }}' -e '(repl nil nil (dofile "{{ file }}"))'
 
-# Build the standalone executable in build/.
-build *args: deps
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # JPM does not track HERD_VERSION. Remove all outputs when the executable
-    # has a different version so JPM regenerates the versioned sources.
-    if [[ ! -x build/herd \
-          || "$(build/herd --version 2>/dev/null || true)" != "herd $HERD_VERSION" ]]; then
-        rm -f build/herd build/herd.c build/*.o
-    fi
-    jpm --local build {{ args }}
-    # Apply the same version check as the release workflow.
-    test "$(build/herd --version)" = "herd $HERD_VERSION"
+# Build the standalone executable in build/. It is the host half of just dist:
+# ninja runs jpm, and rebuilds when a source file, pins.jdn or HERD_VERSION
+# changes.
+build:
+    janet tools/gen-ninja.janet
+    ninja host
 
 # Run the test suite in test/.
 test: deps

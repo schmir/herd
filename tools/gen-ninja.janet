@@ -118,9 +118,13 @@
 (emit "  description = jpm deps")
 (emit "  restat = 1")
 (emit)
-# The same check the justfile's build recipe makes.
+# The list of inputs is part of the command, as the argument of the no-op
+# built-in `:`. ninja only sees an input become newer, never one disappear, and
+# runs a step again when its command changes. Without this, deleting or renaming a
+# source file would leave the old binary in place.
+# The final check is the one the release workflow makes.
 (emit "rule jpm")
-(emit "  command = rm -f build/herd build/herd.c build/*.o && export HERD_VERSION=\"$$(cat build/version)\" && jpm --local build && test \"$$(build/herd --version)\" = \"herd $$HERD_VERSION\"")
+(emit "  command = : $inputs && rm -f build/herd build/herd.c build/*.o && export HERD_VERSION=\"$$(cat build/version)\" && jpm --local build && test \"$$(build/herd --version)\" = \"herd $$HERD_VERSION\"")
 (emit "  description = jpm build")
 (emit)
 (emit "rule janet-src")
@@ -163,7 +167,8 @@
        {"checkout" spork-dir})
 (build ["build/herd" "build/herd.c"] "jpm"
        [jpm-inputs
-        ["build/version" ;(map (fn [[source _]] source) (slice modules 2))]])
+        ["build/version" ;(map (fn [[source _]] source) (slice modules 2))]]
+       {"inputs" (string/join jpm-inputs " ")})
 (build ["host"] "phony" [["build/herd"]])
 (emit)
 
