@@ -28,9 +28,36 @@ jobs:
       - uses: cachix/install-nix-action@v31
       # The ci shell rather than the default one: the editor tooling in that
       # shell is built from source, and none of it is needed to run the
-      # tests.
+      # tests. Fetch its packages in a step of their own, so that the nix
+      # output stays out of the log of the tests.
+      - name: Set up the ci shell
+        run: nix develop .#ci --command true
       - name: Run tests
         run: nix develop .#ci --command just test
+
+  # What a shell prints for an unknown command differs from one to the next,
+  # so the command-line tests run once for each shell standing in as sh. The
+  # Linux binary from the build job is enough, since only the shell varies.
+  test-cli-shells:
+    needs: build
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: herd-linux-x86_64
+          path: bin
+      # Fetch the ci shell's packages in a step of their own, so that the nix
+      # output stays out of the log of the tests.
+      - name: Set up the ci shell
+        run: nix develop .#ci --command true
+      - name: Run the command-line tests with each shell
+        run: |
+          # Artifacts do not keep the executable bit.
+          chmod +x bin/herd
+          nix develop .#ci --command just test-cli-shells bin/herd
 
   # One job builds every platform: zig cc cross-compiles the image jpm writes
   # into build/herd.c, so no build has to run on the machine it targets.
@@ -41,6 +68,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
+      - name: Set up the ci shell
+        run: nix develop .#ci --command true
       - name: Cross-compile
         run: nix develop .#ci --command just dist
 
