@@ -1,7 +1,7 @@
 # Replacing the running herd with the latest release, or one named.
 #
 # Janet speaks neither HTTPS nor SHA-256, so curl downloads, tar unpacks and
-# sha256sum or shasum checks, as herd runs git and jj.
+# sha256sum, shasum or sha256 checks, as herd runs git and jj.
 
 (import spork/json)
 (import spork/path)
@@ -172,14 +172,16 @@
     ""))
 
 (defn sha256
-  "The SHA-256 of `file` in hex, by sha256sum or, where there is none, shasum."
+  "The SHA-256 of `file` in hex, by sha256sum or, where there is none, shasum or (on OpenBSD) sha256."
   [file]
   (def args
     (if-let [sha256sum (process/find-executable "sha256sum")]
       [sha256sum file]
       (if-let [shasum (process/find-executable "shasum")]
         [shasum "-a" "256" file]
-        (error "neither sha256sum nor shasum was found on PATH"))))
+        (if-let [sha256 (process/find-executable "sha256")]
+          [sha256 "-q" file]
+          (error "neither sha256sum, shasum nor sha256 was found on PATH")))))
   (first (string/split " " (string/trim (run "checksumming" args)))))
 
 (defn own-executable

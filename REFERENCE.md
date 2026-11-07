@@ -140,8 +140,9 @@ the limit. Any token works, even one granted no scopes. herd never sends it
 to another host, to the asset downloads, or on curl's command line, where
 other users of the machine could read it.
 
-The command needs `curl`, `tar`, and either `sha256sum` or `shasum` on
-`PATH`. Any failure exits 1 and leaves the old binary in place.
+The command needs `curl`, `tar`, and one of `sha256sum`, `shasum` or
+`sha256` (OpenBSD) on `PATH`. Any failure exits 1 and leaves the old binary
+in place.
 
 ### `herd completions`
 

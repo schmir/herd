@@ -33,8 +33,8 @@ Each has an archive for this platform that holds a herd saying what it is.
   >     chmod 755 "$dir/stage/herd"
   >     archive="herd-$tag-$platform.tar.gz"
   >     tar -czf "$dir/$archive" -C "$dir/stage" herd
-  >     (cd "$dir" && { sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive"; } \
-  >         >"herd-$tag-SHA256SUMS")
+  >     (cd "$dir" && { sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive" 2>/dev/null \
+  >         || sha256 -r "$archive"; } >"herd-$tag-SHA256SUMS")
   >     mkdir -p "$ROOT/api/tags"
   >     cat >"$ROOT/api/tags/$tag" <<EOF
   > {"tag_name": "$tag",
