@@ -12,8 +12,8 @@ A relative path joins the anchor, and an absolute one is used as written.
 
   $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
-  $ROOT/home/root/relative\trelative-url (esc)
-  /absolute\tabsolute-url (esc)
+  missing\t$ROOT/home/root/relative\trelative-url (esc)
+  missing\t/absolute\tabsolute-url (esc)
 
 Several rows check the relative tree out at each anchor, while an absolute
 path stays one repository reachable from all of them.
@@ -21,13 +21,13 @@ path stays one repository reachable from all of them.
   $ echo '{:checkouts [{:list "repos.json" :anchor "one"} {:list "repos.json" :anchor "two"}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list -a -C /
-  $ROOT/home/one/relative\trelative-url (esc)
-  /absolute\tabsolute-url (esc)
-  $ROOT/home/two/relative\trelative-url (esc)
+  missing\t$ROOT/home/one/relative\trelative-url (esc)
+  missing\t/absolute\tabsolute-url (esc)
+  missing\t$ROOT/home/two/relative\trelative-url (esc)
   $ herd list -C one
-  $ROOT/home/one/relative\trelative-url (esc)
+  missing\t$ROOT/home/one/relative\trelative-url (esc)
   $ herd list -C two
-  $ROOT/home/two/relative\trelative-url (esc)
+  missing\t$ROOT/home/two/relative\trelative-url (esc)
 
 A relative path may not climb out of its anchor, but an absolute one can name
 any place.
@@ -43,7 +43,7 @@ any place.
   [1]
   $ echo '[{"path": "/srv/../abs", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ herd list -a -C /
-  /abs\turl (esc)
+  missing\t/abs\turl (esc)
   $ echo '[{"path": "relative", "ssh_url": "relative-url"}, {"path": "/absolute", "ssh_url": "absolute-url"}]' \
   >   >"$CONFIG/repos.json"
 
@@ -51,7 +51,7 @@ An absolute anchor need not exist.
 
   $ echo '{:checkouts [{:list "repos.json" :anchor "/missing/anchor"}]}' >"$CONFIG/config.jdn"
   $ herd list -C /missing/anchor
-  /missing/anchor/relative\trelative-url (esc)
+  missing\t/missing/anchor/relative\trelative-url (esc)
 
 Each row strips its own number of components.
 
@@ -61,8 +61,8 @@ Each row strips its own number of components.
   >              {:list "repos.json" :anchor "two" :strip-components 2}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/one/team/repo\turl (esc)
-  $ROOT/home/two/repo\turl (esc)
+  missing\t$ROOT/home/one/team/repo\turl (esc)
+  missing\t$ROOT/home/two/repo\turl (esc)
 
 A list no row reads is checked out once, from the defaults alone.
 
@@ -73,8 +73,8 @@ A list no row reads is checked out once, from the defaults alone.
   >  :checkouts [{:list "repos.json" :anchor "elsewhere"}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/root/one\tone-url (esc)
-  $ROOT/home/elsewhere/two\ttwo-url (esc)
+  missing\t$ROOT/home/root/one\tone-url (esc)
+  missing\t$ROOT/home/elsewhere/two\ttwo-url (esc)
 
 A row reading a list that is gone fails, even once no list is left at all.
 
@@ -101,7 +101,7 @@ seen, not where it lives.
   $ echo '[{"path": "gamma", "ssh_url": "gamma-url"}]' >elsewhere/b.json
   $ ln -s "$HOME/elsewhere/b.json" "$CONFIG/link.json"
   $ herd list -a -C /
-  $ROOT/home/gamma\tgamma-url (esc)
+  missing\t$ROOT/home/gamma\tgamma-url (esc)
 
 Without HOME there is no default anchor, and a relative anchor cannot be
 resolved either.
@@ -113,7 +113,7 @@ resolved either.
   Configuration error: $ROOT/home/.config/herd/link.json: cannot resolve relative anchor for link.json without HOME
   $ echo '{:checkouts [{:list "link.json" :anchor "/abs"}]}' >"$CONFIG/config.jdn"
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
-  /abs/gamma\tgamma-url (esc)
+  missing\t/abs/gamma\tgamma-url (esc)
 
 The default anchor is $HOME unless :checkout-defaults sets it. Setting it to false
 leaves a list that no row anchors without any anchor, which is an error,
@@ -122,8 +122,8 @@ while a row that names an anchor still places its list.
   $ echo '[{"path": "delta", "ssh_url": "delta-url"}]' >"$CONFIG/other.json"
   $ echo '{:checkout-defaults {:anchor "src"}}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
-  $ROOT/home/src/gamma\tgamma-url (esc)
-  $ROOT/home/src/delta\tdelta-url (esc)
+  missing\t$ROOT/home/src/gamma\tgamma-url (esc)
+  missing\t$ROOT/home/src/delta\tdelta-url (esc)
   $ echo '{:checkout-defaults {:anchor false}}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   Configuration error: $ROOT/home/.config/herd/link.json: cannot place link.json: the default anchor is disabled
@@ -133,8 +133,8 @@ while a row that names an anchor still places its list.
   >  :checkouts [{:list "link.json" :anchor "one"} {:list "other.json" :anchor "two"}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/one/gamma\tgamma-url (esc)
-  $ROOT/home/two/delta\tdelta-url (esc)
+  missing\t$ROOT/home/one/gamma\tgamma-url (esc)
+  missing\t$ROOT/home/two/delta\tdelta-url (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkout-defaults {:anchor false}
   >  :checkouts [{:list "link.json"} {:list "other.json" :anchor "two"}]}
@@ -156,7 +156,7 @@ its own, so it is a git checkout.
   $ echo '[{"path": "src/alpha", "ssh_url": "alpha"}]' >"$CONFIG/a.json"
   $ echo '[{"path": "src/alpha", "ssh_url": "alpha"}]' >"$CONFIG/agrees.json"
   $ herd list
-  $ROOT/home/src/alpha\talpha (esc)
+  missing\t$ROOT/home/src/alpha\talpha (esc)
   $ echo '[{"path": "src/alpha", "ssh_url": "different"}]' >"$CONFIG/agrees.json"
   $ herd list
   Configuration error: $ROOT/home/.config/herd/a.json and $ROOT/home/.config/herd/agrees.json disagree on the URL for $ROOT/home/src/alpha
@@ -167,7 +167,7 @@ its own, so it is a git checkout.
   [1]
   $ echo '[{"path": "src/alpha", "ssh_url": "alpha", "vcs": "git"}]' >"$CONFIG/agrees.json"
   $ herd list
-  $ROOT/home/src/alpha\talpha (esc)
+  missing\t$ROOT/home/src/alpha\talpha (esc)
   $ rm "$CONFIG"/*.json
 
 Paths that stripping makes equal are merged the same way.
@@ -176,7 +176,7 @@ Paths that stripping makes equal are merged the same way.
   >   >"$CONFIG/repos.json"
   $ echo '{:checkouts [{:list "repos.json" :anchor "root" :strip-components 1}]}' >"$CONFIG/config.jdn"
   $ herd list -C root
-  $ROOT/home/root/repo\tshared (esc)
+  missing\t$ROOT/home/root/repo\tshared (esc)
   $ echo '[{"path": "one/repo", "ssh_url": "first"}, {"path": "two/repo", "ssh_url": "second"}]' \
   >   >"$CONFIG/repos.json"
   $ herd list -C root
@@ -195,8 +195,8 @@ places it there.
   $ echo '[{"path": "outer", "ssh_url": "o"}, {"path": "outer-two/x", "ssh_url": "i"}]' \
   >   >"$CONFIG/repos.json"
   $ herd list -a -C /
-  $ROOT/home/root/outer\to (esc)
-  $ROOT/home/root/outer-two/x\ti (esc)
+  missing\t$ROOT/home/root/outer\to (esc)
+  missing\t$ROOT/home/root/outer-two/x\ti (esc)
 
 A command is told the first anchor of a repository that several rows reach,
 and its path as the list gives it once stripped.

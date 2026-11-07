@@ -49,7 +49,7 @@ An empty directory is cloned into.
 A dangling symbolic link leads nowhere, but it is still in the way.
 
   $ rm -rf src/docs && ln -s nowhere src/docs
-  $ herd list --status -C src/docs
+  $ herd list -C src/docs
   blocked\t$ROOT/home/src/docs\t$ROOT/origins/docs (esc)
   $ herd clone -j 1 -C src/docs
   ✗ $ROOT/home/src/docs
@@ -161,7 +161,7 @@ next clone starts over.
   $ chmod +x "$ROOT/bin/git"
   $ herd clone -j 1 -C src/docs > /dev/null
   [1]
-  $ herd list --status -C src/docs
+  $ herd list -C src/docs
   missing\t$ROOT/home/src/docs\t$ROOT/origins/docs (esc)
   $ ls -A src
   api

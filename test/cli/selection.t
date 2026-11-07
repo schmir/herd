@@ -12,17 +12,17 @@ need not exist, since list prints what is configured.
 A directory selects everything below it.
 
   $ herd list -C /srv/foo
-  /srv/foo\tfoo (esc)
+  missing\t/srv/foo\tfoo (esc)
 
   $ herd list -C /srv
-  /srv/foo\tfoo (esc)
-  /srv/foobar\tfoobar (esc)
-  /srv/other\tother (esc)
+  missing\t/srv/foo\tfoo (esc)
+  missing\t/srv/foobar\tfoobar (esc)
+  missing\t/srv/other\tother (esc)
 
 A path inside a working copy selects that repository, however deep.
 
   $ herd list -C /srv/foo/deep/inside
-  /srv/foo\tfoo (esc)
+  missing\t/srv/foo\tfoo (esc)
 
 Matching is by whole path component, not by string prefix.
 
@@ -30,18 +30,18 @@ Matching is by whole path component, not by string prefix.
   None of the configured repositories under the selected anchors are beneath /srv/fo or contain it
 
   $ herd list -C /srv/foobar
-  /srv/foobar\tfoobar (esc)
+  missing\t/srv/foobar\tfoobar (esc)
 
 Trailing slashes and unnormalised paths mean what they look like.
 
   $ herd list -C /srv/foo/
-  /srv/foo\tfoo (esc)
+  missing\t/srv/foo\tfoo (esc)
 
   $ herd list -C /srv/foo//
-  /srv/foo\tfoo (esc)
+  missing\t/srv/foo\tfoo (esc)
 
   $ herd list -C /srv/foo/../foo
-  /srv/foo\tfoo (esc)
+  missing\t/srv/foo\tfoo (esc)
 
 The filesystem root is in no anchor, unless every anchor is considered.
 
@@ -49,9 +49,9 @@ The filesystem root is in no anchor, unless every anchor is considered.
   No configuration anchor contains /; use -a/--all-anchors to consider every anchor
 
   $ herd list -a -C /
-  /srv/foo\tfoo (esc)
-  /srv/foobar\tfoobar (esc)
-  /srv/other\tother (esc)
+  missing\t/srv/foo\tfoo (esc)
+  missing\t/srv/foobar\tfoobar (esc)
+  missing\t/srv/other\tother (esc)
 
 Nested anchors: a location takes repositories from every anchor that
 contains it, and an anchor does not contain its parent directory.
@@ -75,23 +75,23 @@ contains it, and an anchor does not contain its parent directory.
   > EOF
 
   $ herd list -C /work/team
-  /work/team/parent\tparent (esc)
-  /work/team/shared\tshared (esc)
-  /work/team/two\ttwo (esc)
+  missing\t/work/team/parent\tparent (esc)
+  missing\t/work/team/shared\tshared (esc)
+  missing\t/work/team/two\ttwo (esc)
 
   $ herd list -C /work
-  /work/one\tone (esc)
-  /work/team/parent\tparent (esc)
-  /work/team/shared\tshared (esc)
+  missing\t/work/one\tone (esc)
+  missing\t/work/team/parent\tparent (esc)
+  missing\t/work/team/shared\tshared (esc)
 
   $ herd list -a -C /work/team
-  /work/team/unrelated\tunrelated (esc)
-  /work/team/parent\tparent (esc)
-  /work/team/shared\tshared (esc)
-  /work/team/two\ttwo (esc)
+  missing\t/work/team/unrelated\tunrelated (esc)
+  missing\t/work/team/parent\tparent (esc)
+  missing\t/work/team/shared\tshared (esc)
+  missing\t/work/team/two\ttwo (esc)
 
   $ herd list -C /work/team/parent/deep
-  /work/team/parent\tparent (esc)
+  missing\t/work/team/parent\tparent (esc)
 
 Configured paths and the working location may reach one directory through
 different symlinks, so both are resolved before they are compared.
@@ -107,14 +107,14 @@ different symlinks, so both are resolved before they are compared.
   >   >"$CONFIG/config.jdn"
 
   $ herd list -C real/work
-  $ROOT/link/work/repo\trepo (esc)
-  $ROOT/link/work/absent\tabsent (esc)
+  missing\t$ROOT/link/work/repo\trepo (esc)
+  missing\t$ROOT/link/work/absent\tabsent (esc)
 
   $ herd list -C real/work/repo
-  $ROOT/link/work/repo\trepo (esc)
+  missing\t$ROOT/link/work/repo\trepo (esc)
 
   $ herd list -C link/work/repo
-  $ROOT/link/work/repo\trepo (esc)
+  missing\t$ROOT/link/work/repo\trepo (esc)
 
 A location reached through a link does not make an unrelated anchor
 contain it.

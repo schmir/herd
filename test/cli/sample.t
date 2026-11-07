@@ -17,44 +17,44 @@ percent.
 list shows which repositories a sample picks, in the configured order.
 
   $ herd list --sample 10
-  $ROOT/home/src/beta\thttps://example.com/beta.git (esc)
-  $ROOT/home/src/delta\thttps://example.com/delta.git (esc)
-  $ROOT/home/src/epsilon\thttps://example.com/epsilon.git (esc)
+  missing\t$ROOT/home/src/beta\thttps://example.com/beta.git (esc)
+  missing\t$ROOT/home/src/delta\thttps://example.com/delta.git (esc)
+  missing\t$ROOT/home/src/epsilon\thttps://example.com/epsilon.git (esc)
 
 A larger sample keeps what the smaller one picked.
 
   $ herd list --sample 20 | cut -f1
-  $ROOT/home/src/beta
-  $ROOT/home/src/gamma
-  $ROOT/home/src/delta
-  $ROOT/home/src/epsilon
+  missing
+  missing
+  missing
+  missing
 
 LOW:HIGH picks a half-open range, as a slice does, so ranges that meet
 share no repository. A missing HIGH is 100.
 
   $ herd list --sample 0:9 | cut -f1
-  $ROOT/home/src/beta
-  $ROOT/home/src/delta
+  missing
+  missing
   $ herd list --sample 9:20 | cut -f1
-  $ROOT/home/src/gamma
-  $ROOT/home/src/epsilon
+  missing
+  missing
   $ herd list --sample 60: | cut -f1
-  $ROOT/home/src/zeta
+  missing
 
 A missing LOW is 0, and 1 and 100 are whole percentages like any other.
 
   $ herd list --sample :9 | cut -f1
-  $ROOT/home/src/beta
-  $ROOT/home/src/delta
+  missing
+  missing
   $ herd list --sample 1 | cut -f1
-  $ROOT/home/src/beta
+  missing
   $ herd list --sample 100 | cut -f1
-  $ROOT/home/src/alpha
-  $ROOT/home/src/beta
-  $ROOT/home/src/gamma
-  $ROOT/home/src/delta
-  $ROOT/home/src/epsilon
-  $ROOT/home/src/zeta
+  missing
+  missing
+  missing
+  missing
+  missing
+  missing
 
 run acts on the same repositories that list shows.
 

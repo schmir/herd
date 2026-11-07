@@ -233,7 +233,7 @@ A command finds its standard input closed, so it reads nothing of herd's.
   | read 0
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ echo from-herd | herd list -C src/web -f 'test -z "$(cat)"'
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 It finds Git's and ssh's prompts turned off, unless the environment already
 says otherwise.
@@ -278,4 +278,4 @@ with -f run in it too.
   | bash arg
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ herd list -f '[[ $0 == bash ]]' -C src/web
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)

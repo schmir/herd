@@ -8,8 +8,8 @@ assignment in front of a function, as herd is here, after the call.
 Without XDG_CONFIG_HOME, the configuration is in .config under the home.
 
   $ (unset XDG_CONFIG_HOME; herd list --all-anchors)
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  missing\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A directory is read as the configuration directory.
 
@@ -17,7 +17,7 @@ A directory is read as the configuration directory.
   $ echo '[{"path": "src/tool", "ssh_url": "tool-url"}]' >work/repos.json
   $ export HERD_CONFIG="$ROOT/work"
   $ herd list --all-anchors
-  $ROOT/home/src/tool\ttool-url (esc)
+  missing\t$ROOT/home/src/tool\ttool-url (esc)
 
 A file is read in place of config.jdn, with the lists beside it.
 
@@ -25,7 +25,7 @@ A file is read in place of config.jdn, with the lists beside it.
   >   >work/work.jdn
   $ export HERD_CONFIG="$ROOT/work/work.jdn"
   $ herd list --all-anchors
-  $ROOT/home/elsewhere/src/tool\ttool-url (esc)
+  missing\t$ROOT/home/elsewhere/src/tool\ttool-url (esc)
 
 A relative one resolves from the working directory, and messages about the
 file name it.
@@ -40,8 +40,8 @@ An empty one is no HERD_CONFIG at all.
 
   $ export HERD_CONFIG=
   $ herd list --all-anchors
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  missing\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 One that names nothing is an error, even for --help.
 
@@ -55,9 +55,9 @@ HERD_CONFIG, and takes what HERD_CONFIG takes.
 
   $ echo '{}' >work/work.jdn
   $ herd -c work/work.jdn list --all-anchors
-  $ROOT/home/src/tool\ttool-url (esc)
+  missing\t$ROOT/home/src/tool\ttool-url (esc)
   $ herd --config="$ROOT/work" list --all-anchors
-  $ROOT/home/src/tool\ttool-url (esc)
+  missing\t$ROOT/home/src/tool\ttool-url (esc)
   $ unset HERD_CONFIG
 
 One that names nothing is an error that says where the name came from.

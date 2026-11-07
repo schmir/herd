@@ -13,6 +13,6 @@ snapshotting its working copy.
   $ jj -R src/linked git remote add upstream git@example.com:upstream.git
   $ echo change >src/linked/file
   $ herd list --extra
-  $ROOT/home/src/linked\tgit@example.com:linked.git (esc)
-  $ROOT/home/src/plain\t (esc)
+  extra\t$ROOT/home/src/linked\tgit@example.com:linked.git (esc)
+  extra\t$ROOT/home/src/plain\t (esc)
   $ jj -R src/linked --ignore-working-copy diff --summary

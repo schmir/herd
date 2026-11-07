@@ -278,8 +278,8 @@ Only *.json files are lists, and a directory named like one is not.
   $ echo ignored >"$CONFIG/notes.txt"
   $ mkdir "$CONFIG/directory.json"
   $ herd list -C "$HOME"
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  missing\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A file where the configuration directory belongs is an error.
 

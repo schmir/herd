@@ -15,11 +15,11 @@ JMESPath ones narrow the lists first, and the commands run in what is left.
   $ herd clone >/dev/null
   $ touch src/api/marker
   $ herd list -f has-marker -f platform
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ touch src/web/marker
   $ herd list -f has-marker
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ herd list -f platform -f has-marker
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
 

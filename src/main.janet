@@ -369,11 +369,11 @@
   (pager/page (string/join (map (fn [line] (string line "\n")) lines)) color? pager shell))
 
 (defn list-command
-  ``Run `herd list`: print the selected repositories, one tab-separated path
-  and URL per line, in the order the commands act on them. --ok, --missing
-  and --extra pick what to print by comparing them with what is on disk,
-  and print the extra ones after the configured ones. Without them, plain
-  list prints every configured repository, and --status what differs.``
+  ``Run `herd list`: print the selected repositories, one tab-separated
+  status, path and URL per line, in the order the commands act on them.
+  --ok, --not-ok and --extra pick what to print by comparing them with what
+  is on disk, and print the extra ones after the configured ones. Without
+  them, list prints every configured repository.``
   [args &opt repository-settings pager]
   (default repository-settings config/default-repository-settings)
   (default pager config/default-pager)
@@ -384,19 +384,16 @@
     (eprint "usage error: --no-pager applies only with --tree")
     (os/exit 1))
   (def requested-state (state-from-flags parsed))
-  (def show-status? (parsed "status"))
-  (def picked? (or (parsed "ok") (parsed "missing") (parsed "extra")))
-  # The ok repositories are what --status leaves out unless asked: it is
-  # there to show what differs.
-  (def want-ok? (if picked? (parsed "ok") (not show-status?)))
-  (def want-missing? (if picked? (parsed "missing") true))
-  (def discover? (if picked? (parsed "extra") show-status?))
+  (def picked? (or (parsed "ok") (parsed "not-ok") (parsed "extra")))
+  (def want-ok? (if picked? (parsed "ok") true))
+  (def want-not-ok? (if picked? (parsed "not-ok") true))
+  (def discover? (and picked? (parsed "extra")))
   (unless discover?
     (when-let [name (find parsed discovery-options)]
       (eprint "usage error: --" name " applies only when extra "
-              "repositories are listed, by --extra or a plain --status")
+              "repositories are listed, by --extra")
       (os/exit 1)))
-  (def show-configured? (or want-ok? want-missing?))
+  (def show-configured? (or want-ok? want-not-ok?))
   # Explaining an empty selection would mislead when the disk is searched as
   # well, since that can still turn up repositories. The disk discovery needs
   # the catalog, but a list of only the extra repositories selects none from it.
@@ -412,15 +409,13 @@
   (def configured ((result :catalog) :repositories))
   (def selected (result :repositories))
   (defn emit [status & fields]
-    (print ;(if show-status? [status "\t"] []) (string/join fields "\t")))
+    (print status "\t" (string/join fields "\t")))
   # What is printed, a status and a repository each, so that it can be drawn
   # either way.
   (def rows @[])
   (each repository selected
-    (def status (if (and want-ok? want-missing? (not show-status?))
-                  :ok
-                  (checkout/checkout-status repository)))
-    (when (if (= :ok status) want-ok? want-missing?)
+    (def status (checkout/checkout-status repository))
+    (when (if (= :ok status) want-ok? want-not-ok?)
       (array/push rows {:status status :path (repository :path)
                         :fields [(repository :path) (repository :clone-url)]})))
   (when discover?
@@ -432,7 +427,7 @@
       (print-tree (tree/render
                     (tree/from-paths
                       (map (fn [row] {:path (row :path)
-                                      :status (when show-status? (string (row :status)))})
+                                      :status (string (row :status))})
                            rows))
                     color?)
                   color?

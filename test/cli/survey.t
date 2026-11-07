@@ -18,29 +18,28 @@ names, and notes stands where a configured repository should be.
   > [{"path": "src/notes", "ssh_url": "u"}]
   > EOF
 
---status prints what differs, its status first. The extra ones come
-last, with their origin when they have one.
+--not-ok and --extra print what differs, its status first. The extra ones
+come last, with their origin when they have one.
 
-  $ herd list --status
+  $ herd list --not-ok --extra
   blocked\t$ROOT/home/src/notes\tu (esc)
   missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   extra\t$ROOT/home/src/bare\t (esc)
   extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
---ok, --missing and --extra pick what to print, in the plain format
-unless --status asks for the status.
+--ok, --not-ok and --extra pick what to print.
 
   $ herd list --ok
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
 
-  $ herd list --missing
-  $ROOT/home/src/notes\tu (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ herd list --not-ok
+  blocked\t$ROOT/home/src/notes\tu (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ herd list --extra
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
-  $ herd list --ok --missing --extra --status
+  $ herd list --ok --not-ok --extra
   blocked\t$ROOT/home/src/notes\tu (esc)
   ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
@@ -51,7 +50,7 @@ Inside an extra repository, that repository is found, however deep.
 
   $ mkdir -p src/scratch/lib/deep
   $ herd list --extra -C src/scratch/lib/deep
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
 Discovery does not enter repositories, so a checkout nested inside one is not
 reported.
@@ -65,7 +64,7 @@ still configured, so it is not extra.
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']"}}
   > EOF
-  $ herd list --status --ok --extra -f platform
+  $ herd list --ok --extra -f platform
   ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   extra\t$ROOT/home/src/bare\t (esc)
   extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
@@ -79,17 +78,17 @@ meant to be there.
   >  :checkouts [{:list "repos.json" :use-filters ["platform"]}]}
   > EOF
   $ herd list --extra
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ rm -r "$CONFIG/config.jdn" src/web
 
 --max-depth limits the discovery, with the path itself at depth zero.
 
   $ herd list --extra --max-depth 1
   $ herd list --extra --max-depth 2
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
   $ herd list --extra --max-depth -1
   Invalid --max-depth: expected a non-negative integer
   [1]
@@ -98,30 +97,30 @@ Hidden directories are skipped unless --hidden asks for them.
 
   $ git init -q .stash/old
   $ herd list --extra --hidden
-  $ROOT/home/.stash/old\t (esc)
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/.stash/old\t (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
 
 The discovery options mean nothing without discovery.
 
   $ herd list --hidden
-  usage error: --hidden applies only when extra repositories are listed, by --extra or a plain --status
+  usage error: --hidden applies only when extra repositories are listed, by --extra
   [1]
-  $ herd list --missing --status --max-depth 1
-  usage error: --max-depth applies only when extra repositories are listed, by --extra or a plain --status
+  $ herd list --not-ok --max-depth 1
+  usage error: --max-depth applies only when extra repositories are listed, by --extra
   [1]
 
 A path that is not a directory has nothing beneath it to discover, so only
 the configured side is reported there.
 
   $ herd list --extra -C nowhere
-  $ herd list --status -a -C src/web
+  $ herd list --not-ok --extra -a -C src/web
   missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 An empty directory is missing too, since a clone could still go there.
 
   $ mkdir src/web
-  $ herd list --status -C src/web
+  $ herd list --not-ok --extra -C src/web
   missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ rmdir src/web
 
@@ -132,14 +131,14 @@ up does not make the walk go round forever.
   $ ln -s "$ROOT/outside" src/link
   $ ln -s "$HOME" src/up
   $ herd list --extra
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
   $ herd list --extra --follow-links
-  $ROOT/home/src/bare\t (esc)
-  $ROOT/home/src/link/linked\t (esc)
-  $ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
+  extra\t$ROOT/home/src/bare\t (esc)
+  extra\t$ROOT/home/src/link/linked\t (esc)
+  extra\t$ROOT/home/src/scratch\tgit@example.com:scratch.git (esc)
   $ herd list --follow-links
-  usage error: --follow-links applies only when extra repositories are listed, by --extra or a plain --status
+  usage error: --follow-links applies only when extra repositories are listed, by --extra
   [1]
 
 Discovery needs no configuration: with no lists, or no configuration directory,
@@ -147,10 +146,10 @@ it goes on without the message the other forms of list print.
 
   $ mkdir "$ROOT/empty"
   $ herd -c "$ROOT/empty" list --extra -C src/bare
-  $ROOT/home/src/bare\t (esc)
-  $ herd -c "$ROOT/empty" list --status -C src/bare
+  extra\t$ROOT/home/src/bare\t (esc)
+  $ herd -c "$ROOT/empty" list --not-ok --extra -C src/bare
   extra\t$ROOT/home/src/bare\t (esc)
   $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list --extra -C src/bare)
-  $ROOT/home/src/bare\t (esc)
-  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list --status -C src/bare)
+  extra\t$ROOT/home/src/bare\t (esc)
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list --not-ok --extra -C src/bare)
   extra\t$ROOT/home/src/bare\t (esc)

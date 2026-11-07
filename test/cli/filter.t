@@ -11,7 +11,7 @@ Filters select repositories by what their entries say, through jp.
   > EOF
 
   $ herd list -f platform
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
 
 Filters narrow one after the other.
 
@@ -47,7 +47,7 @@ A row's :use-filters applies to its own list.
   >  :checkouts [{:list "repos.json" :use-filters ["platform"]}]}
   > EOF
   $ herd list
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd clone -j 1
   Clone complete: $ROOT/home/src/api
   1 cloned, 0 already checked out, 0 blocked, 0 failed
@@ -61,29 +61,29 @@ it.
   >  :checkout-defaults {:use-filters ["platform"]}}
   > EOF
   $ herd list
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']" "web" "[?path=='src/web']"}
   >  :checkout-defaults {:use-filters ["platform"]}
   >  :checkouts [{:list "repos.json"}]}
   > EOF
   $ herd list
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']" "web" "[?path=='src/web']"}
   >  :checkout-defaults {:use-filters ["platform"]}
   >  :checkouts [{:list "repos.json" :use-filters ["web"]}]}
   > EOF
   $ herd list
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"platform" "[?group=='platform']"}
   >  :checkout-defaults {:use-filters ["platform"]}
   >  :checkouts [{:list "repos.json" :use-filters []}]}
   > EOF
   $ herd list
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A filter has to select an array; an expression that is not a filter
 answers null, which is refused rather than read as selecting nothing.
@@ -121,8 +121,8 @@ needs no jp.
   $ env PATH="$ROOT/nojp" "$HERD" list -f bare 2>&1 | sed "s|$ROOT|\$ROOT|g"
   Configuration error: $ROOT/home/.config/herd/repos.json: filter "bare" needs jp on PATH
   $ env PATH="$ROOT/nojp" "$HERD" list 2>&1 | sed "s|$ROOT|\$ROOT|g"
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 Filters run as a pipeline, in the order named: the first of the active
 repositories is not the first repository kept if it is active.
@@ -135,11 +135,11 @@ repositories is not the first repository kept if it is active.
   > {:filters {"active" "[?active]" "tier" "[?tier == `1`]" "first" "[0:1]"}}
   > EOF
   $ herd list -f active -f tier
-  $ROOT/home/two\tu (esc)
+  missing\t$ROOT/home/two\tu (esc)
   $ herd list -f tier -f active
-  $ROOT/home/two\tu (esc)
+  missing\t$ROOT/home/two\tu (esc)
   $ herd list -f active -f first
-  $ROOT/home/two\tu (esc)
+  missing\t$ROOT/home/two\tu (esc)
   $ herd list -f first -f active
   No configured repository is left by filters "first" and "active"
 
@@ -158,10 +158,10 @@ filter removes them; unfiltered, they are errors.
   >               :strip-components 1}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/src/a\ta-url (esc)
-  $ROOT/home/vendor/b\tb-url (esc)
+  missing\t$ROOT/home/src/a\ta-url (esc)
+  missing\t$ROOT/home/vendor/b\tb-url (esc)
   $ herd list -a -C / -f vendor
-  $ROOT/home/vendor/b\tb-url (esc)
+  missing\t$ROOT/home/vendor/b\tb-url (esc)
   $ echo '{:checkouts [{:list "repos.json"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 2 needs a string "path"

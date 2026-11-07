@@ -13,8 +13,8 @@
   "A command's options come in the order its help and its scripts list them."
   []
   (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"] (names "clone")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "missing" "extra"
-                   "status" "tree" "no-pager" "max-depth" "hidden" "follow-links" "dirty" "clean"]
+  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "not-ok" "extra"
+                   "tree" "no-pager" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help"] (names "self-update")))
@@ -57,10 +57,9 @@
                 (string (option :name) "'s summary is shorter than its help")))
       (assert (or (option :summary) (<= (length (option :help)) 80))
               (string (option :name) " has long help and no summary"))))
-  (assert (= "Print the status of each repository first."
-             (get (find (fn [option] (= "status" (option :name)))
-                        (options/for-command "list"))
-                  :summary))))
+  (assert (nil? (get (find (fn [option] (= "not-ok" (option :name)))
+                           (options/for-command "list"))
+                     :summary))))
 
 (test-each-command-declares-its-options)
 (test-top-level-options)

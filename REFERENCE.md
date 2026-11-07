@@ -31,27 +31,27 @@ herd clone [-C PATH] [-a] [-f NAME] [--show-output WHEN] [-j N]
 
 ### `herd list`
 
-Print selected repositories as tab-separated `path` and clone URL. With
-`--status`, prepend `ok`, `missing`, `blocked`, or `extra`.
+Print selected repositories as tab-separated `status`, `path` and clone URL.
+The status is `ok`, `missing`, `blocked`, or `extra`.
 
 ```text
 herd list [-C PATH] [-a] [-f NAME] [--sample PERCENT]
-           [--dirty | --clean] [--ok] [--missing] [--extra] [--status]
+           [--dirty | --clean] [--ok] [--not-ok] [--extra]
            [-t, --tree] [-P, --no-pager]
            [--max-depth N] [--hidden] [--follow-links]
 ```
 
-Without `--ok`, `--missing`, or `--extra`, plain `list` prints configured
-repositories, while `--status` prints only differences by default. `--extra`
-discovers Git and jj repositories from the selected path or its innermost
-containing repository. It reports repositories that no configured repository
-names.
+Without `--ok`, `--not-ok`, or `--extra`, `list` prints all configured
+repositories. `--ok` and `--not-ok` pick those that are ok or not, and
+`--extra` discovers Git and jj repositories from the selected path or its
+innermost containing repository. It reports repositories that no configured
+repository names.
 
 `--tree` renders the selected paths as a filesystem tree. Discovery options
 apply only when extra repositories are requested. `-P, --no-pager` is valid
 only with `--tree`.
 
-`--status` uses these meanings:
+The statuses have these meanings:
 
 | Status    | Meaning                                               |
 | --------- | ----------------------------------------------------- |
@@ -219,9 +219,9 @@ they show help. An invalid configuration can therefore make `--help` fail.
 
 A missing configuration directory, or one that contains no repository lists,
 is normal for `clone`, `run`, custom commands, and plain `list`: herd prints
-a message and exits successfully. `list --status` and `list --extra` print
-no such message and continue with discovery. A path named by `HERD_CONFIG`
-or `--config` must exist; a missing path is a configuration error.
+a message and exits successfully. `list --extra` prints no such message and
+continue with discovery. A path named by `HERD_CONFIG` or `--config` must
+exist; a missing path is a configuration error.
 
 The top-level settings are:
 

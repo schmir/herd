@@ -411,26 +411,28 @@ herd completions fish > ~/.config/fish/completions/herd.fish
 
 ## Use
 
-List the selected repositories, one per line, as a path and URL separated by
-a tab:
+List the selected repositories, one per line, as a status, path and URL
+separated by tabs:
 
 ```sh
 herd list
 ```
 
-Every configured repository is listed whether or not it is checked out, so
-the output is a stable input for scripts:
+Every configured repository is listed whether or not it is checked out, each
+line holding its status, path and URL separated by tabs, so the output is a
+stable input for scripts (`cut -f2,3` gives path and URL):
 
 ```
-/home/you/src/acme/api	git@github.com:acme/api.git
-/home/you/src/acme/web	git@github.com:acme/web.git
+ok	/home/you/src/acme/api	git@github.com:acme/api.git
+missing	/home/you/src/acme/web	git@github.com:acme/web.git
+blocked	/home/you/src/acme/docs	git@github.com:acme/docs.git
 ```
 
-Compare the configuration with what is on disk by adding `--status`, which
-prints what differs, the status of each repository first:
+Compare the configuration with what is on disk by picking what to print with
+`--not-ok` and `--extra`:
 
 ```sh
-herd list --status
+herd list --not-ok --extra
 ```
 
 ```
@@ -447,10 +449,10 @@ is the `origin` remote, empty when there is none. A repository a `-f` filter
 leaves out is still configured, but one a checkout row's own `:use-filters`
 leaves out is reported as `extra`, since it is not meant to be there.
 
-`--ok`, `--missing` and `--extra` pick what to print instead: the configured
-repositories that are on disk, the ones that are not, and the `extra` ones.
-`herd list --status --ok --missing --extra` prints them all. Without
-`--status` they print the usual path and URL. Discovery starts at the
+`--ok`, `--not-ok` and `--extra` pick what to print instead: the configured
+repositories that are on disk, the ones that are not ok (`missing` or
+`blocked`, the ones worth a look), and the `extra` ones.
+`herd list --ok --not-ok --extra` prints them all. Discovery starts at the
 repository containing the location, or the location itself; it does not
 enter repositories or hidden directories, and does not follow symbolic
 links. `--max-depth N`, `--hidden` and `--follow-links` change that.
@@ -458,8 +460,7 @@ links. `--max-depth N`, `--hidden` and `--follow-links` change that.
 `--tree` draws what would be printed as a tree, from the directory that
 holds the selected repositories, instead of as lines, and in color and
 through `less` as `herd tree` is, unless `-P` (`--no-pager`) says otherwise.
-With `--status`, each repository is marked with its status. URLs are not
-drawn.
+Each repository is marked with its status. URLs are not drawn.
 
 Clone missing repositories, as colocated Git/Jujutsu working copies or as
 plain Git ones, following the repository options in force for each:
@@ -471,13 +472,13 @@ herd clone
 A target holding a Git or Jujutsu repository is already checked out, and an
 empty directory is cloned into. Anything else at the target blocks the
 clone: `clone` names it and leaves it unchanged, since it cannot tell what
-is there. `herd list --status` reports such a path as `blocked`. `clone`
-reports its results as `herd run` does, and takes the same `--show-output`:
-by default a clone that worked is named on one line, and each one that
-failed or was blocked is shown as a block of its own. `always` shows what a
-clone that worked printed in place of that line, and `never` shows neither.
-`clone` finishes with a summary and exits non-zero if any clone failed or
-was blocked:
+is there. `herd list` reports such a path as `blocked`. `clone` reports its
+results as `herd run` does, and takes the same `--show-output`: by default a
+clone that worked is named on one line, and each one that failed or was
+blocked is shown as a block of its own. `always` shows what a clone that
+worked printed in place of that line, and `never` shows neither. `clone`
+finishes with a summary and exits non-zero if any clone failed or was
+blocked:
 
 ```
 Clone complete: /home/you/src/acme/web

@@ -52,16 +52,10 @@
 (def- list-only
   [{:name "ok" :kind :flag
     :help "Print configured repositories that are on disk."}
-   {:name "missing" :kind :flag
-    :help "Print configured repositories that are not on disk."}
+   {:name "not-ok" :kind :flag
+    :help "Print configured repositories that are not ok, e.g. missing or blocked."}
    {:name "extra" :kind :flag
     :help "Print repositories on disk that no configuration defines."}
-   {:name "status" :kind :flag
-    :help (string "Print the status of each repository first: "
-                  "ok, missing, blocked, or extra. "
-                  "Without --ok, --missing or --extra, "
-                  "print only what differs.")
-    :summary "Print the status of each repository first."}
    {:name "tree" :short "t" :kind :flag
     :help "Print the selected repositories as a tree."}
    tree-no-pager

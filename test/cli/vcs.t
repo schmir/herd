@@ -63,7 +63,7 @@ is as good as a Git one to list and clone.
   ✓ $ROOT/home/both
   | jj
   3 succeeded, 0 failed, 0 skipped, 0 not checked out
-  $ herd list --ok --status
+  $ herd list --ok
   ok\t$ROOT/home/git\tu (esc)
   ok\t$ROOT/home/jj\tu (esc)
   ok\t$ROOT/home/both\tu (esc)

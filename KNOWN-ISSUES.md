@@ -66,11 +66,11 @@ picking one up does not start from scratch.
 
 ### Little to read but a path and a URL
 
-`herd list` prints `path`, a tab, and `ssh_url`, and `--status` puts the
-checkout state in front. That is deliberately stable and easy to cut, but it
-is also everything `herd` will tell you. It will not say which VCS a
-repository is checked out with or which anchor it came from, and a script
-that wants either has to go and look for itself.
+`herd list` prints the checkout state, `path` and `clone_url`, separated by
+tabs. That is deliberately stable and easy to cut, but it is also everything
+`herd` will tell you. It will not say which VCS a repository is checked out
+with or which anchor it came from, and a script that wants either has to go
+and look for itself.
 
 The information is already in hand. A resolved repository is a dictionary,
 and the entry it came from is merged into it whole, so a list whose entries

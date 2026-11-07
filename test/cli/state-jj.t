@@ -13,6 +13,6 @@ A jj working copy is dirty when its commit is not empty.
 
   $ echo change >src/edited/file
   $ herd list --dirty
-  $ROOT/home/src/edited\tunused (esc)
+  ok\t$ROOT/home/src/edited\tunused (esc)
   $ herd list --clean
-  $ROOT/home/src/plain\tunused (esc)
+  ok\t$ROOT/home/src/plain\tunused (esc)

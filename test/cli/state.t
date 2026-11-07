@@ -11,16 +11,16 @@ Nothing has changed yet.
   $ herd list --dirty
   No repository is left of the 2 selected by --dirty
   $ herd list --clean
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A file nobody added counts as a change.
 
   $ echo change >src/api/notes
   $ herd list --dirty
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd list --clean
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 The commands that act take the same flags.
 
@@ -40,7 +40,7 @@ A repository that is not checked out is neither.
   $ herd list --clean
   No repository is left of the 2 selected by --clean
   $ herd list --dirty
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
 
 clone does not take them.
 
@@ -54,9 +54,9 @@ one. Several must all hold, and they combine with --dirty and --clean.
   $ echo change >src/api/notes
   $ touch src/web/marker
   $ herd list -f 'test -f notes'
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd list -f 'test -f marker' -f 'test ! -f notes'
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ herd list -f 'test -f notes' --clean
   No repository is left of the 2 selected by --clean and -f
   $ herd run -f 'test -f marker' --show-output always git rev-parse --abbrev-ref HEAD
@@ -90,12 +90,12 @@ of herd run does, and what it would print is discarded, so it is asked not to
 color.
 
   $ herd list -f 'test "$HERD_REPO_PATH" = src/api'
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd list -f 'test "$HERD_REPO_VCS" = git && test "$HERD_COLOR" = never'
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
   $ herd list -C src -f 'test "$HERD_REPO_RELPATH" = web'
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A filter in :filters can stand for a shell command, and -f then takes its
 name. A name that no filter defines is still a command of its own.
@@ -105,9 +105,9 @@ name. A name that no filter defines is still a command of its own.
   >            "no-notes"  {:sh "test ! -f notes"}}}
   > JDN
   $ herd list -f has-notes
-  $ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
   $ herd list -f no-notes -f 'test -f marker'
-  $ROOT/home/src/web\t$ROOT/origins/web (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
 
 A word that is neither says which filters there are.
 

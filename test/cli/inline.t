@@ -12,8 +12,8 @@ With no repository list files at all, an inline list is still configured.
   >               :anchor "personal"}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/personal/dotfiles\tdotfiles-url (esc)
-  $ROOT/home/personal/notes\tnotes-url (esc)
+  missing\t$ROOT/home/personal/dotfiles\tdotfiles-url (esc)
+  missing\t$ROOT/home/personal/notes\tnotes-url (esc)
 
 The row's anchor, strip count and defaults apply as they do to a file.
 
@@ -24,8 +24,8 @@ The row's anchor, strip count and defaults apply as they do to a file.
   >              {:list [{:path "abs" :clone-url "abs-url"}] :anchor "/srv/inline"}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/src/repo\trepo-url (esc)
-  /srv/inline/abs\tabs-url (esc)
+  missing\t$ROOT/home/src/repo\trepo-url (esc)
+  missing\t/srv/inline/abs\tabs-url (esc)
 
 Inline lists join the files, and agree with them or are refused like any
 two lists naming one checkout.
@@ -36,8 +36,8 @@ two lists naming one checkout.
   >              {:list [{:path "inline" :clone-url "inline-url"}] :anchor "files"}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/files/repo\trepo-url (esc)
-  $ROOT/home/files/inline\tinline-url (esc)
+  missing\t$ROOT/home/files/repo\trepo-url (esc)
+  missing\t$ROOT/home/files/inline\tinline-url (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkouts [{:list "repos.json" :anchor "files"}
   >              {:list [{:path "repo" :clone-url "other-url"}] :anchor "files"}]}
@@ -78,7 +78,7 @@ under clone_url.
   >               :anchor "work" :use-filters ["platform"]}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/work/api\tapi-url (esc)
+  missing\t$ROOT/home/work/api\tapi-url (esc)
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:filters {"has-url" "[?clone_url=='web-url']"}
   >  :checkouts [{:list [{:path "api" :clone-url "api-url"}
@@ -86,4 +86,4 @@ under clone_url.
   >               :anchor "work" :use-filters ["has-url"]}]}
   > EOF
   $ herd list -a -C /
-  $ROOT/home/work/web\tweb-url (esc)
+  missing\t$ROOT/home/work/web\tweb-url (esc)
