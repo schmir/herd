@@ -32,7 +32,7 @@ file name it.
 
   $ echo '{:checkouts [{:list "gone.json"}]}' >work/work.jdn
   $ export HERD_CONFIG=work/work.jdn
-  $ herd list
+  $ herd list -C "$HOME"
   Configuration error: work.jdn: :checkouts reads "gone.json", which is not in the configuration directory
   [1]
 

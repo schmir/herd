@@ -29,15 +29,15 @@
   node)
 
 (defn- describe-source
-  "Name a placement's list and the options it sets."
-  [placement label &opt broken?]
+  "Name a placement's list and the options it sets, and why it is broken."
+  [placement label &opt broken]
   (def notes @[])
   (when (placement :vcs)
     (array/push notes (string "vcs " (placement :vcs))))
   (unless (empty? (placement :use-filters))
     (array/push notes (string "filters " (string/join (placement :use-filters) ", "))))
-  (when broken?
-    (array/push notes "broken: needs jp"))
+  (when broken
+    (array/push notes (string "broken: " broken)))
   (when (pos? (placement :strip-components))
     (array/push notes (string "strip " (placement :strip-components))))
   (string label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
@@ -54,7 +54,22 @@
     (def broken @[])
     (def repositories (read row broken))
     {:placement placement :label label :repositories repositories
-     :broken? (not (empty? broken))}))
+     :broken (unless (empty? broken) "needs jp")}))
+
+(defn- missing-list-placements
+  ``The placements of the `settings` rows that read a list file which is not
+  among the `present` names, as `list-placements` gives them, with no
+  repositories: there is no file to read them from.``
+  [settings present]
+  (def defaults (get settings :checkout-defaults {}))
+  (mapcat (fn [row]
+            (def name (row :list))
+            (if (and (string? name) (not (index-of name present)))
+              (map (fn [placement] {:placement placement :label name :repositories []
+                                    :broken "list file missing"})
+                   (config/resolve-checkout-rows name [(merge defaults row)]))
+              []))
+          (get settings :checkouts [])))
 
 (defn- filesystem-trie
   ``Arrange the anchors of `placements` into a trie, and the repositories of
@@ -62,11 +77,11 @@
   goes into the filesystem trie itself.``
   [placements]
   (def trie (new-node))
-  (each {:placement placement :label label :repositories repositories :broken? broken?} placements
+  (each {:placement placement :label label :repositories repositories :broken broken} placements
     (def anchor-parts (path-parts (placement :path)))
     (def anchor (node-at trie anchor-parts))
     (def own (new-node))
-    (array/push (anchor :placements) {:source (describe-source placement label broken?) :broken? broken? :trie own})
+    (array/push (anchor :placements) {:source (describe-source placement label broken) :broken? (truthy? broken) :trie own})
     (each repository repositories
       (def parts (path-parts (repository :path)))
       (def at-anchor? (deep= (tuple ;parts) (tuple ;anchor-parts)))
@@ -194,9 +209,11 @@
   [directory config &opt list?]
   (def settings (config :settings))
   (def filters (settings :filters))
+  (def list-paths (config/discover-repository-lists directory))
   (def placements
-    [;(mapcat identity
-              (seq [list-path :in (config/discover-repository-lists directory)
+    [;(missing-list-placements settings (map path/basename list-paths))
+     ;(mapcat identity
+              (seq [list-path :in list-paths
                     :let [name (path/basename list-path)]]
                 (list-placements name (config/checkout-rows-for-list settings name)
                                  (fn [row broken] (config/read-repository-list list-path [row] filters [] broken)))))

@@ -313,11 +313,11 @@
                                 [:settings :file-name]))
           "the settings keep the name of the file they came from")
   (def message
-    (try (do (config/load-repository-catalog
-               dir (get (config/load-settings (path/join dir "work.jdn") reserved)
-                        :settings))
-           nil)
-      ([err] (string err))))
+    (get (first ((config/load-repository-catalog
+                   dir (get (config/load-settings (path/join dir "work.jdn") reserved)
+                            :settings))
+                  :broken))
+         :message))
   (assert (and message (string/has-prefix? "work.jdn: :checkouts reads" message))
           "a message about the settings names the file they came from")
   (sh/rm dir))
@@ -1116,13 +1116,16 @@
   (let [catalog (config/load-repository-catalog (string dir "/missing") nil)]
     (assert (and (empty? (catalog :repository-lists)) (empty? (catalog :repositories)))
             "a missing directory yields an empty catalog"))
-  (assert (try (do (config/load-repository-catalog
-                     configuration
-                     (config/configured-repository-settings
-                       {:checkouts [{:list "absent.json" :anchor "root"}]}))
-                 false)
-            ([_] true))
-          "a checkout from an absent file is a configuration error")
+  (let [catalog (config/load-repository-catalog
+                  configuration
+                  (config/configured-repository-settings
+                    {:checkouts [{:list "absent.json" :anchor "root"}]}))]
+    (assert (= 1 (length (catalog :broken)))
+            "a checkout from an absent file is a broken placement")
+    (assert (= (string dir "/root") ((first (catalog :broken)) :anchor))
+            "named by the anchor it would have placed the list at")
+    (assert (string/find "absent.json" ((first (catalog :broken)) :message))
+            "and says which file is missing"))
   (os/setenv "HOME" home)
   (sh/rm dir))
 

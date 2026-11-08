@@ -23,12 +23,17 @@ The same path is accepted twice only when both say the same about it.
   [1]
   $ rm "$CONFIG/broken.json"
 
-A :checkouts row has to read a list that exists.
+A :checkouts row that reads a list which does not exist is a broken placement.
 
   $ echo '{:checkouts [{:list "gone.json"}]}' >"$CONFIG/config.jdn"
-  $ herd list
+  $ herd list -C "$HOME"
   Configuration error: config.jdn: :checkouts reads "gone.json", which is not in the configuration directory
   [1]
+
+Anywhere else the missing list is not needed, so it is not an error.
+
+  $ herd list
+  No configuration anchor contains $ROOT; use -a/--all-anchors to consider every anchor
 
   $ echo '{:jobs 0}' >"$CONFIG/config.jdn"
   $ herd list

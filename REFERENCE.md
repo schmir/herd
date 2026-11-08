@@ -94,7 +94,9 @@ herd tree [-r, --repositories] [-P, --no-pager]
 `--repositories` includes repository entries. The default tree shows the
 configuration's placements and their anchors. A placement whose list filters
 cannot run because `jp` is not on `PATH` is marked `broken: needs jp`, with
-no repositories.
+no repositories. A row whose list file is missing is marked
+`broken: list file missing`; other commands fail on it in the same way as
+for a missing `jp`.
 
 ### `herd self-update`
 

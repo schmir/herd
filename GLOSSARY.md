@@ -35,11 +35,11 @@ the on-disk sense. _Avoid_: Row, source, mapping
 **Placement**: A checkout row with its anchor resolved to a directory, as
 the code reads a list through it. _Avoid_: Resolved anchor
 
-**Broken placement**: A placement whose list filters cannot run, because
-`jp` is not on `PATH`. It has no known repositories, but all of them lie
-beneath its anchor, so only a selection whose location touches that anchor
-fails. `herd tree` shows it as broken. _Avoid_: Failed row, disabled
-placement
+**Broken placement**: A placement whose list cannot be read: its filters
+cannot run because `jp` is not on `PATH`, or its list file is missing. It
+has no known repositories, but all of them lie beneath its anchor, so only a
+selection whose location touches that anchor fails. `herd tree` shows it as
+broken. _Avoid_: Failed row, disabled placement
 
 **Tree**: What `herd tree` prints: the filesystem the configuration
 describes, with the directories placements are anchored at and the

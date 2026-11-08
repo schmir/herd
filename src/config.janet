@@ -468,14 +468,23 @@
 
 (defn- reject-unknown-sources
   ``Reject checkouts whose source file is missing. This prevents a
-  renamed list from silently using the defaults.``
-  [list-paths settings]
+  renamed list from silently using the defaults. When `broken` is given, the
+  placements of such rows are recorded in it instead, with the anchor they
+  would have placed the list at, so that only a command which has to read
+  one fails.``
+  [list-paths settings &opt broken]
   (def present (map path/basename list-paths))
+  (def defaults (get settings :checkout-defaults {}))
   (each name (distinct (filter string? (map (fn [checkout-row] (checkout-row :list)) (get settings :checkouts []))))
     (unless (index-of name present)
-      (error (string (get settings :file-name settings-file-name)
-                     ": :checkouts reads " (describe name)
-                     ", which is not in the configuration directory")))))
+      (def message (string (get settings :file-name settings-file-name)
+                           ": :checkouts reads " (describe name)
+                           ", which is not in the configuration directory"))
+      (unless broken (error message))
+      (each row (get settings :checkouts [])
+        (when (= name (row :list))
+          (each placement (resolve-checkout-rows name [(merge defaults row)])
+            (array/push broken {:anchor (placement :path) :message message})))))))
 
 (defn inline-lists
   ``Return `[label row]` for each `:checkouts` row of `settings` that holds
@@ -495,7 +504,7 @@
   place once several are in play.``
   [list-paths &opt settings names broken]
   (default settings default-repository-settings)
-  (reject-unknown-sources list-paths settings)
+  (reject-unknown-sources list-paths settings broken)
   (def filters (get settings :filters {}))
   (merge-repository-lists
     [;(seq [list-path :in list-paths]

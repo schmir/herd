@@ -148,3 +148,23 @@ a test does not have, so this shows that the option is taken.
   /srv/work (self.json, 1 repository)
   $ herd tree --no-pager
   /srv/work (self.json, 1 repository)
+
+A row whose list file is missing is drawn as broken, since there is nothing
+to read its repositories from. Other commands fail only when the working
+location is inside its anchor.
+
+  $ rm "$CONFIG/self.json"
+  $ echo '[{"path": "a", "clone_url": "u"}]' >"$CONFIG/here.json"
+  $ cat >"$CONFIG/config.jdn" <<'EOF2'
+  > {:checkouts [{:list "here.json" :anchor "/srv/here"}
+  >              {:list "gone.json" :anchor "/srv/gone"}]}
+  > EOF2
+  $ herd tree
+  /srv/gone (gone.json [broken: list file missing])
+  
+  /srv/here (here.json, 1 repository)
+  $ herd list -a -C /srv/here
+  missing\t/srv/here/a\tu (esc)
+  $ herd list -a -C /srv
+  Configuration error: config.jdn: :checkouts reads "gone.json", which is not in the configuration directory
+  [1]
