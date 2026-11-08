@@ -168,3 +168,23 @@ location is inside its anchor.
   $ herd list -a -C /srv
   Configuration error: config.jdn: :checkouts reads "gone.json", which is not in the configuration directory
   [1]
+
+A list no row reads is ignored once rows are written, unless the defaults set
+an anchor of their own, so a renamed list cannot end up in $HOME. The tree
+says so.
+
+  $ echo '[{"path": "b", "clone_url": "u"}]' >"$CONFIG/orphan.json"
+  $ herd tree
+  /srv/gone (gone.json [broken: list file missing])
+  
+  /srv/here (here.json, 1 repository)
+  
+  orphan.json (ignored: no :checkouts row places it)
+  $ herd list -a -C "$HOME"
+  None of the configured repositories under the selected anchors are beneath $ROOT/home or contain it
+  $ cat >"$CONFIG/config.jdn" <<'EOF2'
+  > {:checkout-defaults {:anchor "/srv/default"}
+  >  :checkouts [{:list "here.json" :anchor "/srv/here"}]}
+  > EOF2
+  $ herd list -a -C /srv/default
+  missing\t/srv/default/b\tu (esc)

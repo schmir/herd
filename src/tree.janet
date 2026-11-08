@@ -56,6 +56,17 @@
     {:placement placement :label label :repositories repositories
      :broken (unless (empty? broken) "needs jp")}))
 
+(defn- ignored-list-entries
+  ``One display node for each of the `list-paths` that `settings` leave out,
+  because no row places it, so the tree says where its repositories went.``
+  [settings list-paths]
+  (seq [list-path :in list-paths
+        :let [name (path/basename list-path)]
+        :when (config/list-ignored? settings name)]
+    {:label name :note " (ignored: no :checkouts row places it)"
+     :ignored? true
+     :children []}))
+
 (defn- missing-list-placements
   ``The placements of the `settings` rows that read a list file which is not
   among the `present` names, as `list-placements` gives them, with no
@@ -226,7 +237,8 @@
     (each repository repositories
       (put seen (repository :path) {:source label})))
   (config/reject-nested-repositories seen)
-  (roots-of (filesystem-trie placements) list? true))
+  [;(roots-of (filesystem-trie placements) list? true)
+   ;(ignored-list-entries settings list-paths)])
 
 (defn from-paths
   ``The display nodes of the repositories at `entries`, each `{:path :status}`

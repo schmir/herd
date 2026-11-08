@@ -30,10 +30,11 @@ A :checkouts row that reads a list which does not exist is a broken placement.
   Configuration error: config.jdn: :checkouts reads "gone.json", which is not in the configuration directory
   [1]
 
-Anywhere else the missing list is not needed, so it is not an error.
+Anywhere else the missing list is not needed, so it is not an error. The
+other list, which no row reads, is ignored: with rows written, a list is
+placed only by a row or by an anchor the defaults set themselves.
 
   $ herd list
-  No configuration anchor contains $ROOT; use -a/--all-anchors to consider every anchor
 
   $ echo '{:jobs 0}' >"$CONFIG/config.jdn"
   $ herd list

@@ -135,12 +135,16 @@ anchors its repositories at one directory. `:checkout-defaults` holds what
 every row starts from, so a row naming one setting keeps the rest, and a
 list no row reads is checked out once from `:checkout-defaults` alone —
 dropping a list into the configuration directory checks it out rather than
-waiting to be mentioned.
+waiting to be mentioned. That holds while no `:checkouts` are written, or
+when `:checkout-defaults` sets an `:anchor` itself. Once rows exist and the
+defaults name no anchor, a list no row reads is ignored, so that a list
+renamed or misspelt in its row is not placed in `$HOME` by default;
+`herd tree` lists such a list as ignored.
 
-The anchor in `:checkout-defaults` is `$HOME` unless you say otherwise.
-Setting it to `false` removes the default: a list in the configuration
-directory that no anchored row reads then makes herd exit with an error, as
-it does when `HOME` is not set.
+Without `:checkouts`, the anchor in `:checkout-defaults` is `$HOME` unless
+you say otherwise. Setting it to `false` removes the default: a list in the
+configuration directory that no anchored row reads then makes herd exit with
+an error, as it does when `HOME` is not set.
 
 A row whose `:list` names a file that is not in the configuration directory
 is an error rather than a row quietly ignored: a row left behind by a

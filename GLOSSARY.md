@@ -41,6 +41,11 @@ has no known repositories, but all of them lie beneath its anchor, so only a
 selection whose location touches that anchor fails. `herd tree` shows it as
 broken. _Avoid_: Failed row, disabled placement
 
+**Ignored list**: A list in the configuration directory that nothing places:
+`:checkouts` rows are written, none reads it, and `:checkout-defaults` sets
+no anchor. It contributes no repositories; `herd tree` lists it as ignored.
+_Avoid_: Orphan, unrowed list
+
 **Tree**: What `herd tree` prints: the filesystem the configuration
 describes, with the directories placements are anchored at and the
 repositories beneath them. Unlike a selection, it covers every anchor.

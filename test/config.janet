@@ -771,6 +771,29 @@
   (assert (= "git" ((work 1) :vcs))
           "and replaces the ones it does"))
 
+(let [settings (config/configured-repository-settings
+                 {:checkouts [{:list "work.json" :anchor "work"}]})]
+  (assert (config/list-ignored? settings "other.json")
+          "with rows written, a list no row reads is ignored")
+  (assert (empty? (config/checkout-rows-for-list settings "other.json"))
+          "and has nothing to be placed by")
+  (assert (not (config/list-ignored? settings "work.json"))
+          "a list a row reads is not")
+  (assert (not (config/list-ignored? (config/configured-repository-settings
+                                       {:checkout-defaults {:anchor "src"}
+                                        :checkouts [{:list "work.json"}]})
+                                     "other.json"))
+          "nor is one the defaults place at an anchor of their own")
+  (assert (not (config/list-ignored? (config/configured-repository-settings
+                                       {:checkout-defaults {:anchor false}
+                                        :checkouts [{:list "work.json" :anchor "w"}]})
+                                     "other.json"))
+          "a disabled default anchor still fails rather than ignoring")
+  (assert (not (config/list-ignored? (config/configured-repository-settings
+                                       {:checkout-defaults {:vcs "jj"}})
+                                     "other.json"))
+          "without rows, every list is placed by the defaults"))
+
 (let [checkouts (config/checkout-rows-for-list config/default-repository-settings "any.json")]
   (assert (= 1 (length checkouts)) "without a configuration every file is read once")
   (assert (nil? ((checkouts 0) :anchor))

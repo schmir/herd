@@ -189,17 +189,29 @@
    :filters filters
    :shell (configured-shell settings-file)})
 
+(defn list-ignored?
+  ``Whether the list file `name` is left out because nothing places it: rows
+  are written, none reads it, and the defaults set no anchor of their own to
+  put it at. Without any rows, every list is placed by the defaults.``
+  [settings name]
+  (and (not (empty? (get settings :checkouts [])))
+       (nil? (get-in settings [:checkout-defaults :anchor]))
+       (not (some (fn [checkout-row] (= (checkout-row :list) name))
+                  (get settings :checkouts [])))))
+
 (defn checkout-rows-for-list
   ``Merge each checkout row of `name` with the defaults. Return the defaults alone
-  when none names the file.``
+  when none names the file, or nothing when `list-ignored?`.``
   [settings name]
   (def defaults (get settings :checkout-defaults {}))
   (def matching
     (filter (fn [checkout-row] (= (checkout-row :list) name))
             (get settings :checkouts [])))
-  (if (empty? matching)
-    @[(merge defaults)]
-    (map (fn [checkout-row] (merge defaults checkout-row)) matching)))
+  (cond
+    (not (empty? matching))
+    (map (fn [checkout-row] (merge defaults checkout-row)) matching)
+    (list-ignored? settings name) @[]
+    @[(merge defaults)]))
 
 (defn- repository-options
   "Return only the repository options set in `source`."

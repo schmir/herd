@@ -288,9 +288,12 @@ entry value has priority over the row value, and the row value has priority
 over `:checkout-defaults`. A row's `:use-filters` replaces the default list;
 use `[]` to clear the default filters. `:anchor` is resolved relative to
 `$HOME` unless absolute. A list with no checkout row uses the defaults
-alone. If no anchor is set at any level, this places the list directly under
-`$HOME`. In contrast, `:anchor false` in `:checkout-defaults` disables the
-default anchor. A list with no checkout row then fails with
+alone. If no anchor is set at any level and there are no `:checkouts` at
+all, this places the list directly under `$HOME`. With `:checkouts` written
+and no anchor in `:checkout-defaults`, such a list is ignored, and
+`herd tree` shows it as ignored. In contrast, `:anchor false` in
+`:checkout-defaults` disables the default anchor. A list with no checkout
+row then fails with
 `cannot place projects.json: the default anchor is disabled`; a row that
 gives no anchor also inherits this failure. A row can still place that list
 at its own anchor:
