@@ -866,8 +866,7 @@
       home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (write-config config
-                [{:path "relative" :ssh_url "relative-url"}
-                 {:path "/absolute" :ssh_url "absolute-url"}])
+                [{:path "relative" :ssh_url "relative-url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
                        [config]
@@ -876,8 +875,6 @@
     (assert (= (string (path/abspath dir) "/root/relative")
                ((repositories 0) :path))
             "relative paths use the configured anchor")
-    (assert (= "/absolute" ((repositories 1) :path))
-            "absolute paths ignore the configured anchor")
     (assert (deep= @[(string (path/abspath dir) "/root")]
                    ((repositories 0) :anchors))
             "the configured anchor is retained on each repository"))
@@ -890,8 +887,7 @@
       home (os/getenv "HOME")]
   (sh/create-dirs configuration)
   (write-config config
-                [{:path "relative" :ssh_url "relative-url"}
-                 {:path "/absolute" :ssh_url "absolute-url"}])
+                [{:path "relative" :ssh_url "relative-url"}])
   (os/setenv "HOME" dir)
   (let [repositories (config/load-repository-lists
                        [config]
@@ -899,18 +895,16 @@
                          {:checkouts [{:list "repos.json" :anchor "one"}
                                       {:list "repos.json" :anchor "two"}]}))
         root (path/abspath dir)]
-    (assert (= 3 (length repositories))
+    (assert (= 2 (length repositories))
             "several rows check the relative tree out at each of their anchors")
     (assert (deep= @[(string root "/one/relative")
-                     "/absolute"
                      (string root "/two/relative")]
                    (map (fn [repository] (repository :path)) repositories))
             "each anchor contributes its own resolved paths")
     (assert (deep= @[(string root "/one")] ((repositories 0) :anchors))
             "a relative path belongs to the anchor it resolved under")
-    (assert (deep= @[(string root "/one") (string root "/two")]
-                   ((repositories 1) :anchors))
-            "an absolute path stays one repository under every anchor"))
+    (assert (deep= @[(string root "/two")] ((repositories 1) :anchors))
+            "each anchor holds its own repository"))
   (os/setenv "HOME" home)
   (sh/rm dir))
 
@@ -1019,7 +1013,7 @@
 
   (write-config (string configuration "/a.json")
                 [{:path "src/alpha" :ssh_url "git@example.com:alpha.git"}
-                 {:path "/opt/beta" :ssh_url "git@example.com:beta.git"}])
+                 {:path "opt/beta" :ssh_url "git@example.com:beta.git"}])
   (write-config (string elsewhere "/b.json")
                 [{:path "gamma" :ssh_url "git@example.com:gamma.git"}])
   (os/link (string elsewhere "/b.json") (string configuration "/link.json") true)
@@ -1027,7 +1021,7 @@
   (let [merged (config/load-repository-lists (config/discover-repository-lists configuration))]
     (assert (deep= (map (fn [repository] (repository :path)) merged)
                    @[(string dir "/src/alpha")
-                     "/opt/beta"
+                     (string dir "/opt/beta")
                      (string dir "/gamma")])
             "every file contributes from its visible configuration location"))
 
@@ -1085,32 +1079,37 @@
 (let [dir (fixture)
       first (string dir "/first.json")
       second (string dir "/second.json")
-      checkout (string dir "/shared")]
+      checkout "shared"]
   (write-config first [{:path checkout :ssh_url "shared-url"}])
   (write-config second [{:path checkout :ssh_url "shared-url"}])
   (let [repositories (config/load-repository-lists
                        [first second]
                        (config/configured-repository-settings
                          {:checkouts [{:list "first.json" :anchor "/one"}
+                                      {:list "second.json" :anchor "/one"}
                                       {:list "second.json" :anchor "/two"}]}))]
-    (assert (= 1 (length repositories)) "an agreeing duplicate remains one repository")
-    (assert (deep= @["/one" "/two"] ((repositories 0) :anchors))
-            "an agreeing duplicate retains every configuration anchor"))
+    (assert (= 2 (length repositories)) "an agreeing duplicate remains one repository")
+    (assert (deep= @["/one"] ((repositories 0) :anchors))
+            "an agreeing duplicate keeps its anchor")
+    (assert (deep= @["/two"] ((repositories 1) :anchors))
+            "another anchor holds its own repository"))
   (sh/rm dir))
 
 # --- load-repository-catalog ---------------------------------------------
 
 (let [dir (fixture)
       configuration (string dir "/config/herd")
-      config (string configuration "/repos.json")]
+      config (string configuration "/repos.json")
+      home (os/getenv "HOME")]
   (sh/create-dirs configuration)
-  (write-config config [{:path "/abs/one" :ssh_url "one-url"}])
+  (write-config config [{:path "abs/one" :ssh_url "one-url"}])
+  (os/setenv "HOME" dir)
   (let [catalog (config/load-repository-catalog configuration nil)]
     (assert (= configuration (catalog :directory))
             "the catalog keeps the configuration directory")
     (assert (deep= @[config] (catalog :repository-lists))
             "the catalog keeps the repository lists it read")
-    (assert (deep= @["/abs/one"]
+    (assert (deep= @[(string dir "/abs/one")]
                    (map (fn [repository] (repository :path))
                         (catalog :repositories)))
             "the catalog holds the merged repositories"))
@@ -1124,6 +1123,45 @@
                  false)
             ([_] true))
           "a checkout from an absent file is a configuration error")
+  (os/setenv "HOME" home)
+  (sh/rm dir))
+
+# A list may not name a path outside its anchor: absolute, or climbing out.
+(each [path message] [["/abs" "absolute"] ["../up" "leaves its anchor"]
+                      ["a/../../up" "leaves its anchor"]]
+  (assert (string/find message
+                       (try (config/validate-repository-list
+                              [{:path path :ssh_url "u"}])
+                         ([err] err)))
+          (string "a list path " path " is rejected")))
+
+# A placement whose filters cannot run is recorded as broken, not failed, when
+# asked to, and costs the rest of the list nothing.
+(let [dir (fixture)
+      configuration (string dir "/config/herd")
+      config (string configuration "/repos.json")
+      home (os/getenv "HOME")
+      path (os/getenv "PATH")]
+  (sh/create-dirs configuration)
+  (write-config config [{:path "alpha" :ssh_url "a"}])
+  (os/setenv "HOME" dir)
+  (os/setenv "PATH" (string dir "/no-such-bin"))
+  (def settings
+    (config/configured-repository-settings
+      {:filters {"some" "[?path]"}
+       :checkouts [{:list "repos.json" :anchor "plain"}
+                   {:list "repos.json" :anchor "filtered" :use-filters ["some"]}]}))
+  (let [catalog (config/load-repository-catalog configuration settings)]
+    (assert (deep= @[(string dir "/plain/alpha")]
+                   (map (fn [repository] (repository :path)) (catalog :repositories)))
+            "the placement without filters is still read")
+    (assert (= 1 (length (catalog :broken))) "one placement is broken")
+    (assert (= (string dir "/filtered") ((first (catalog :broken)) :anchor))
+            "the broken placement is named by its anchor")
+    (assert (string/find "needs jp on PATH" ((first (catalog :broken)) :message))
+            "and says what it needs"))
+  (os/setenv "PATH" path)
+  (os/setenv "HOME" home)
   (sh/rm dir))
 
 (end-suite)

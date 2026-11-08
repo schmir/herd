@@ -180,10 +180,10 @@
 (sh/rm config-dir)
 (sh/create-dirs config-dir)
 (spit (path/join config-dir "repos.json")
-      (string "[{\"path\": \"/srv/foo\", \"ssh_url\": \"foo\"},"
-              " {\"path\": \"/srv/group/a\", \"ssh_url\": \"a\"},"
-              " {\"path\": \"/srv/group/b\", \"ssh_url\": \"b\"},"
-              " {\"path\": \"/srv/other\", \"ssh_url\": \"other\"}]"))
+      (string "[{\"path\": \"foo\", \"ssh_url\": \"foo\"},"
+              " {\"path\": \"group/a\", \"ssh_url\": \"a\"},"
+              " {\"path\": \"group/b\", \"ssh_url\": \"b\"},"
+              " {\"path\": \"other\", \"ssh_url\": \"other\"}]"))
 
 (def srv-settings
   (config/configured-repository-settings

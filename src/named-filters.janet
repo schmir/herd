@@ -113,6 +113,16 @@
       (error (string where " names an unknown filter " (describe name)))))
   names)
 
+(defn executable-available?
+  "Whether the program that evaluates a filter expression can be found."
+  []
+  (not (nil? (process/find-executable filter-executable))))
+
+(defn missing-executable-message
+  "What to say of the filter `name` when the program to run it is missing."
+  [name]
+  (string (filter-where name) " needs " filter-executable " on PATH"))
+
 (defn apply-filter
   ``Return the JSON `source` narrowed by the JMESPath `expression` that `name`
   stands for, as the JSON the filter answered with. Bytes go in and bytes come
@@ -124,8 +134,7 @@
   [source name expression &opt hint]
   (def executable
     (or (process/find-executable filter-executable)
-        (error (string (filter-where name) " needs " filter-executable
-                       " on PATH"))))
+        (error (missing-executable-message name))))
   # The list reaches the filter as its standard input, held in a file with no
   # name: nothing another user on this machine can find, open or replace, and
   # nothing left behind if herd is killed. A regular file rather than a pipe

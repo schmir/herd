@@ -4,48 +4,44 @@ and what happens when two entries name the same checkout.
   $ . "$TESTDIR/setup.sh"
   $ cd "$HOME"
   $ cat >"$CONFIG/repos.json" <<'EOF'
-  > [{"path": "relative", "ssh_url": "relative-url"},
-  >  {"path": "/absolute", "ssh_url": "absolute-url"}]
+  > [{"path": "relative", "ssh_url": "relative-url"}]
   > EOF
 
-A relative path joins the anchor, and an absolute one is used as written.
+A path joins the anchor.
 
   $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   missing\t$ROOT/home/root/relative\trelative-url (esc)
-  missing\t/absolute\tabsolute-url (esc)
 
-Several rows check the relative tree out at each anchor, while an absolute
-path stays one repository reachable from all of them.
+Several rows check the tree out at each anchor.
 
   $ echo '{:checkouts [{:list "repos.json" :anchor "one"} {:list "repos.json" :anchor "two"}]}' \
   >   >"$CONFIG/config.jdn"
   $ herd list -a -C /
   missing\t$ROOT/home/one/relative\trelative-url (esc)
-  missing\t/absolute\tabsolute-url (esc)
   missing\t$ROOT/home/two/relative\trelative-url (esc)
   $ herd list -C one
   missing\t$ROOT/home/one/relative\trelative-url (esc)
   $ herd list -C two
   missing\t$ROOT/home/two/relative\trelative-url (esc)
 
-A relative path may not climb out of its anchor, but an absolute one can name
-any place.
+A path may not climb out of its anchor, and may not be absolute: every
+repository lies beneath the anchor of the row that places it.
 
   $ echo '[{"path": "../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
-  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a relative "path" that leaves its anchor; write an absolute path instead
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" that leaves its anchor
   [1]
   $ echo '[{"path": "a/../../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ herd list -a -C /
-  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a relative "path" that leaves its anchor; write an absolute path instead
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" that leaves its anchor
   [1]
-  $ echo '[{"path": "/srv/../abs", "ssh_url": "url"}]' >"$CONFIG/repos.json"
+  $ echo '[{"path": "/srv/abs", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ herd list -a -C /
-  missing\t/abs\turl (esc)
-  $ echo '[{"path": "relative", "ssh_url": "relative-url"}, {"path": "/absolute", "ssh_url": "absolute-url"}]' \
-  >   >"$CONFIG/repos.json"
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has an absolute "path"; write it relative to its anchor
+  [1]
+  $ echo '[{"path": "relative", "ssh_url": "relative-url"}]' >"$CONFIG/repos.json"
 
 An absolute anchor need not exist.
 
@@ -198,22 +194,24 @@ places it there.
   missing\t$ROOT/home/root/outer\to (esc)
   missing\t$ROOT/home/root/outer-two/x\ti (esc)
 
-A command is told the first anchor of a repository that several rows reach,
-and its path as the list gives it once stripped.
+A command is told the first anchor of a repository that several rows reach
+(an anchor may sit above another), and its path as the list gives it once
+stripped.
 
   $ mkdir -p abs/.git three/repo/.git
   $ rm "$CONFIG/repos.json"
-  $ echo "[{\"path\": \"$HOME/abs\", \"ssh_url\": \"abs-url\"}]" >"$CONFIG/abs.json"
+  $ echo '[{"path": "abs", "ssh_url": "abs-url"}]' >"$CONFIG/abs.json"
+  $ echo "[{\"path\": \"home/abs\", \"ssh_url\": \"abs-url\"}]" >"$CONFIG/up.json"
   $ echo '[{"path": "org/repo", "ssh_url": "repo-url"}]' >"$CONFIG/rel.json"
-  $ cat >"$CONFIG/config.jdn" <<'EOF'
-  > {:checkouts [{:list "abs.json" :anchor "one"}
-  >              {:list "abs.json" :anchor "two"}
+  $ cat >"$CONFIG/config.jdn" <<EOF
+  > {:checkouts [{:list "abs.json" :anchor "$HOME"}
+  >              {:list "up.json" :anchor "$ROOT"}
   >              {:list "rel.json" :anchor "three" :strip-components 1}]}
   > EOF
   $ herd run -a -C abs --show-output always sh -c 'printf "%s\n" "$HERD_REPO_ANCHOR" "$HERD_REPO_PATH"'
   \xe2\x9c\x93 $ROOT/home/abs (esc)
-  | $ROOT/home/one
-  | $ROOT/home/abs
+  | $ROOT/home
+  | abs
   1 succeeded, 0 failed, 0 skipped, 0 not checked out
   $ herd run -C three/repo --show-output always sh -c 'printf "%s\n" "$HERD_REPO_ANCHOR" "$HERD_REPO_PATH"'
   \xe2\x9c\x93 $ROOT/home/three/repo (esc)

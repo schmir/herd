@@ -1,11 +1,11 @@
-Which repositories a working location selects. The paths are absolute and
+Which repositories a working location selects. The anchors are absolute and
 need not exist, since list prints what is configured.
 
   $ . "$TESTDIR/setup.sh"
   $ cat >"$CONFIG/repos.json" <<'EOF'
-  > [{"path": "/srv/foo", "ssh_url": "foo"},
-  >  {"path": "/srv/foobar", "ssh_url": "foobar"},
-  >  {"path": "/srv/other", "ssh_url": "other"}]
+  > [{"path": "foo", "ssh_url": "foo"},
+  >  {"path": "foobar", "ssh_url": "foobar"},
+  >  {"path": "other", "ssh_url": "other"}]
   > EOF
   $ echo '{:checkouts [{:list "repos.json" :anchor "/srv"}]}' >"$CONFIG/config.jdn"
 
@@ -57,16 +57,16 @@ Nested anchors: a location takes repositories from every anchor that
 contains it, and an anchor does not contain its parent directory.
 
   $ cat >"$CONFIG/repos.json" <<'EOF'
-  > [{"path": "/work/one", "ssh_url": "one"},
-  >  {"path": "/work/team/parent", "ssh_url": "parent"},
-  >  {"path": "/work/team/shared", "ssh_url": "shared"}]
+  > [{"path": "one", "ssh_url": "one"},
+  >  {"path": "team/parent", "ssh_url": "parent"},
+  >  {"path": "team/shared", "ssh_url": "shared"}]
   > EOF
   $ cat >"$CONFIG/team.json" <<'EOF'
-  > [{"path": "/work/team/two", "ssh_url": "two"},
-  >  {"path": "/work/team/shared", "ssh_url": "shared"}]
+  > [{"path": "two", "ssh_url": "two"},
+  >  {"path": "shared", "ssh_url": "shared"}]
   > EOF
   $ cat >"$CONFIG/other.json" <<'EOF'
-  > [{"path": "/work/team/unrelated", "ssh_url": "unrelated"}]
+  > [{"path": "unrelated", "ssh_url": "unrelated"}]
   > EOF
   $ cat >"$CONFIG/config.jdn" <<'EOF'
   > {:checkouts [{:list "repos.json" :anchor "/work"}
@@ -85,7 +85,6 @@ contains it, and an anchor does not contain its parent directory.
   missing\t/work/team/shared\tshared (esc)
 
   $ herd list -a -C /work/team
-  missing\t/work/team/unrelated\tunrelated (esc)
   missing\t/work/team/parent\tparent (esc)
   missing\t/work/team/shared\tshared (esc)
   missing\t/work/team/two\ttwo (esc)
@@ -100,8 +99,8 @@ different symlinks, so both are resolved before they are compared.
   $ mkdir -p real/work/repo
   $ ln -s real link
   $ cat >"$CONFIG/repos.json" <<EOF
-  > [{"path": "$ROOT/link/work/repo", "ssh_url": "repo"},
-  >  {"path": "$ROOT/link/work/absent", "ssh_url": "absent"}]
+  > [{"path": "repo", "ssh_url": "repo"},
+  >  {"path": "absent", "ssh_url": "absent"}]
   > EOF
   $ echo "{:checkouts [{:list \"repos.json\" :anchor \"$ROOT/link/work\"}]}" \
   >   >"$CONFIG/config.jdn"

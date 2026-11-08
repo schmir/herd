@@ -92,7 +92,9 @@ herd tree [-r, --repositories] [-P, --no-pager]
 ```
 
 `--repositories` includes repository entries. The default tree shows the
-configuration's placements and their anchors.
+configuration's placements and their anchors. A placement whose list filters
+cannot run because `jp` is not on `PATH` is marked `broken: needs jp`, with
+no repositories.
 
 ### `herd self-update`
 
@@ -260,8 +262,8 @@ Each entry requires `path` and either `clone_url` or `ssh_url`:
 `vcs` is optional and is `git` by default. Valid values are `git` and `jj`.
 Other entry fields are retained and may be used by filters. Entries are
 validated after list filters run, so a filter can remove an entry that herd
-could not use. A relative path must not leave its anchor with `..`; use an
-absolute path when needed. An entry cannot contain both `clone_url` and
+could not use. A path is relative to the anchor: it must be neither absolute
+nor leave its anchor with `..`. An entry cannot contain both `clone_url` and
 `ssh_url`.
 
 `:checkouts` says where lists are placed. A row can name a file or contain
@@ -319,8 +321,11 @@ named by a checkout row are configuration errors.
 
 A string entry is a JMESPath list filter. `{:jp EXPR}` is the explicit form;
 `{:sh COMMAND}` defines a checkout filter. List filters run through the `jp`
-executable and must return a JSON array. Checkout filters run in the
-checkout and keep repositories for which the command succeeds.
+executable and must return a JSON array. Without `jp` on `PATH` a placement
+using a list filter is broken: `herd tree` marks it, and any other command
+fails when its working location is inside the placement's anchor (with `-a`,
+also when it contains the anchor). Checkout filters run in the checkout and
+keep repositories for which the command succeeds.
 
 `:use-filters` on a checkout row accepts list filters only. `-f` can name
 list filters, checkout filters, or a shell command. `clone` accepts list

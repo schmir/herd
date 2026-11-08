@@ -178,19 +178,17 @@ falls back to `:checkout-defaults`, and without those to `$HOME`.
 Several rows reading the same file describe the same set of repositories
 checked out under each of their anchors. `team/api` above names both
 `$HOME/work/team/api` and `/srv/review/team/api`, and `herd clone` checks
-the repository out at each. An entry with an absolute path resolves the same
-way under every anchor, so it stays a single repository, reachable from all
-of them. A relative path may not climb out of its anchor with `..`; write an
-absolute path for a repository that lives elsewhere. Once anchored, no
-repository may lie inside another one; herd exits with an error naming both.
+the repository out at each. A path in a list is relative to the anchor: it
+may be neither absolute nor climb out of its anchor with `..`, so every
+repository lies beneath the anchor of the row that places it. Once anchored,
+no repository may lie inside another one; herd exits with an error naming
+both.
 
 A row's `:strip-components` removes that many leading components from every
 repository path before resolving it against the anchor. For example,
 `vendor/acme/lib` with `:strip-components 1` becomes `acme/lib`. The value
 is valid only on a `:checkouts` row and must be a non-negative integer. Zero
-keeps the path unchanged. A positive value also makes an absolute path
-relative: `/srv/team/repo` stripped by one component becomes `team/repo`
-beneath the row's anchor. Removing the complete path, or more components
+keeps the path unchanged. Removing the complete path, or more components
 than it contains, is an error.
 
 A repository list may itself be a symlink. It is still anchored by its
@@ -225,7 +223,11 @@ each repository than `herd` needs. Those extra fields are kept as they are,
 and a **filter** selects repositories by them. A filter is a
 [JMESPath](https://jmespath.org/) expression, evaluated by
 [`jp`](https://github.com/jmespath/jp), which `herd` looks for on `PATH` the
-first time a filter is used and never otherwise.
+first time a filter is used and never otherwise. Without `jp`, a placement
+whose filters need it is **broken**: `herd tree` shows it as such, and a
+command fails only when it has to read it, that is, when the working
+location is inside the placement's anchor (with `-a`, also when it contains
+the anchor). Everything else keeps working.
 
 Filters are named in `:filters`, and everything else refers to them by name:
 

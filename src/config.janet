@@ -261,8 +261,7 @@
 (defn resolve-repository-paths
   ``Resolve each entry once per placement, stripping its leading components and
   applying its repository options. Entries without placements produce no
-  checkouts. Unstripped absolute paths remain the same under all placements so
-  `merge-repository-lists` can combine them.``
+  checkouts.``
   [entries placements]
   (def resolved @[])
   (each placement placements
@@ -302,10 +301,13 @@
       (error (string "entry " index " is not a JSON object")))
     (unless (string? (entry :path))
       (error (string "entry " index " needs a string \"path\"")))
-    (when (and (not (path/abspath? (entry :path)))
-               (index-of ".." (path/parts (path/normalize (entry :path)))))
-      (error (string "entry " index " has a relative \"path\" that leaves"
-                     " its anchor; write an absolute path instead")))
+    # Every repository lies beneath the anchor of its placement, which is how
+    # a placement that cannot be read is known to affect only that subtree.
+    (when (path/abspath? (entry :path))
+      (error (string "entry " index " has an absolute \"path\"; write it"
+                     " relative to its anchor")))
+    (when (index-of ".." (path/parts (path/normalize (entry :path))))
+      (error (string "entry " index " has a \"path\" that leaves its anchor")))
     (def spelled (filter (fn [key] (not (nil? (entry key)))) url-keys))
     (when (= 2 (length spelled))
       (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))
@@ -346,7 +348,7 @@
   entries a filter kept are validated: a list may carry entries herd could
   not use, which is the point of filtering it. The source is decoded once,
   after the filters have had it, so what they see is the list itself.``
-  [source label checkout-rows filters names]
+  [source label checkout-rows filters names &opt broken]
   (def placements (resolve-checkout-rows label checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
@@ -358,8 +360,20 @@
   (each placement placements
     (def chain [;(placement :use-filters) ;names])
     (def kept
-      (if (has-key? selected chain)
+      (cond
+        # Without the program the filters cannot run. When the caller collects
+        # such placements they are recorded rather than failing the read, so
+        # only a command that needs one has to fail.
+        (and broken (not (empty? chain)) (not (named-filters/executable-available?)))
+        (do
+          (array/push broken {:anchor (placement :path)
+                              :message (string label ": " (named-filters/missing-executable-message (first chain)))})
+          nil)
+
+        (has-key? selected chain)
         (get selected chain)
+
+        true
         # A row aimed its own filters at this file; the command line aimed
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
@@ -368,23 +382,24 @@
                            true))]
           (put selected chain computed)
           computed)))
-    (array/concat resolved (resolve-repository-paths kept [placement])))
+    (when kept
+      (array/concat resolved (resolve-repository-paths kept [placement]))))
   resolved)
 
 (defn read-repository-list
   ``Read the repository list in the file `list-path`, resolving each
   repository into checkouts as `read-list-source` does.``
-  [list-path checkout-rows &opt filters names]
+  [list-path checkout-rows &opt filters names broken]
   (read-list-source (slurp list-path) list-path checkout-rows
-                    (or filters {}) (or names [])))
+                    (or filters {}) (or names []) broken))
 
 (defn read-inline-list
   ``Read the repository list held inline by a `:checkouts` row, which is
   `label` to errors, resolving each repository into checkouts as
   `read-list-source` does. The row must already have its defaults merged.``
-  [label checkout-row &opt filters names]
+  [label checkout-row &opt filters names broken]
   (read-list-source (inline-list-source (checkout-row :list)) label
-                    [checkout-row] (or filters {}) (or names [])))
+                    [checkout-row] (or filters {}) (or names []) broken))
 
 (defn- parent-path
   "The directory holding `repository-path`, without a trailing slash."
@@ -478,7 +493,7 @@
   The files come first, then the lists held inline by `:checkouts` rows.
   Errors name the list they came from, since a bad entry is otherwise hard to
   place once several are in play.``
-  [list-paths &opt settings names]
+  [list-paths &opt settings names broken]
   (default settings default-repository-settings)
   (reject-unknown-sources list-paths settings)
   (def filters (get settings :filters {}))
@@ -489,12 +504,13 @@
            (read-repository-list list-path
                                  (checkout-rows-for-list settings (path/basename list-path))
                                  filters
-                                 names)
+                                 names
+                                 broken)
            ([err] (error (string list-path ": " err))))])
      ;(seq [[label row] :in (inline-lists settings)]
         [label
          (try
-           (read-inline-list label row filters names)
+           (read-inline-list label row filters names broken)
            ([err] (error (string label ": " err))))])]))
 
 (defn load-repository-catalog
@@ -505,10 +521,14 @@
   [directory settings &opt names]
   (default names [])
   (def list-paths (discover-repository-lists directory))
+  (def broken @[])
+  (def repositories (load-repository-lists list-paths settings names broken))
   {:directory directory
    :repository-lists list-paths
    :inline-lists (map first (inline-lists settings))
-   :repositories (load-repository-lists list-paths settings names)})
+   :repositories repositories
+   # The placements whose filters could not run, `{:anchor :message}`.
+   :broken broken})
 
 (defn- configured-jobs
   "Return the configured job count, or the default when it is not set."

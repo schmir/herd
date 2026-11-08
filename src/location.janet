@@ -68,6 +68,20 @@
   (filter (fn [anchor] (contains-path? anchor resolved-at-path))
           (configured-anchors repositories)))
 
+(defn broken-at
+  ``Return the `broken` placements, each `{:anchor :message}`, that a selection
+  at `at-path` would have to read. Every repository of a placement lies beneath
+  its anchor, so the placement matters when its anchor contains `at-path`; with
+  `all-anchors?`, the anchors are not weighed against the location and it
+  matters as well when `at-path` contains the anchor.``
+  [at-path broken all-anchors?]
+  (def resolved-at-path (resolved-path at-path))
+  (filter (fn [placement]
+            (def anchor (resolved-path (placement :anchor)))
+            (or (contains-path? anchor resolved-at-path)
+                (and all-anchors? (contains-path? resolved-at-path anchor))))
+          broken))
+
 (defn locate-repositories-under-anchors
   ``Keep the repositories configured under one of the `selected-anchors` that
   are at `at-path`, beneath it or containing it.``

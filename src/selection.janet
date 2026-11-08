@@ -105,6 +105,12 @@
   (def list-filters (chosen :list-filters))
   (def catalog
     (config/load-repository-catalog directory settings list-filters))
+  # A placement whose filters could not run is only a problem to a command
+  # that would have to read it, and a catalog-only selection reads none.
+  (when (and (options :at-path) (not (options :catalog-only?)))
+    (when-let [needed (first (location/broken-at (options :at-path) (catalog :broken)
+                                                 (options :all-anchors?)))]
+      (error (needed :message))))
   (cond
     (and (empty? (catalog :repository-lists)) (empty? (catalog :inline-lists)))
     {:repositories [] :catalog catalog :chosen chosen

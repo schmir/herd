@@ -33,6 +33,15 @@
   (assert (string/find "\e[32mapi\e[0m" (lines 1)) "a repository is colored")
   (assert (string/find "\e[32mcore\e[0m" (lines 3)) "a nested repository is colored"))
 
+(defn test-render-colors-a-broken-placement-red
+  "With color, a broken placement is wholly red; without, it is plain."
+  []
+  (def broken [{:label "/srv/p/" :note " (l.json [broken: needs jp])" :broken? true :children []}])
+  (assert (= "\e[31m/srv/p/ (l.json [broken: needs jp])\e[0m" (first (tree/render broken true)))
+          "a broken placement is red")
+  (assert (= "/srv/p/ (l.json [broken: needs jp])" (first (tree/render broken)))
+          "and plain without color"))
+
 (defn test-from-paths-draws-the-paths-below-their-common-directory
   "Paths are drawn from the directory that holds them all, with their statuses."
   []
@@ -52,5 +61,6 @@
 (test-render-draws-branches)
 (test-from-paths-draws-the-paths-below-their-common-directory)
 (test-render-colors-only-repositories)
+(test-render-colors-a-broken-placement-red)
 
 (end-suite)

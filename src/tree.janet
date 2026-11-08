@@ -30,23 +30,31 @@
 
 (defn- describe-source
   "Name a placement's list and the options it sets."
-  [placement label]
+  [placement label &opt broken?]
   (def notes @[])
   (when (placement :vcs)
     (array/push notes (string "vcs " (placement :vcs))))
   (unless (empty? (placement :use-filters))
     (array/push notes (string "filters " (string/join (placement :use-filters) ", "))))
+  (when broken?
+    (array/push notes "broken: needs jp"))
   (when (pos? (placement :strip-components))
     (array/push notes (string "strip " (placement :strip-components))))
   (string label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
 
 (defn- list-placements
   ``Each of the `rows` of the list `label` as `{:placement :label :repositories}`,
-  where `read` returns the repositories a row places.``
+  where `read` takes a row and an array to record the placements whose filters
+  could not run in, and returns the repositories the row places.``
   [label rows read]
   (def placements (config/resolve-checkout-rows label rows))
   (seq [[row placement] :in (map tuple rows placements)]
-    {:placement placement :label label :repositories (read row)}))
+    # A row whose filters cannot run is shown, not failed, for the rest of the
+    # tree is still readable.
+    (def broken @[])
+    (def repositories (read row broken))
+    {:placement placement :label label :repositories repositories
+     :broken? (not (empty? broken))}))
 
 (defn- filesystem-trie
   ``Arrange the anchors of `placements` into a trie, and the repositories of
@@ -54,11 +62,11 @@
   goes into the filesystem trie itself.``
   [placements]
   (def trie (new-node))
-  (each {:placement placement :label label :repositories repositories} placements
+  (each {:placement placement :label label :repositories repositories :broken? broken?} placements
     (def anchor-parts (path-parts (placement :path)))
     (def anchor (node-at trie anchor-parts))
     (def own (new-node))
-    (array/push (anchor :placements) {:source (describe-source placement label) :trie own})
+    (array/push (anchor :placements) {:source (describe-source placement label broken?) :broken? broken? :trie own})
     (each repository repositories
       (def parts (path-parts (repository :path)))
       (def at-anchor? (deep= (tuple ;parts) (tuple ;anchor-parts)))
@@ -112,14 +120,16 @@
       [{:note nil :tries [end]}]
       (if (= 1 (length placements))
         [{:note ((first placements) :source)
+          :broken? ((first placements) :broken?)
           :tries [((first placements) :trie) end]
           :anchor? (((first placements) :trie) :repository?)}]
         [;(seq [placement :in placements]
             {:note (placement :source)
+             :broken? (placement :broken?)
              :tries [(placement :trie)]
              :anchor? ((placement :trie) :repository?)})
          ;(if (empty? (end :children)) [] [{:note nil :tries [end]}])])))
-  (seq [{:note note :tries tries :anchor? anchor?} :in entries]
+  (seq [{:note note :broken? broken? :tries tries :anchor? anchor?} :in entries]
     # The directories of every trie of the entry, by name; one a trie shares
     # with another is shown once for each.
     (def below
@@ -141,6 +151,7 @@
     {:label (string label (if directory? "/" ""))
      :note (annotation note (end :status) count-note)
      :repository? (and (end :repository?) (empty? placements) (empty? children) (zero? counted))
+     :broken? broken?
      :children children}))
 
 (defn- roots-of
@@ -188,11 +199,11 @@
               (seq [list-path :in (config/discover-repository-lists directory)
                     :let [name (path/basename list-path)]]
                 (list-placements name (config/checkout-rows-for-list settings name)
-                                 (fn [row] (config/read-repository-list list-path [row] filters)))))
+                                 (fn [row broken] (config/read-repository-list list-path [row] filters [] broken)))))
      ;(mapcat identity
               (seq [[label row] :in (config/inline-lists settings)]
                 (list-placements label [row]
-                                 (fn [row] (config/read-inline-list label row filters)))))])
+                                 (fn [row broken] (config/read-inline-list label row filters [] broken)))))])
   (def seen @{})
   (each {:label label :repositories repositories} placements
     (each repository repositories
@@ -220,6 +231,10 @@
   "The escape sequence that starts the color repositories are printed in."
   "\e[32m")
 
+(def- broken-color
+  "The escape sequence that starts the color a broken placement is printed in."
+  "\e[31m")
+
 (def- note-color
   "The escape sequence that starts the dimmed text of the notes on a label."
   "\e[2m")
@@ -227,18 +242,22 @@
 (defn render
   ``The lines that draw the display `nodes`, with box-drawing branches and a
   blank line between roots. With `color?`, the repositories are in color and
-  the notes dimmed.``
+  the notes dimmed, a placement whose filters cannot run in red, and an ignored list in red.``
   [nodes &opt color?]
   (def lines @[])
   (defn paint [node]
     (def label (node :label))
     (def note (get node :note ""))
-    (string (if (and color? (node :repository?))
-              (string repository-color label "\e[0m")
-              label)
-            (if (and color? (not (empty? note)))
-              (string note-color note "\e[0m")
-              note)))
+    (cond
+      (and color? (or (node :broken?) (node :ignored?)))
+      (string broken-color label note "\e[0m")
+      true
+      (string (if (and color? (node :repository?))
+                (string repository-color label "\e[0m")
+                label)
+              (if (and color? (not (empty? note)))
+                (string note-color note "\e[0m")
+                note))))
   (defn walk [children prefix]
     (eachp [index child] children
       (def last? (= index (dec (length children))))
