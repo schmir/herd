@@ -201,10 +201,13 @@ one is not ignored without a word.
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 has an invalid :vcs; expected "git" or "jj"
   [1]
   $ settings '{:checkouts [{:list "repos.json" :strip-components 1.5}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer in :strip-components
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer or a path ending in "/" in :strip-components
   [1]
   $ settings '{:checkouts [{:list "repos.json" :strip-components -1}]}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer in :strip-components
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer or a path ending in "/" in :strip-components
+  [1]
+  $ settings '{:checkouts [{:list "repos.json" :strip-components "src"}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 needs a non-negative integer or a path ending in "/" in :strip-components
   [1]
   $ settings '{:checkouts [{:list "repos.json"} {:unknown true}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 1 has an unknown setting :unknown

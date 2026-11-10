@@ -88,13 +88,16 @@
   settings)
 
 (defn- validate-strip-components-setting
-  "Validate an optional component count as a non-negative integer."
+  ``Validate an optional :strip-components as a non-negative integer or a
+  prefix path ending in "/".``
   [settings where]
   (when (has-key? settings :strip-components)
-    (def strip-count (settings :strip-components))
-    (unless (and (int? strip-count) (not (neg? strip-count)))
+    (def strip (settings :strip-components))
+    (unless (or (and (int? strip) (not (neg? strip)))
+                (and (string? strip) (string/has-suffix? "/" strip)))
       (error (string where
-                     " needs a non-negative integer in :strip-components"))))
+                     " needs a non-negative integer or a path ending in"
+                     " \"/\" in :strip-components"))))
   settings)
 
 (defn validate-checkout-row
@@ -270,8 +273,33 @@
                        (describe listed-path) "; no components remain")))
       (string/join (drop strip-count components) path/sep))))
 
+(defn- strip-path-prefix
+  ``Remove the leading `prefix` from `listed-path`, or return nil when the path
+  does not start with it. Both are normalized first, so that `vendor/../x` or
+  `vendor//x` cannot leave a remainder that is absolute or climbs out of the
+  anchor. Nothing may remain of the path afterwards.``
+  [listed-path prefix anchor]
+  (def normalized (path/normalize listed-path))
+  (def normalized-prefix (path/normalize prefix))
+  (when (string/has-prefix? normalized-prefix normalized)
+    (def rest (string/slice normalized (length normalized-prefix)))
+    (when (empty? (filter (fn [c] (not (empty? c))) (path/parts rest)))
+      (error (string "the row anchored at " (describe anchor)
+                     " cannot strip prefix " (describe prefix)
+                     " from path " (describe listed-path)
+                     "; no components remain")))
+    rest))
+
+(defn- strip-listed-path
+  "Strip by count or by prefix; nil means the entry is ignored."
+  [listed-path strip anchor]
+  (if (string? strip)
+    (strip-path-prefix listed-path strip anchor)
+    (strip-path-components listed-path strip anchor)))
+
 (defn resolve-repository-paths
-  ``Resolve each entry once per placement, stripping its leading components and
+  ``Resolve each entry once per placement, stripping its leading components
+  (or its `:strip-components` prefix, ignoring entries that lack it) and
   applying its repository options. Entries without placements produce no
   checkouts.``
   [entries placements]
@@ -281,19 +309,20 @@
     (with-dyns [:path-cwd (placement :path)]
       (each entry entries
         (def listed-path
-          (strip-path-components (entry :path)
-                                 (get placement :strip-components 0)
-                                 (placement :path)))
-        # Apply options from least to most specific: defaults, placement, entry.
-        (def settled (merge checkout/default-repository-options options entry))
-        (array/push resolved
-                    (merge settled
-                           {:vcs (vcs/parse (settled :vcs))
-                            :path (path/abspath listed-path)
-                            # The path as it stands beneath its anchor, for
-                            # the commands that run there to be told.
-                            :anchored-path listed-path
-                            :anchors @[(placement :path)]})))))
+          (strip-listed-path (entry :path)
+                             (get placement :strip-components 0)
+                             (placement :path)))
+        (when listed-path
+          # Apply options from least to most specific: defaults, placement, entry.
+          (def settled (merge checkout/default-repository-options options entry))
+          (array/push resolved
+                      (merge settled
+                             {:vcs (vcs/parse (settled :vcs))
+                              :path (path/abspath listed-path)
+                              # The path as it stands beneath its anchor, for
+                              # the commands that run there to be told.
+                              :anchored-path listed-path
+                              :anchors @[(placement :path)]}))))))
   resolved)
 
 (def- url-keys

@@ -38,8 +38,9 @@
     (array/push notes (string "filters " (string/join (placement :use-filters) ", "))))
   (when broken
     (array/push notes (string "broken: " broken)))
-  (when (pos? (placement :strip-components))
-    (array/push notes (string "strip " (placement :strip-components))))
+  (def strip (placement :strip-components))
+  (when (if (string? strip) true (pos? strip))
+    (array/push notes (string "strip " (if (string? strip) (describe strip) strip))))
   (string label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
 
 (defn- list-placements

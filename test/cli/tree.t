@@ -188,3 +188,23 @@ says so.
   > EOF2
   $ herd list -a -C /srv/default
   missing\t/srv/default/b\tu (esc)
+
+A row stripping a path prefix shows it quoted and lists only what matches.
+
+  $ cat >"$CONFIG/prefixed.json" <<'EOF2'
+  > [{"path": "x/y/z/deep", "clone_url": "deep-url"},
+  >  {"path": "x/y/other", "clone_url": "other-url"},
+  >  {"path": "t/top", "clone_url": "top-url"}]
+  > EOF2
+  $ cat >"$CONFIG/config.jdn" <<'EOF2'
+  > {:checkouts [{:list "prefixed.json" :anchor "/srv/mirror" :strip-components "x/y/"}]}
+  > EOF2
+  $ herd tree -r
+  /srv/mirror (prefixed.json [strip "x/y/"], 1 repository)
+  ├── other
+  └── z/ (1 repository)
+      └── deep
+  
+  here.json (ignored: no :checkouts row places it)
+  
+  orphan.json (ignored: no :checkouts row places it)

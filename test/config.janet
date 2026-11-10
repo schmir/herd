@@ -474,6 +474,29 @@
                (string/find `"/anchor"` message))
           "stripping a complete path names its row, count and path in the error"))
 
+(let [entries (config/resolve-repository-paths
+                [{:path "vendor/acme/lib" :clone-url "a"}
+                 {:path "other/lib" :clone-url "b"}
+                 {:path "vendorx/lib" :clone-url "c"}]
+                @[{:path "/anchor" :strip-components "vendor/"}])]
+  (assert (deep= @["/anchor/acme/lib"]
+                 (map (fn [repository] (repository :path)) entries))
+          "a prefix strips matching paths and ignores the others"))
+
+(let [entries (config/resolve-repository-paths
+                [{:path "vendor/../outside" :clone-url "a"}
+                 {:path "vendor//repo" :clone-url "b"}
+                 {:path "./vendor/dot" :clone-url "c"}]
+                @[{:path "/anchor" :strip-components "vendor/"}])]
+  (assert (deep= @["/anchor/repo" "/anchor/dot"]
+                 (map (fn [repository] (repository :path)) entries))
+          "a prefix is matched on the normalized path and cannot leave the anchor"))
+
+(assert-error "stripping a whole path by prefix fails"
+              (config/resolve-repository-paths
+                [{:path "vendor/" :clone-url "u"}]
+                @[{:path "/anchor" :strip-components "vendor/"}]))
+
 (assert-error "stripping more components than a path has fails"
               (config/resolve-repository-paths
                 [{:path "team/repo" :clone-url "u"}]
@@ -609,6 +632,14 @@
               (config/validate-checkout-row
                 {:list "a.json" :strip-components "1"}
                 ":checkouts row 0"))
+(assert-error "a strip prefix must end in a slash"
+              (config/validate-checkout-row
+                {:list "a.json" :strip-components "vendor"}
+                ":checkouts row 0"))
+(assert-no-error "a row can strip a prefix"
+                 (config/validate-checkout-row
+                   {:list "a.json" :strip-components "vendor/"}
+                   ":checkouts row 0"))
 (assert-error "a row strip count must not be negative"
               (config/validate-checkout-row
                 {:list "a.json" :strip-components -1}
@@ -654,7 +685,7 @@
 (assert-no-error "a default anchor can be disabled with false"
                  (config/validate-checkout-defaults {:anchor false}))
 (assert-error "a row cannot disable its anchor"
-              (config/validate-checkout-row {:list "a.json" :anchor false} "row"))
+              (config/validate-checkout-row {:list "a.json" :anchor false} ":checkouts row 0"))
 (assert-no-error "the defaults settle an anchor and a VCS"
                  (config/validate-checkout-defaults {:anchor "src" :vcs "git"}))
 

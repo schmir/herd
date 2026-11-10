@@ -195,6 +195,11 @@ is valid only on a `:checkouts` row and must be a non-negative integer. Zero
 keeps the path unchanged. Removing the complete path, or more components
 than it contains, is an error.
 
+`:strip-components` may instead be a path ending in `/`. A repository whose
+path does not start with that string is ignored by the row; for the others
+the string is removed from the front. `"vendor/"` turns `vendor/acme/lib`
+into `acme/lib` and ignores `other/lib`.
+
 A repository list may itself be a symlink. It is still anchored by its
 visible location in the configuration directory, which is also the name
 `:list` knows it by, so point its rows at the directory tree it describes

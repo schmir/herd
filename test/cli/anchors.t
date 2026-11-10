@@ -60,6 +60,33 @@ Each row strips its own number of components.
   missing\t$ROOT/home/one/team/repo\turl (esc)
   missing\t$ROOT/home/two/repo\turl (esc)
 
+A row stripping a path ending in a slash ignores repositories outside it.
+
+  $ cat >"$CONFIG/repos.json" <<'EOF2'
+  > [{"path": "org/team/repo", "ssh_url": "url"},
+  >  {"path": "org/other", "ssh_url": "other-url"},
+  >  {"path": "orgx/repo", "ssh_url": "orgx-url"}]
+  > EOF2
+  $ cat >"$CONFIG/config.jdn" <<'EOF2'
+  > {:checkouts [{:list "repos.json" :anchor "one" :strip-components "org/"}
+  >              {:list "repos.json" :anchor "two" :strip-components "org/team/"}]}
+  > EOF2
+  $ herd list -a -C /
+  missing\t$ROOT/home/one/team/repo\turl (esc)
+  missing\t$ROOT/home/one/other\tother-url (esc)
+  missing\t$ROOT/home/two/repo\turl (esc)
+
+A prefix is matched against the normalized path, so it cannot be used to
+climb out of the anchor or to make a path absolute.
+
+  $ cat >"$CONFIG/repos.json" <<'EOF2'
+  > [{"path": "org/../outside", "ssh_url": "outside-url"},
+  >  {"path": "org//repo", "ssh_url": "url"}]
+  > EOF2
+  $ echo '{:checkouts [{:list "repos.json" :anchor "one" :strip-components "org/"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/one/repo\turl (esc)
+
 A list no row reads is checked out once, from the defaults alone.
 
   $ echo '[{"path": "one", "ssh_url": "one-url"}]' >"$CONFIG/first.json"
