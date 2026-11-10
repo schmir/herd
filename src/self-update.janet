@@ -149,10 +149,41 @@
                [(program "curl") ;curl-flags ;(if config ["-K" "-"] []) url]
                config)))
 
+(defn- curl-diagnostic
+  ``The last message curl printed in `text`, its standard error, which may
+  begin with a progress bar, or an empty string when there is none.``
+  [text]
+  (def starts (peg/match ~(any (+ (* ($) "curl:") 1)) text))
+  (if (empty? starts)
+    ""
+    (string/trim (string/slice text (last starts)))))
+
 (defn download
-  "Write what is at `url` to `dest`, or raise when it cannot be downloaded."
-  [url dest]
-  (run (string "downloading " url) [(program "curl") ;curl-flags "-o" dest url]))
+  ``Write what is at `url` to `dest`, or raise when it cannot be downloaded.
+  curl's standard error is kept to put its message in the error, and is
+  passed on to ours as it comes when `progress` is true, so that a progress
+  bar shows while a file arrives, which is for files large enough to need one.``
+  [url dest &opt progress]
+  (def args [(program "curl") "-fL" (if progress "--progress-bar" "-sS")
+             "--proto" "=https,file" "--proto-redir" "=https,file"
+             "-o" dest url])
+  (def diagnostics @"")
+  (def status
+    (with [process (os/spawn args :p {:in :pipe :out :pipe :err :pipe})]
+      (:close (process :in))
+      (ev/gather
+        (:read (process :out) :all @"")
+        (while (def chunk (:read (process :err) 4096))
+          (buffer/push diagnostics chunk)
+          (when progress
+            (file/write stderr chunk)
+            (file/flush stderr)))
+        (:wait process))
+      (process :return-code)))
+  (unless (zero? status)
+    (def said (curl-diagnostic diagnostics))
+    (error (string "downloading " url " failed"
+                   (if (empty? said) "" (string ": " said))))))
 
 (defn failure-hint
   ``What to add to the error `err` of a request for `url`, sent with `token`
@@ -209,6 +240,7 @@
         (error (string "there is no release binary for "
                        (os/which) "-" (os/arch)))))
   (def url (release-url (releases-url) requested))
+  (eprint "Downloading " url)
   (def description
     (try (fetch url)
       ([err]
@@ -241,8 +273,10 @@
       (defer (sh/rm staging)
         (def archive-path (path/join staging archive))
         (def sums-path (path/join staging sums))
-        (download (assets archive) archive-path)
+        (eprint "Downloading " (assets sums))
         (download (assets sums) sums-path)
+        (eprint "Downloading " (assets archive))
+        (download (assets archive) archive-path true)
         (def expected (expected-checksum (slurp sums-path) archive))
         (unless expected
           (error (string sums " has no checksum for " archive)))

@@ -46,10 +46,20 @@ Each has an archive for this platform that holds a herd saying what it is.
   > }
   $ export HERD_RELEASES_URL="file://$ROOT/api"
 
+curl shows a progress meter when it downloads, which varies from run to
+run, so a curl that keeps quiet stands in for it.
+
+  $ real_curl=$(command -v curl)
+  $ mkdir "$ROOT/quiet"
+  $ printf '#!/bin/sh\nexec "%s" -s "$@"\n' "$real_curl" >"$ROOT/quiet/curl"
+  $ chmod 755 "$ROOT/quiet/curl"
+  $ PATH="$ROOT/quiet:$PATH"
+
 A herd that is the latest release already is left alone.
 
   $ release "$version"
   $ herd self-update
+  Downloading file://$ROOT/api/latest
   herd \S+ is already the latest release (re)
 
 An archive that does not match its checksum fails, and the herd stays.
@@ -58,6 +68,9 @@ An archive that does not match its checksum fails, and the herd stays.
   $ sums="$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS"
   $ sed 's/^[0-9a-f]*/0000/' "$sums" >"$sums.new" && mv "$sums.new" "$sums"
   $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
   self-update failed: herd-v99.0.0-.*\.tar\.gz does not match its checksum in herd-v99.0.0-SHA256SUMS (re)
   [1]
   $ herd --version
@@ -65,12 +78,23 @@ An archive that does not match its checksum fails, and the herd stays.
   $ test "$(herd --version)" = "herd $version" && echo unchanged
   unchanged
 
+A file that cannot be downloaded fails with what curl said.
+
+  $ release v99.0.0
+  $ rm "$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS"
+  $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  self-update failed: downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS failed: curl: .* (re)
+  [1]
+
 A release without an archive for this platform fails as well.
 
   $ cat >"$ROOT/api/latest" <<EOF
   > {"tag_name": "v99.0.0", "assets": []}
   > EOF
   $ herd self-update
+  Downloading file://$ROOT/api/latest
   self-update failed: release v99.0.0 has no herd-v99.0.0-.*\.tar\.gz (re)
   [1]
 
@@ -79,14 +103,23 @@ be, is caught before it replaces the one that runs.
 
   $ release v99.0.0 'echo "Bad CPU type in executable" >&2; exit 126'
   $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
   self-update failed: the herd in herd-v99.0.0-.*\.tar\.gz does not run here: Bad CPU type in executable (re)
   [1]
   $ release v99.0.0 'exit 1'
   $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
   self-update failed: the herd in herd-v99.0.0-.*\.tar\.gz does not run here: it exited 1 (re)
   [1]
   $ release v99.0.0 'echo "herd v1.0.0"'
   $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
   self-update failed: the herd in herd-v99.0.0-.*\.tar\.gz reports "herd v1.0.0", not herd v99.0.0 (re)
   [1]
   $ test "$(herd --version)" = "herd $version" && echo unchanged
@@ -96,6 +129,7 @@ A version names a release by its tag, with or without the v. One that is
 not released, or that is not a tag at all, fails.
 
   $ herd self-update 42.0.0
+  Downloading file://$ROOT/api/tags/v42.0.0
   self-update failed: cannot find release v42.0.0: downloading file://\$ROOT/api/tags/v42.0.0 failed: curl: .* (re)
   [1]
   $ herd self-update ../latest
@@ -109,6 +143,7 @@ A herd that is the release named already is left alone.
 
   $ release "$version"
   $ herd self-update "$version"
+  Downloading file://\$ROOT/api/tags/\S+ (re)
   herd \S+ is already installed (re)
 
 A version installs its release even when a later one is the latest, and
@@ -117,6 +152,9 @@ a herd is replaced by an older release as by a newer one.
   $ release v98.0.0
   $ release v99.0.0
   $ herd self-update 98.0.0
+  Downloading file://$ROOT/api/tags/v98.0.0
+  Downloading file://$ROOT/release/v98.0.0/herd-v98.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v98.0.0/herd-v98.0.0-.*\.tar\.gz (re)
   Updated herd \S+ to v98.0.0: \$ROOT/herd (re)
   $ herd
   new herd v98.0.0
@@ -126,6 +164,9 @@ nothing behind beside it.
 
   $ cp "$HERD" "$ROOT/herd"
   $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
   Updated herd \S+ to v99.0.0: \$ROOT/herd (re)
   $ herd
   new herd v99.0.0
