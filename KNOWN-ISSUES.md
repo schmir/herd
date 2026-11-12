@@ -110,9 +110,19 @@ is doing one thing to a few hundred directories at once, the absence is felt
 most exactly when it matters most: on a configuration you have just edited,
 against a tree you would rather not have to undo.
 
-`clone` is the one that wants it first, since it creates directories. It
-already knows everything needed to say what it would do before doing any of
-it — `clone-repositories` has the full list and the decision for each.
+`herd list` is the better alternative, and a `--dry-run` would add little to
+it. It takes the same selection options as the command, so run it with the
+options you mean to give `clone` or `run`, and it shows the repositories the
+command would affect:
+
+```sh
+$ herd clone -f work     # what will this create?
+$ herd list --not-ok -t -f work
+```
+
+`--not-ok` keeps the repositories that are missing or blocked, which are the
+ones `clone` acts on, and `-t` prints them as a tree. For `run`, `herd list
+-t` with the same options shows the repositories the command would run in.
 
 ### A run cannot be told to stop at the first failure
 
