@@ -199,6 +199,6 @@ jobs:
           echo "${{ matrix.jj-sha256 }}  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bin" ./jj
 
-      # The prysk version just test-cli names.
+      # The prysk version pyproject.toml names.
       - name: Run the command-line tests
-        run: HERD="$PWD/bin/herd" uvx prysk==0.20.0 test/cli/
+        run: HERD="$PWD/bin/herd" uv run prysk test/cli/

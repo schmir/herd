@@ -36,10 +36,6 @@ build:
 test: deps
     jpm --local test
 
-# The prysk the command-line tests run with. The release workflow's check job
-# names the same version.
-prysk := "prysk==0.20.0"
-
 # Name a release binary to test what ships.
 [doc('Run the command-line tests in test/cli/ against build/herd or the binary named.')]
 test-cli herd="":
@@ -51,7 +47,7 @@ test-cli herd="":
         herd=build/herd
     fi
     [[ "$herd" == /* ]] || herd="$PWD/$herd"
-    HERD="$herd" uvx {{ prysk }} test/cli/
+    HERD="$herd" uv run prysk test/cli/
 
 # herd runs commands with `sh -c`, found on PATH, and the message a shell
 # gives for an unknown command differs from one shell to the next. Put each
@@ -80,7 +76,7 @@ test-cli-shells herd="":
         rm -f "$bin/sh"
         ln -s "$target" "$bin/sh"
         echo "== sh is $shell ($target)" >&2
-        if ! PATH="$bin:$PATH" HERD="$herd" uvx {{ prysk }} test/cli/; then
+        if ! PATH="$bin:$PATH" HERD="$herd" uv run prysk test/cli/; then
             failed+=("$shell")
         fi
     done
@@ -114,7 +110,6 @@ check-lsp: build
     pytestmark = pytest.mark.skipif(
         shutil.which("janet-lsp") is None, reason="janet-lsp is not on PATH"
     )
-
 
     def test_definition_of_a_function_defined_in_the_same_file():
         """Asking for a called function's definition finds its defn."""
@@ -169,7 +164,6 @@ check-lsp: build
 
         assert result is not None
         assert result["range"]["start"]["line"] == defn
-
 
     if __name__ == "__main__":
         sys.exit(pytest.main([__file__, "-q", "-rs"]))
@@ -230,4 +224,4 @@ flake-update-diff:
 
 # Remove build artifacts and the local JPM trees.
 clean:
-    rm -rf build dist jpm_tree build.ninja .ninja_log .ninja_deps
+    rm -rf build dist jpm_tree build.ninja .ninja_log .ninja_deps src/*.egg-info .venv

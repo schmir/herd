@@ -1,0 +1,12 @@
+# Tracks the tools the tests run with. herd itself is not a Python project.
+[project]
+name = "herd-tests"
+version = "0.0.1"
+requires-python = ">=3.10"
+dependencies = ["prysk==0.20.0"]
+classifiers = [
+  "Private :: Do Not Upload", # Prevent uploads to PyPI
+]
+
+[tool.uv]
+package = false
