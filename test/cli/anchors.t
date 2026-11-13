@@ -25,17 +25,21 @@ Several rows check the tree out at each anchor.
   $ herd list -C two
   missing\t$ROOT/home/two/relative\trelative-url (esc)
 
-A path may not climb out of its anchor, and may not be absolute: every
-repository lies beneath the anchor of the row that places it.
+A path may not be absolute or contain a `..` component: every repository
+lies beneath the anchor of the row that places it.
 
   $ echo '[{"path": "../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ echo '{:checkouts [{:list "repos.json" :anchor "root"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
-  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" that leaves its anchor
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" with a ".." component
   [1]
   $ echo '[{"path": "a/../../sibling", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ herd list -a -C /
-  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" that leaves its anchor
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" with a ".." component
+  [1]
+  $ echo '[{"path": "a/../b", "ssh_url": "url"}]' >"$CONFIG/repos.json"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has a "path" with a ".." component
   [1]
   $ echo '[{"path": "/srv/abs", "ssh_url": "url"}]' >"$CONFIG/repos.json"
   $ herd list -a -C /
@@ -76,12 +80,10 @@ A row stripping a path ending in a slash ignores repositories outside it.
   missing\t$ROOT/home/one/other\tother-url (esc)
   missing\t$ROOT/home/two/repo\turl (esc)
 
-A prefix is matched against the normalized path, so it cannot be used to
-climb out of the anchor or to make a path absolute.
+A prefix is matched against the normalized path.
 
   $ cat >"$CONFIG/repos.json" <<'EOF2'
-  > [{"path": "org/../outside", "ssh_url": "outside-url"},
-  >  {"path": "org//repo", "ssh_url": "url"}]
+  > [{"path": "org//repo", "ssh_url": "url"}]
   > EOF2
   $ echo '{:checkouts [{:list "repos.json" :anchor "one" :strip-components "org/"}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /

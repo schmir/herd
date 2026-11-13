@@ -347,8 +347,8 @@
     (when (path/abspath? (entry :path))
       (error (string "entry " index " has an absolute \"path\"; write it"
                      " relative to its anchor")))
-    (when (index-of ".." (path/parts (path/normalize (entry :path))))
-      (error (string "entry " index " has a \"path\" that leaves its anchor")))
+    (when (index-of ".." (path/parts (entry :path)))
+      (error (string "entry " index " has a \"path\" with a \"..\" component")))
     (def spelled (filter (fn [key] (not (nil? (entry key)))) url-keys))
     (when (= 2 (length spelled))
       (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))

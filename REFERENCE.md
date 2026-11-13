@@ -265,7 +265,7 @@ Each entry requires `path` and either `clone_url` or `ssh_url`:
 Other entry fields are retained and may be used by filters. Entries are
 validated after list filters run, so a filter can remove an entry that herd
 could not use. A path is relative to the anchor: it must be neither absolute
-nor leave its anchor with `..`. An entry cannot contain both `clone_url` and
+nor contain a `..` component. An entry cannot contain both `clone_url` and
 `ssh_url`.
 
 `:checkouts` says where lists are placed. A row can name a file or contain

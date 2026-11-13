@@ -1183,9 +1183,10 @@
   (os/setenv "HOME" home)
   (sh/rm dir))
 
-# A list may not name a path outside its anchor: absolute, or climbing out.
-(each [path message] [["/abs" "absolute"] ["../up" "leaves its anchor"]
-                      ["a/../../up" "leaves its anchor"]]
+# A list may not name an absolute path or one with a ".." component.
+(each [path message] [["/abs" "absolute"] [".." "\"..\" component"] ["../up" "\"..\" component"]
+                      ["a/../../up" "\"..\" component"]
+                      ["a/.." "\"..\" component"] ["a/../b" "\"..\" component"]]
   (assert (string/find message
                        (try (config/validate-repository-list
                               [{:path path :ssh_url "u"}])

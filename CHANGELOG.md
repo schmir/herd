@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Repository list paths with a `..` component are now rejected, not only
+  those that leave their anchor.
+
 ## 0.4.4 - 2026-11-10
 
 - `:strip-components` may now name a path prefix ending in `/`. Entries that

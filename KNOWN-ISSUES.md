@@ -121,8 +121,9 @@ $ herd list --not-ok -t -f work
 ```
 
 `--not-ok` keeps the repositories that are missing or blocked, which are the
-ones `clone` acts on, and `-t` prints them as a tree. For `run`, `herd list
--t` with the same options shows the repositories the command would run in.
+ones `clone` acts on, and `-t` prints them as a tree. For `run`,
+`herd list -t` with the same options shows the repositories the command
+would run in.
 
 ### A run cannot be told to stop at the first failure
 

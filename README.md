@@ -183,10 +183,9 @@ Several rows reading the same file describe the same set of repositories
 checked out under each of their anchors. `team/api` above names both
 `$HOME/work/team/api` and `/srv/review/team/api`, and `herd clone` checks
 the repository out at each. A path in a list is relative to the anchor: it
-may be neither absolute nor climb out of its anchor with `..`, so every
-repository lies beneath the anchor of the row that places it. Once anchored,
-no repository may lie inside another one; herd exits with an error naming
-both.
+may be neither absolute nor contain a `..` component, so every repository
+lies beneath the anchor of the row that places it. Once anchored, no
+repository may lie inside another one; herd exits with an error naming both.
 
 A row's `:strip-components` removes that many leading components from every
 repository path before resolving it against the anchor. For example,
