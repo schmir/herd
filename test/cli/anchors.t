@@ -140,12 +140,33 @@ resolved either.
   $ env -u HOME "$HERD" list -a -C / 2>&1 | sed "s|$ROOT|\$ROOT|g"
   missing\t/abs/gamma\tgamma-url (esc)
 
+A leading ~ or ~/ means $HOME. ~user is refused rather than made a directory
+of that name. Nothing else is expanded.
+
+  $ echo '{:checkouts [{:list "link.json" :anchor "~/src"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/src/gamma\tgamma-url (esc)
+  $ echo '{:checkouts [{:list "link.json" :anchor "~"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/gamma\tgamma-url (esc)
+  $ echo '{:checkouts [{:list "link.json" :anchor "~user/src"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 has an :anchor "~user/src": ~USER is not expanded
+  [1]
+  $ echo '{:checkouts [{:list "link.json" :anchor "./~/src"}]}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/~/src/gamma\tgamma-url (esc)
+
 The default anchor is $HOME unless :checkout-defaults sets it. Setting it to false
 leaves a list that no row anchors without any anchor, which is an error,
 while a row that names an anchor still places its list.
 
   $ echo '[{"path": "delta", "ssh_url": "delta-url"}]' >"$CONFIG/other.json"
   $ echo '{:checkout-defaults {:anchor "src"}}' >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/src/gamma\tgamma-url (esc)
+  missing\t$ROOT/home/src/delta\tdelta-url (esc)
+  $ echo '{:checkout-defaults {:anchor "~/src"}}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
   missing\t$ROOT/home/src/gamma\tgamma-url (esc)
   missing\t$ROOT/home/src/delta\tdelta-url (esc)

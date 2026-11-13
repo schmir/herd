@@ -4,6 +4,10 @@
 
 - Repository list paths with a `..` component are now rejected, not only
   those that leave their anchor.
+- An `:anchor` may now start with `~` or `~/`, which means `$HOME`. An
+  anchor that starts with `~user` is now a configuration error, since it
+  used to create a directory of that name. Start it with `./` for a
+  directory of that name. Nothing else, such as `$HOME`, is expanded.
 
 ## 0.4.4 - 2026-11-10
 

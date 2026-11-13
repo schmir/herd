@@ -59,6 +59,11 @@
   (unless (index-of key known)
     (error (string where " has an unknown setting " (describe key)))))
 
+(defn- home-anchor?
+  "True when `anchor` is ~ or starts with ~/, which means $HOME."
+  [anchor]
+  (or (= "~" anchor) (string/has-prefix? "~/" anchor)))
+
 (defn- validate-anchor-setting
   ``Validate an optional anchor as a non-empty string. `:checkout-defaults` may also
   hold `false`, which leaves a list no row anchors without any anchor. It is
@@ -69,6 +74,12 @@
     (unless (and (string? anchor) (not (empty? anchor)))
       (error (string where " needs a non-empty :anchor"
                      (if allow-none? " or false" "")))))
+  # Only a leading ~ or ~/ is expanded. ~user would become a directory of
+  # that name.
+  (when (and (string? anchor) (string/has-prefix? "~" anchor)
+             (not (home-anchor? anchor)))
+    (error (string where " has an :anchor " (describe anchor)
+                   ": ~USER is not expanded")))
   settings)
 
 (defn- validate-filter-setting
@@ -250,7 +261,10 @@
 
         (if-let [home (os/getenv "HOME")]
           (with-dyns [:path-cwd home]
-            (path/abspath anchor))
+            (path/abspath (if (home-anchor? anchor)
+                            (let [rest (string/triml (string/slice anchor 1) "/")]
+                              (if (empty? rest) "." rest))
+                            anchor)))
           (error (string "cannot resolve relative anchor for "
                          name " without HOME")))))
     (merge (repository-options checkout-row)

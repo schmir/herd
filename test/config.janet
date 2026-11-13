@@ -882,6 +882,39 @@
     (assert (nil? ((placements 0) :vcs))
             "a row settling no options carries none at all"))
 
+  (assert (deep= @["/home/example/~/src"]
+                 (placement-paths
+                   (config/resolve-checkout-rows (string configuration "/real.json")
+                                                 @[{:anchor "./~/src"}])))
+          "a directory named ~ is written with a leading ./")
+  (each [anchor expected] [["~" "/home/example"]
+                           ["~/" "/home/example"]
+                           ["~/src" "/home/example/src"]
+                           ["~//src/../lib" "/home/example/lib"]]
+    (assert (deep= @[expected]
+                   (placement-paths
+                     (config/resolve-checkout-rows (string configuration "/real.json")
+                                                   @[{:anchor anchor}])))
+            (string "the anchor " anchor " starts at HOME")))
+  (each anchor ["~user/src" "~user"]
+    (assert (string/find "is not expanded"
+                         (or (error-message
+                               (fn [] (config/validate-checkout-row
+                                        @{:list "x.json" :anchor anchor} "row")))
+                             ""))
+            (string "an anchor starting like " anchor " is refused")))
+  (assert (string/find "is not expanded"
+                       (or (error-message
+                             (fn [] (config/validate-checkout-defaults @{:anchor "~user/src"})))
+                           ""))
+          "the default anchor is refused too")
+  (assert (deep= @{:anchor "~/src"}
+                 (config/validate-checkout-defaults @{:anchor "~/src"}))
+          "the default anchor may start with ~/")
+  (assert (deep= @{:list "x.json" :anchor "src/~x/$y"}
+                 (config/validate-checkout-row @{:list "x.json" :anchor "src/~x/$y"} "row"))
+          "~ only counts at the start")
+
   (sh/create-dirs (string elsewhere "/work"))
   (os/link elsewhere (string dir "/link") true)
   (assert (deep= @[(string dir "/link/work")]
