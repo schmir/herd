@@ -1,5 +1,6 @@
 # Running one command in each repository and reporting what it printed.
 
+(import spork/json)
 (import spork/path)
 (import spork/rawterm)
 (import ./checkout)
@@ -143,6 +144,66 @@
 
     (error "command must be a string, VCS-specific command, or argument vector")))
 
+(defn- field-name
+  ``The environment variable name part for the entry field `key`: upper
+  case, each run of characters other than a letter or digit as one
+  underscore, and none at the ends. It never holds two underscores in a row,
+  so that two in a variable name always mark a nested key. A key with
+  nothing left gives an empty name.``
+  [key]
+  (string/trim (string (peg/replace-all ~(some (if-not (range "AZ" "09") 1)) "_"
+                                        (string/ascii-upper key)))
+               "_"))
+
+(defn- collect-fields
+  ``Add the scalar leaves of `value` to `found`, named by their key path.
+  A name that two paths give is added to `clashed` as well.``
+  [value prefix found clashed]
+  (eachp [key field] value
+    (def part (field-name key))
+    (def name (if prefix (string prefix "__" part) part))
+    (cond
+      (empty? part) nil
+
+      (dictionary? field) (collect-fields field name found clashed)
+      # A NUL ends an environment string, so the child would see the value cut
+      # short. HERD_REPO_JSON keeps it whole.
+      (and (string? field) (string/find "\0" field)) nil
+
+      (or (string? field) (number? field) (boolean? field))
+      (do
+        (when (has-key? found name) (put clashed name true))
+        (put found name (string field))))))
+
+(defn entry-field-variables
+  ``The environment variables that describe the fields of a repository list
+  `entry`, as a table of name to value. A field gives HERD_FIELD_ and its
+  upper-cased name, with each run of characters other than a letter or digit
+  as one underscore, and none at its ends. A field inside an object adds the
+  names of its keys, separated by two underscores. Only strings, numbers and
+  booleans give a variable. A name that two fields give is left out, and so
+  are the fields that herd already tells a command by other means, the
+  fields with no name left, and the strings that contain a NUL.``
+  [entry]
+  (def own (table ;(kvs entry)))
+  (each key [:path :clone-url :vcs] (put own key nil))
+  (def found @{})
+  (def clashed @{})
+  (collect-fields own nil found clashed)
+  (def variables @{})
+  (eachp [name value] found
+    (unless (clashed name)
+      (put variables (string "HERD_FIELD_" name) value)))
+  variables)
+
+(defn- entry-json
+  "The repository list `entry` as the JSON a list file holds."
+  [entry]
+  (def spelled @{})
+  (eachp [key value] entry
+    (put spelled (if (= key :clone-url) "clone_url" key) value))
+  (string (json/encode spelled)))
+
 (defn command-environment
   ``The environment a command runs in: herd's own, plus HERD_COLOR, "always"
   with `color?` and "never" without, for a command to pass on as its --color,
@@ -155,11 +216,25 @@
   directory unless given, and HERD_REPO_RELPATH the repository's path
   relative to it.
   Both have their symlinks resolved, as selection weighs them, so a
-  repository containing `at` is `..` or further up, never a detour.``
+  repository containing `at` is `..` or further up, never a detour.
+  HERD_REPO_JSON is the repository's entry in its list, as JSON, and
+  `{}` for one that no list names. The scalar fields of the entry are also
+  HERD_FIELD_ variables, as entry-field-variables gives them. Such
+  variables that herd's own environment holds are set to false, which
+  process/capture reads as removed, so that none describes another
+  repository.``
   [repository color? &opt at]
   (def resolved-at (location/resolved-path (or at (os/cwd))))
+  (def inherited @{})
+  (each name (keys (os/environ))
+    (when (string/has-prefix? "HERD_FIELD_" name)
+      (put inherited name false)))
+  (def entry (get repository :entry {}))
   (merge (os/environ)
-         {"HERD_COLOR" (if color? "always" "never")
+         inherited
+         (entry-field-variables entry)
+         {"HERD_REPO_JSON" (entry-json entry)
+          "HERD_COLOR" (if color? "always" "never")
           "HERD_AT_PATH" resolved-at
           "HERD_REPO_RELPATH" (path/relpath resolved-at
                                             (location/resolved-path (repository :path)))

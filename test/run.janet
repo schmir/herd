@@ -1,5 +1,6 @@
 # Tests for running a command in repository working directories.
 (use spork/test)
+(import spork/json)
 (import spork/path)
 (import spork/sh)
 (import ../src/config)
@@ -580,5 +581,60 @@
                     "HERD_REPO_RELPATH"))
           "a repository containing the location lies above it")
   (sh/rm dir))
+
+(let [entry {:path "team/api"
+             :clone-url "git@example.com:api.git"
+             :vcs "git"
+             :group "platform"
+             :default_branch "main"
+             :approvals 2
+             :archived false
+             :owner {:name "ann" :team {:id 7}}
+             :members [{:user "bob"}]
+             :note nil
+             :nul "a\0b"
+             :a-b 1
+             :a_b 2
+             "foo::bar" "colons"
+             "__lead__" "edges"
+             :___ "nothing left"
+             :foo {:bar "nested"}}
+      variables (run/entry-field-variables entry)]
+  (assert (= "platform" (variables "HERD_FIELD_GROUP")) "a string field is a variable")
+  (assert (= "main" (variables "HERD_FIELD_DEFAULT_BRANCH"))
+          "an underscore in a name stays one")
+  (assert (= "2" (variables "HERD_FIELD_APPROVALS")) "a number is written out")
+  (assert (= "false" (variables "HERD_FIELD_ARCHIVED")) "a boolean is written out")
+  (assert (= "ann" (variables "HERD_FIELD_OWNER__NAME")) "a nested key has two underscores")
+  (assert (= "7" (variables "HERD_FIELD_OWNER__TEAM__ID")) "nesting has no depth limit")
+  (each name ["HERD_FIELD_PATH" "HERD_FIELD_CLONE_URL" "HERD_FIELD_VCS"
+              "HERD_FIELD_MEMBERS" "HERD_FIELD_OWNER" "HERD_FIELD_NOTE"]
+    (assert (nil? (variables name)) (string name " is not a variable")))
+  (assert (= "colons" (variables "HERD_FIELD_FOO_BAR"))
+          "a run of other characters is one underscore")
+  (assert (= "nested" (variables "HERD_FIELD_FOO__BAR"))
+          "so a nested key is the only way to get two")
+  (assert (= "edges" (variables "HERD_FIELD_LEAD")) "underscores at the ends are dropped")
+  (assert (not (find |(string/has-prefix? "HERD_FIELD__" $) (keys variables)))
+          "a field with no name left gives no variable")
+  (assert (nil? (variables "HERD_FIELD_NUL"))
+          "a string with a NUL is left out, not cut short")
+  (assert (nil? (variables "HERD_FIELD_A_B"))
+          "a name that two fields give is left out")
+  (os/setenv "HERD_FIELD_STALE" "1")
+  (def env (defer (os/setenv "HERD_FIELD_STALE" nil)
+             (run/command-environment {:path "/nonexistent" :entry entry} false)))
+  (assert (= false (env "HERD_FIELD_STALE"))
+          "a field variable that herd inherited is removed")
+  (assert (= "platform" (env "HERD_FIELD_GROUP")) "a command is told the fields")
+  (def described (json/decode (env "HERD_REPO_JSON") true))
+  (assert (= "git@example.com:api.git" (described :clone_url))
+          "the JSON spells the URL as a list file does")
+  (assert (= "a\0b" (described :nul)) "the JSON keeps the whole string")
+  (assert (= "bob" (get-in described [:members 0 :user]))
+          "the JSON keeps what the variables leave out"))
+
+(let [env (run/command-environment {:path "/nonexistent"} false)]
+  (assert (= "{}" (env "HERD_REPO_JSON")) "a repository with no entry has an empty one"))
 
 (end-suite)

@@ -32,7 +32,8 @@
 (defn capture
   ``Run `args` to completion and return what it did as `{:status :out :err}`.
   `flags` are os/spawn's and `env` its too, except that the variables in it add
-  to herd's environment rather than replace it, and that stdout and stderr are
+  to herd's environment rather than replace it, a variable that is false
+  removes it, and that stdout and stderr are
   always pipes this reads: a child writing more than a pipe buffer holds would
   block forever on one nobody drains, so both are drained while it runs rather
   than after it exits. Unless `env` gives it an `:in`, the child finds standard
@@ -45,9 +46,11 @@
   [args &opt flags env]
   (default flags :)
   (default env {})
-  (with [process (os/spawn args (keyword flags :e)
-                           (merge {:in :pipe} no-prompts (os/environ) env
-                                  {:out :pipe :err :pipe}))]
+  (def spawn-env (merge {:in :pipe} no-prompts (os/environ) env
+                        {:out :pipe :err :pipe}))
+  (each key (filter (fn [key] (false? (spawn-env key))) (keys spawn-env))
+    (put spawn-env key nil))
+  (with [process (os/spawn args (keyword flags :e) spawn-env)]
     # The child has its end of whatever it reads. Ours is closed at once, which
     # is what ends the input of a child that was given a pipe, and spawn leaves
     # open a stream for one that was given a file.

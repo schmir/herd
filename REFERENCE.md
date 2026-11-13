@@ -415,6 +415,28 @@ directory and receive:
 | `HERD_REPO_PATH`    | Repository path as written beneath its anchor           |
 | `HERD_REPO_URL`     | Configured clone URL                                    |
 | `HERD_REPO_VCS`     | Detected `git` or `jj`                                  |
+| `HERD_REPO_JSON`    | The repository's entry in its list, as JSON             |
+| `HERD_FIELD_*`      | The scalar fields of that entry, described below        |
+
+`HERD_REPO_JSON` is the entry as a list file holds it, with the path as the
+list gives it. It is `{}` for a repository that no list names, such as one
+that `list --extra` finds. A command can read any field from it, for example
+with `jq`.
+
+Each string, number or boolean field of the entry is also a variable named
+`HERD_FIELD_` and the upper-cased field name, with each run of characters
+that are not letters or digits written as one `_`, and none at the ends. A
+field `group_path` is `HERD_FIELD_GROUP_PATH`, and `foo::bar` is
+`HERD_FIELD_FOO_BAR`. A name never holds two underscores in a row, unless an
+object is nested: a field inside an object adds its own name after two
+underscores, so `{"owner": {"name": "ann"}}` is `HERD_FIELD_OWNER__NAME`.
+Arrays, `null` and objects themselves give no variable. A string that
+contains a NUL gives none, since an environment string ends at one. A field
+whose name has no letter or digit gives none. `path`, `clone_url` and `vcs`
+give none either, because the variables above describe them. When two fields
+give the same name, such as `a-b` and `a_b`, neither gets a variable; both
+stay in `HERD_REPO_JSON`. `HERD_FIELD_*` variables that herd inherits are
+removed, so a variable a command sees always describes its own repository.
 
 `NO_COLOR` disables terminal color. herd sets Git and ssh no-prompt
 defaults, but values already present in the environment take precedence. A

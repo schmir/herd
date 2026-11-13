@@ -54,27 +54,15 @@ carry extra fields produces records carrying those fields:
   :ssh_url "u" :tier 3 :vcs "jj"}
 ```
 
-`:group` and `:tier` came from the JSON file and survived every stage, and
-nothing ever looks at them. Filters exist precisely because these lists
-carry more than `herd` needs, so throwing the rest away at the last step is
-the odd part.
+`:group` and `:tier` came from the JSON file and survived every stage. Only
+filters and commands read them, as `HERD_FIELD_*` and `HERD_REPO_JSON`.
+`list` throws the rest away at the last step, which is the odd part, since
+these lists carry more than `herd` needs.
 
 A `herd list --json` writing those records out would make the tool
 scriptable and double as the way to ask why a repository was or was not
 selected, which is currently guesswork. A `--null` separator for `xargs -0`
 is the small version of the same idea.
-
-### A command cannot see its entry's own fields
-
-A command is told where it runs and where it came from, through
-`HERD_REPO_*` and `HERD_AT_PATH`, but not the fields of its repository's
-entry. Those such as `:group` and `:tier` are sitting in the record that
-chose to run it, yet a custom command cannot branch by group or skip a tier
-without reading the repository list itself.
-
-Passing them through as well would make `:commands` in `config.jdn`
-genuinely programmable. `command-environment` in `run.janet` is where they
-would be added.
 
 ### No way to see what a command would do
 

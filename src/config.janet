@@ -336,6 +336,9 @@
                               # The path as it stands beneath its anchor, for
                               # the commands that run there to be told.
                               :anchored-path listed-path
+                              # What the list gave, for the commands that run
+                              # there to be told its fields.
+                              :entry entry
                               :anchors @[(placement :path)]}))))))
   resolved)
 

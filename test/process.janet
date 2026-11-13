@@ -65,7 +65,12 @@
   (defer (os/setenv "HERD_TEST_INHERITED" nil)
     (assert (= "kept\n"
                (string ((process/capture ["sh" "-c" `echo "$HERD_TEST_INHERITED"`] :p) :out)))
-            "herd's own environment is inherited")))
+            "herd's own environment is inherited")
+    (assert (= "\n"
+               (string ((process/capture ["sh" "-c" `echo "$HERD_TEST_INHERITED"`] :p
+                                         {"HERD_TEST_INHERITED" false})
+                         :out)))
+            "a variable that is false is removed")))
 
 (test-a-child-reads-no-input-by-default)
 (test-a-child-is-told-not-to-prompt)
