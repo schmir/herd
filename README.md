@@ -7,6 +7,14 @@ repositories.
 
 ## Install
 
+With [uv](https://docs.astral.sh/uv/), on Linux or macOS:
+
+```sh
+uv tool install herd-cli
+```
+
+The command is `herd`. The PyPI name `herd` belongs to another project.
+
 Binaries for Linux, macOS, OpenBSD and FreeBSD (ARM64 and x86-64) are on the
 [releases page](https://github.com/schmir/herd/releases/latest). The OpenBSD
 and FreeBSD binaries are built like the others, but CI cannot run them, so

@@ -189,6 +189,12 @@ dist *platforms:
     janet tools/gen-ninja.janet
     ninja {{ platforms }}
 
+# Build the PyPI wheels in dist/wheels/ from the binaries in dist/. Build
+# the Linux and macOS binaries first with just dist.
+[doc('Build the PyPI wheels from the binaries in dist/. Name the version, such as v0.4.5.')]
+wheels version:
+    uv run --no-project python tools/build-wheels.py {{ version }} dist dist/wheels
+
 # Install the release binary for the host platform, as just dist builds it.
 install:
     #!/usr/bin/env bash

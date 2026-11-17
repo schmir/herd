@@ -56,4 +56,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes dist/*
+        # A tag with a pre-release suffix, such as v0.4.6rc1, is marked as a
+        # pre-release. GitHub's "latest release" skips those, so self-update
+        # and the releases page keep pointing at the last full release.
+        run: |
+          flags=()
+          if [[ "$GITHUB_REF_NAME" =~ (a|b|rc)[0-9]+$ ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" --generate-notes "${flags[@]}" dist/*
+
+  # Publishes the Linux and macOS binaries to PyPI as wheels, so that
+  # `uv tool install herd-cli` gives the command `herd`. PyPI has no tag for
+  # the BSDs, so tools/build-wheels.py skips them. This uses trusted
+  # publishing: the project on PyPI must name this repository, this workflow
+  # and the environment `pypi`. There is no token.
+  pypi:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-26.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: herd-*
+          path: artifacts
+      - name: Build wheels
+        run: python3 tools/build-wheels.py "$GITHUB_REF_NAME" artifacts wheels
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheels

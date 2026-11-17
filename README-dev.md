@@ -59,3 +59,35 @@ machine.
 `tools/build-deps.sh` fetches the dependencies for ninja and works around
 ninja making directories inside jpm's cache; `test/build-deps.janet` tests
 it with a stub `jpm`.
+
+## Release
+
+Before a release, rename the `Unreleased` heading in `CHANGELOG.md` to the
+new version. Then tag the commit and push the tag, for example `v0.4.6`. The
+`release` workflow runs the tests, builds the binaries for every platform
+and does two things with them:
+
+- It creates the GitHub release with an archive for each platform. This is
+  where the BSD binaries are published.
+- It publishes the Linux and macOS binaries to PyPI as the package
+  `herd-cli`, so `uv tool install herd-cli` gives the command `herd`. The
+  name `herd` on PyPI belongs to another project. PyPI has no tags for the
+  BSDs.
+
+`tools/build-wheels.py` builds the wheels, one for each platform, and
+`just wheels v0.4.6` builds them from the binaries in `dist/`. A wheel holds
+only the binary. The `pypi` job uses trusted publishing, so there is no
+token. The project on PyPI names this repository, the workflow `release.yml`
+and the GitHub environment `pypi`. The environment needs no secrets.
+
+A tag such as `v0.4.6rc1` makes a release candidate. Write it as PEP 440
+does, without a dash, so that the wheel version matches the tag. The GitHub
+release is marked as a pre-release, so it does not become the latest
+release, which `herd self-update` installs. uv skips pre-releases unless it
+is told otherwise: `uv tool install --prerelease allow herd-cli`.
+
+`herd self-update` refuses to replace a herd that `uv tool` installed. Such
+a herd is updated with `uv tool upgrade herd-cli`.
+
+A version on PyPI cannot be replaced or reused, even after it is deleted. If
+a release is wrong, fix it and tag the next version.
