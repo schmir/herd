@@ -329,7 +329,7 @@
   (if (peg/match ~(* "v" :d) tag) (string/slice tag 1) tag))
 
 (defn- update-with-uv
-  ``Have uv update herd: upgrade it to the latest release, or install the
+  ``Have uv update herd: install the latest release, or the
   release `version` names. uv prints its own progress and says whether it
   changed anything. Return :updated, or raise a string saying what went
   wrong.``
@@ -338,7 +338,7 @@
   (def args
     (if version
       [uv "tool" "install" "--force" (string uv-package "==" (uv-package-version version))]
-      [uv "tool" "upgrade" uv-package]))
+      [uv "tool" "install" "--force" (string uv-package "@latest")]))
   (eprint "Running uv " (string/join (slice args 1) " "))
   (def status (os/execute args :p))
   (unless (zero? status)

@@ -117,10 +117,11 @@ from the releases page instead.
 cannot stop it. This holds when `self-update` is the first argument.
 
 A `herd` installed with `uv tool install herd-cli` belongs to uv, so
-`herd self-update` does not replace it. It runs `uv tool upgrade herd-cli`,
-or `uv tool install --force herd-cli==VERSION` when a `VERSION` is given,
-and uv decides whether there is anything to do. `uv` must be on `PATH`. The
-rest of this section describes a herd that uv did not install.
+`herd self-update` does not replace it. It runs
+`uv tool install --force herd-cli@latest`, or
+`uv tool install --force herd-cli==VERSION` when a `VERSION` is given, which
+also lifts a pin left by an earlier `self-update VERSION`. `uv` must be on
+`PATH`. The rest of this section describes a herd that uv did not install.
 
 herd asks GitHub for the release. If its tag is the version `herd --version`
 reports, nothing changes. Otherwise herd downloads the archive for this

@@ -175,8 +175,8 @@
   (with-env ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" nil]
     (fn []
       (assert (= :updated (self-update/update-executable "v0.4.5" executable nil report)))
-      (assert (= "tool\nupgrade\nherd-cli\n" (string (slurp args-file)))
-              "without a version, uv upgrades")
+      (assert (= "tool\ninstall\n--force\nherd-cli@latest\n" (string (slurp args-file)))
+              "without a version, uv installs the latest")
       (assert (= :updated (self-update/update-executable "v0.4.5" executable "v0.4.4" report)))
       (assert (= "tool\ninstall\n--force\nherd-cli==0.4.4\n" (string (slurp args-file)))
               "with a version, uv installs that one")
