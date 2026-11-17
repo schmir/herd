@@ -120,6 +120,20 @@
     (assert (= real (self-update/own-executable "link")) "a bare name is found on PATH")
     (assert-error "not on PATH" (self-update/own-executable "absent"))))
 
+(defn test-uv-tool-install
+  "An executable in a uv tool environment is told from one anywhere else."
+  []
+  (def environment (path/join dir "uv-env"))
+  (def executable (path/join environment "bin" "herd"))
+  (sh/create-dirs (path/dirname executable))
+  (spit executable "")
+  (assert (not (self-update/uv-tool-install? executable)) "a plain directory")
+  (spit (path/join environment "pyvenv.cfg") "")
+  (assert (not (self-update/uv-tool-install? executable))
+          "a virtual environment of pip or pipx is not uv's tool")
+  (spit (path/join environment "uv-receipt.toml") "")
+  (assert (self-update/uv-tool-install? executable)))
+
 (defn- with-env
   ``Call `f` with the variables `env` names set, and restore them after. `env`
   holds names and values in turn, a nil value unsetting its variable: a struct
@@ -130,6 +144,51 @@
   (defer (each [name value] saved (os/setenv name value))
     (each [name value] pairs (os/setenv name value))
     (f)))
+
+(defn test-uv-package-version
+  "A release version becomes the version uv is given, without the tag's v."
+  []
+  (assert (= "0.4.6" (self-update/uv-package-version "v0.4.6")))
+  (assert (= "0.4.6" (self-update/uv-package-version "0.4.6")))
+  (assert (= "0.4.6rc1" (self-update/uv-package-version "v0.4.6rc1")))
+  (assert-error "not a version" (self-update/uv-package-version "../x")))
+
+(defn test-update-with-uv
+  "A herd that uv installed is updated by uv, whose failure is ours."
+  []
+  (def environment (path/join dir "uv-update-env"))
+  (def executable (path/join environment "bin" "herd"))
+  (sh/create-dirs (path/dirname executable))
+  (each file [executable (path/join environment "pyvenv.cfg")
+              (path/join environment "uv-receipt.toml")]
+    (spit file ""))
+  (def bin (path/join dir "fake-uv"))
+  (sh/create-dirs bin)
+  (def uv (path/join bin "uv"))
+  (def args-file (path/join dir "uv.args"))
+  (spit uv (string "#!/bin/sh\n"
+                   "printf '%s\\n' \"$@\" >" args-file "\n"
+                   "exit ${FAKE_UV_STATUS:-0}\n"))
+  (os/chmod uv 8r755)
+  (def reports @[])
+  (def report (fn [& parts] (array/push reports (string ;parts))))
+  (with-env ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" nil]
+    (fn []
+      (assert (= :updated (self-update/update-executable "v0.4.5" executable nil report)))
+      (assert (= "tool\nupgrade\nherd-cli\n" (string (slurp args-file)))
+              "without a version, uv upgrades")
+      (assert (= :updated (self-update/update-executable "v0.4.5" executable "v0.4.4" report)))
+      (assert (= "tool\ninstall\n--force\nherd-cli==0.4.4\n" (string (slurp args-file)))
+              "with a version, uv installs that one")
+      (assert (= 0 (length reports)) "uv reports nothing itself")))
+  (with-env ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" "3"]
+    (fn []
+      (assert-error "uv failed"
+                    (self-update/update-executable "v0.4.5" executable nil report))))
+  (with-env ["PATH" "/nonexistent" "FAKE_UV_STATUS" nil]
+    (fn []
+      (assert-error "no uv"
+                    (self-update/update-executable "v0.4.5" executable nil report)))))
 
 (defn test-github-token
   "GH_TOKEN wins over GITHUB_TOKEN, as with gh, and an empty one is none."
@@ -206,6 +265,9 @@
 (test-expected-checksum)
 (test-sha256)
 (test-own-executable)
+(test-uv-tool-install)
+(test-uv-package-version)
+(test-update-with-uv)
 (test-github-token)
 (test-authorization)
 (test-fetch-hands-curl-the-token-on-stdin)

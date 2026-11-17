@@ -227,13 +227,26 @@
           (error (string "cannot find " argv0 " on PATH")))))
   (os/realpath found))
 
-(defn update-executable
+(def- uv-package "The name of herd's package on PyPI." "herd-cli")
+
+(defn uv-tool-install?
+  ``True when `executable` is in a tool environment of uv. uv tool install
+  puts the package in its own virtual environment, with a pyvenv.cfg and a
+  uv-receipt.toml beside its bin directory, and links the executable from
+  there. `executable` must have its links resolved, as own-executable gives it.``
+  [executable]
+  # path/dirname keeps the trailing slash, which the second call would
+  # keep as well, so drop it before taking the parent of bin.
+  (def environment (path/dirname (string/trimr (path/dirname executable) "/")))
+  (and (os/stat (path/join environment "pyvenv.cfg"))
+       (os/stat (path/join environment "uv-receipt.toml"))
+       true))
+
+(defn- update-from-release
   ``Replace the herd at `executable` with the release `version` names, or the
-  latest release without one, unless it is `current-version` already. `report`
-  is told what happened. Return :current or :updated, or raise a string saying
-  what went wrong.``
-  [current-version executable &opt version report]
-  (default report print)
+  latest release without one, unless it is `current-version` already. Return
+  :current or :updated, or raise a string saying what went wrong.``
+  [current-version executable version report]
   (def requested (when version (release-tag version)))
   (def platform-name
     (or (platform (os/which) (os/arch))
@@ -307,3 +320,39 @@
         (os/rename unpacked executable))
       (report "Updated herd " current-version " to " tag ": " executable)
       :updated)))
+
+(defn uv-package-version
+  ``The version to give uv for the release `version` names: the tag without
+  its v. Raise when it cannot be a tag, as release-tag does.``
+  [version]
+  (def tag (release-tag version))
+  (if (peg/match ~(* "v" :d) tag) (string/slice tag 1) tag))
+
+(defn- update-with-uv
+  ``Have uv update herd: upgrade it to the latest release, or install the
+  release `version` names. uv prints its own progress and says whether it
+  changed anything. Return :updated, or raise a string saying what went
+  wrong.``
+  [version]
+  (def uv (program "uv"))
+  (def args
+    (if version
+      [uv "tool" "install" "--force" (string uv-package "==" (uv-package-version version))]
+      [uv "tool" "upgrade" uv-package]))
+  (eprint "Running uv " (string/join (slice args 1) " "))
+  (def status (os/execute args :p))
+  (unless (zero? status)
+    (error (string "uv exited with status " status)))
+  :updated)
+
+(defn update-executable
+  ``Replace the herd at `executable` with the release `version` names, or the
+  latest release without one, unless it is `current-version` already. A herd
+  that uv installed is updated by uv instead, which decides itself whether
+  there is anything to do. `report` is told what happened. Return :current or
+  :updated, or raise a string saying what went wrong.``
+  [current-version executable &opt version report]
+  (default report print)
+  (if (uv-tool-install? executable)
+    (update-with-uv version)
+    (update-from-release current-version executable version report)))

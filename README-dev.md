@@ -86,8 +86,9 @@ release is marked as a pre-release, so it does not become the latest
 release, which `herd self-update` installs. uv skips pre-releases unless it
 is told otherwise: `uv tool install --prerelease allow herd-cli`.
 
-`herd self-update` refuses to replace a herd that `uv tool` installed. Such
-a herd is updated with `uv tool upgrade herd-cli`.
+`herd self-update` does not replace a herd that `uv tool` installed. It runs
+`uv tool upgrade herd-cli` instead, or `uv tool install --force` with the
+version it is given.
 
 A version on PyPI cannot be replaced or reused, even after it is deleted. If
 a release is wrong, fix it and tag the next version.

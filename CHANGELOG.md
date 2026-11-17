@@ -3,7 +3,9 @@
 ## Unreleased
 
 - The Linux and macOS binaries are now on PyPI as `herd-cli`. Install them
-  with `uv tool install herd-cli`.
+  with `uv tool install herd-cli`. `herd self-update` has uv update a herd
+  that uv installed, instead of replacing the binary itself.
+
 - A command and a checkout filter now receive the fields of their
   repository's entry: `HERD_REPO_JSON` holds the entry as JSON, and each
   scalar field is a `HERD_FIELD_*` variable, such as `HERD_FIELD_GROUP`. A
