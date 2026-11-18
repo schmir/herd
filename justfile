@@ -202,7 +202,7 @@ dist *platforms:
 
 # Build the PyPI wheels in dist/wheels/.
 wheels: dist
-    uv run python tools/build-wheels.py "$HERD_VERSION" dist dist/wheels
+    uv run python tools/build-wheels.py
 
 # Install the release binary for the host platform, as just dist builds it.
 install:

@@ -83,10 +83,12 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           pattern: herd-*
-          path: artifacts
+          path: dist
       - uses: astral-sh/setup-uv@v10.2.0
       - name: Build wheels
-        run: uv run python tools/build-wheels.py "$GITHUB_REF_NAME" artifacts wheels
+        env:
+          HERD_VERSION: ${{ github.ref_name }}
+        run: uv run python tools/build-wheels.py
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: wheels
+          packages-dir: dist/wheels

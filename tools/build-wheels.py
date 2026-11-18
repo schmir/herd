@@ -1,14 +1,18 @@
 """Build one PyPI wheel for each platform that PyPI accepts.
 
-Usage: build-wheels.py VERSION BINARY_DIR OUTPUT_DIR
+Usage: build-wheels.py
 
-BINARY_DIR has one directory for each platform, such as linux-x86_64, with
+The environment variable HERD_VERSION has the version, as a PEP 440 version.
+A leading "v" is fine.
+
+dist/ has one directory for each platform, such as linux-x86_64, with
 the herd binary in it. A directory name may start with "herd-". A platform
 that PyPI has no tag for (the BSDs) is skipped.
 
-A wheel holds only the binary, as a script. An installer puts a script in
-the bin directory of the environment, so `uv tool install herd-cli` gives
-the command `herd`. The wheel is not tied to a Python version.
+The wheels go to dist/wheels/. A wheel holds only the binary, as a script. An
+installer puts a script in the bin directory of the environment, so
+`uv tool install herd-cli` gives the command `herd`. The wheel is not tied to
+a Python version.
 
 This script needs the packaging module, which pyproject.toml pins. Run it
 with uv run python.
@@ -16,6 +20,7 @@ with uv run python.
 
 import base64
 import hashlib
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -39,6 +44,12 @@ PLATFORM_TAGS = {
 }
 
 SUMMARY = "Manage a collection of Git repositories."
+
+# The directory with one directory of binaries for each platform.
+BINARY_DIR = ROOT / "dist"
+
+# The directory for the wheels.
+OUT_DIR = BINARY_DIR / "wheels"
 
 
 def record_line(path, data):
@@ -95,29 +106,29 @@ def build_wheel(version, platform, binary, out_dir):
     return wheel
 
 
-def main(argv):
-    if len(argv) != 4:
-        sys.exit(__doc__)
+def main():
+    raw_version = os.environ.get("HERD_VERSION")
+    if not raw_version:
+        sys.exit("Error: HERD_VERSION not set")
     # PyPI rejects a local part, such as +gb3ae314.dirty, so only a local
     # build has one.
     try:
-        version = str(Version(argv[1]))
+        version = str(Version(raw_version))
     except InvalidVersion:
-        sys.exit(f"build-wheels: not a PEP 440 version: {argv[1]!r}")
-    binary_dir, out_dir = Path(argv[2]), Path(argv[3])
-    out_dir.mkdir(parents=True, exist_ok=True)
+        sys.exit(f"build-wheels: not a PEP 440 version: {raw_version!r}")
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     built = 0
-    for entry in sorted(binary_dir.iterdir()):
+    for entry in sorted(BINARY_DIR.iterdir()):
         platform = entry.name.removeprefix("herd-")
         binary = entry / "herd"
         if platform not in PLATFORM_TAGS or not binary.is_file():
             continue
-        print(build_wheel(version, platform, binary, out_dir))
+        print(build_wheel(version, platform, binary, OUT_DIR))
         built += 1
     if built != len(PLATFORM_TAGS):
         sys.exit(f"build-wheels: built {built} wheels, expected {len(PLATFORM_TAGS)}")
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
