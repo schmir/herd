@@ -4,7 +4,7 @@
 [project]
 name = "herd-tests"
 dynamic = ["version"]
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = ["packaging==26.3", "prysk==0.20.0"]
 classifiers = [
   "Private :: Do Not Upload", # Prevent uploads to PyPI
