@@ -1,19 +1,9 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# Export the build version so all recipes that invoke jpm use the same value.
-# uv-dynamic-versioning drops the v of the tag. The default puts it back,
-# because herd self-update expects the version to be the tag. A backtick
-# default of env() would run uvx even when HERD_VERSION is set, so shell()
-# runs uvx only when it is not.
-export HERD_VERSION := shell('''
-    if [ -n "${HERD_VERSION+set}" ]; then
-        printf %s "$HERD_VERSION"
-    else
-        version=$(uvx --quiet uv-dynamic-versioning@0.14.1)
-        printf v%s "$version"
-    fi
-''')
-
+_SET_HERD_VERSION := '''
+HERD_VERSION="${HERD_VERSION:-v$(uvx --quiet uv-dynamic-versioning@0.14.1)}"
+export HERD_VERSION
+'''
 # Show the available project commands.
 default:
     @just --list
@@ -40,6 +30,9 @@ repl file="src/main.janet": build
 # ninja runs jpm, and rebuilds when a source file, pins.jdn or HERD_VERSION
 # changes.
 build:
+    #!/usr/bin/env bash
+    set -eu
+    {{ _SET_HERD_VERSION }}
     janet tools/gen-ninja.janet
     ninja host
 
@@ -197,11 +190,18 @@ ci: && test test-cli
 # parallel and only what changed.
 [doc('Cross-compile release binaries with zig cc, for the platforms named or all of them.')]
 dist *platforms:
+    #!/usr/bin/env bash
+    set -eu
+    {{ _SET_HERD_VERSION }}
     janet tools/gen-ninja.janet
     ninja {{ platforms }}
 
 # Build the PyPI wheels in dist/wheels/.
-wheels: dist
+wheels:
+    #!/usr/bin/env bash
+    set -eu
+    {{ _SET_HERD_VERSION }}
+    "{{ just_executable() }}" --justfile "{{ justfile() }}" dist
     uv run python tools/build-wheels.py
 
 # Install the release binary for the host platform, as just dist builds it.
