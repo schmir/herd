@@ -84,6 +84,12 @@ jobs:
         with:
           pattern: herd-*
           path: dist
+      # The artifacts are named herd-PLATFORM. The script wants dist/PLATFORM.
+      - name: Name the directories after the platforms
+        run: |
+          for dir in dist/herd-*/; do
+            mv "${dir%/}" "dist/$(basename "$dir" | sed 's/^herd-//')"
+          done
       - uses: astral-sh/setup-uv@v10.2.0
       - name: Build wheels
         env:

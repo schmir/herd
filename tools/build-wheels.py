@@ -6,8 +6,9 @@ The environment variable HERD_VERSION has the version, as a PEP 440 version.
 A leading "v" is fine.
 
 dist/ has one directory for each platform, such as linux-x86_64, with
-the herd binary in it. A directory name may start with "herd-". A platform
-that PyPI has no tag for (the BSDs) is skipped.
+the herd binary in it. The script builds a wheel for each platform in
+PLATFORM_TAGS, and stops when a binary is missing. A platform that PyPI has
+no tag for (the BSDs) is ignored.
 
 The wheels go to dist/wheels/. A wheel holds only the binary, as a script. An
 installer puts a script in the bin directory of the environment, so
@@ -120,16 +121,11 @@ def main() -> None:
         sys.exit(f"build-wheels: not a PEP 440 version: {raw_version!r}")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    built = 0
-    for entry in sorted(BINARY_DIR.iterdir()):
-        platform = entry.name.removeprefix("herd-")
-        binary = entry / "herd"
-        if platform not in PLATFORM_TAGS or not binary.is_file():
-            continue
+    for platform in PLATFORM_TAGS:
+        binary = BINARY_DIR / platform / "herd"
+        if not binary.is_file():
+            sys.exit(f"build-wheels: no binary for {platform}: {binary}")
         print(build_wheel(version, platform, binary, OUT_DIR))
-        built += 1
-    if built != len(PLATFORM_TAGS):
-        sys.exit(f"build-wheels: built {built} wheels, expected {len(PLATFORM_TAGS)}")
 
 
 if __name__ == "__main__":
