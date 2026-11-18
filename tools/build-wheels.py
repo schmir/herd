@@ -108,17 +108,20 @@ def build_wheel(version: str, platform: str, binary: Path, out_dir: Path) -> Pat
     return wheel
 
 
-def main() -> None:
-    """Build the wheels for the version in HERD_VERSION."""
+def get_version() -> str:
+    """Return the version in HERD_VERSION as a normalized PEP 440 version."""
     raw_version = os.environ.get("HERD_VERSION")
     if not raw_version:
-        sys.exit("Error: HERD_VERSION not set")
-    # PyPI rejects a local part, such as +gb3ae314.dirty, so only a local
-    # build has one.
+        sys.exit("build-wheels: HERD_VERSION not set")
     try:
-        version = str(Version(raw_version))
+        return str(Version(raw_version))
     except InvalidVersion:
         sys.exit(f"build-wheels: not a PEP 440 version: {raw_version!r}")
+
+
+def main() -> None:
+    """Build a wheel for each platform in PLATFORM_TAGS."""
+    version = get_version()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     for platform in PLATFORM_TAGS:
