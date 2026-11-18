@@ -1,7 +1,18 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # Export the build version so all recipes that invoke jpm use the same value.
-export HERD_VERSION := env_var_or_default("HERD_VERSION", `git describe --tags --always --dirty 2>/dev/null || echo dev`)
+# uv-dynamic-versioning drops the v of the tag. The default puts it back,
+# because herd self-update expects the version to be the tag. A backtick
+# default of env() would run uvx even when HERD_VERSION is set, so shell()
+# runs uvx only when it is not.
+export HERD_VERSION := shell('''
+    if [ -n "${HERD_VERSION+set}" ]; then
+        printf %s "$HERD_VERSION"
+    else
+        version=$(uvx --quiet uv-dynamic-versioning@0.14.1)
+        printf v%s "$version"
+    fi
+''')
 
 # Show the available project commands.
 default:
@@ -189,11 +200,9 @@ dist *platforms:
     janet tools/gen-ninja.janet
     ninja {{ platforms }}
 
-# Build the PyPI wheels in dist/wheels/ from the binaries in dist/. Build
-# the Linux and macOS binaries first with just dist.
-[doc('Build the PyPI wheels from the binaries in dist/. Name the version, such as v0.4.5.')]
-wheels version:
-    uv run --no-project python tools/build-wheels.py {{ version }} dist dist/wheels
+# Build the PyPI wheels in dist/wheels/.
+wheels: dist
+    uv run python tools/build-wheels.py "$HERD_VERSION" dist dist/wheels
 
 # Install the release binary for the host platform, as just dist builds it.
 install:

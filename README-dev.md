@@ -33,8 +33,13 @@ just test
 it is given, such as a release binary: `just test-cli path/to/herd`.
 
 `just build` runs `ninja host`. It records the version `herd --version`
-reports, taking it from `git describe` unless `HERD_VERSION` names one;
-release builds pass their tag.
+reports, unless `HERD_VERSION` names one. Without it,
+`uvx uv-dynamic-versioning@0.14.1` computes the version from the latest tag
+with its default format, such as `0.4.6.post2+gb3ae314`, or
+`0.4.6.post2.dev0+gb3ae314` when the tree has uncommitted changes. The
+default adds a `v`, as in `v0.4.6.post2+gb3ae314`, so that a build of a tag
+reports the tag, which `herd self-update` expects. Release builds pass their
+tag.
 
 `pins.jdn` pins Janet and every JPM dependency to a commit, so every build
 compiles the same sources. `project.janet` and `tools/gen-ninja.janet` both
@@ -74,11 +79,12 @@ and does two things with them:
   name `herd` on PyPI belongs to another project. PyPI has no tags for the
   BSDs.
 
-`tools/build-wheels.py` builds the wheels, one for each platform, and
-`just wheels v0.4.6` builds them from the binaries in `dist/`. A wheel holds
-only the binary. The `pypi` job uses trusted publishing, so there is no
-token. The project on PyPI names this repository, the workflow `release.yml`
-and the GitHub environment `pypi`. The environment needs no secrets.
+`tools/build-wheels.py` builds the wheels, one for each platform.
+`HERD_VERSION=v0.4.6 just wheels` builds the binaries with `just dist` and
+then the wheels. A wheel holds only the binary. The `pypi` job uses trusted
+publishing, so there is no token. The project on PyPI names this repository,
+the workflow `release.yml` and the GitHub environment `pypi`. The
+environment needs no secrets.
 
 A tag such as `v0.4.6rc1` makes a release candidate. Write it as PEP 440
 does, without a dash, so that the wheel version matches the tag. The GitHub

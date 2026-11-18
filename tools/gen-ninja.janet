@@ -4,6 +4,10 @@
 #   janet tools/gen-ninja.janet && ninja macos-arm64
 #   ninja host                                      # build/herd for this machine
 #
+# ninja needs HERD_VERSION in the environment, and the build stops without
+# it. just sets it, so use HERD_VERSION=v0.4.6 ninja host when you run ninja
+# without just.
+#
 # just dist does the first. ninja has no globs, so this script lists the
 # sources it finds. build.ninja depends on the directories they live in, which
 # change when a file is added or removed, so ninja runs this script again by
@@ -102,11 +106,12 @@
 (emit "  description = regenerating build.ninja")
 (emit "  generator = 1")
 (emit)
-# The version HERD_VERSION names, as the justfile exports it, or else what git
-# describes. It is kept in a file that is rewritten only when it changes, and
-# restat tells ninja that, so nothing that depends on it runs for nothing.
+# The version HERD_VERSION names, as the justfile exports it. The rule fails
+# when HERD_VERSION is not set. The version is kept in a file that is
+# rewritten only when it changes, and restat tells ninja that, so nothing
+# that depends on it runs for nothing.
 (emit "rule version")
-(emit "  command = mkdir -p build && v=\"$${HERD_VERSION:-$$(git describe --tags --always --dirty 2>/dev/null || echo dev)}\" && { [ \"$$(cat $out 2>/dev/null)\" = \"$$v\" ] || printf '%s\\n' \"$$v\" > $out; }")
+(emit "  command = mkdir -p build && v=\"$${HERD_VERSION:?run ninja through just, which sets HERD_VERSION}\" && { [ \"$$(cat $out 2>/dev/null)\" = \"$$v\" ] || printf '%s\\n' \"$$v\" > $out; }")
 (emit "  description = version")
 (emit "  restat = 1")
 (emit)

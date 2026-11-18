@@ -10,16 +10,17 @@ A wheel holds only the binary, as a script. An installer puts a script in
 the bin directory of the environment, so `uv tool install herd-cli` gives
 the command `herd`. The wheel is not tied to a Python version.
 
-This script uses only the standard library, so it runs without an
-environment.
+This script needs the packaging module, which pyproject.toml pins. Run it
+with uv run python.
 """
 
 import base64
 import hashlib
-import re
 import sys
 import zipfile
 from pathlib import Path
+
+from packaging.version import InvalidVersion, Version
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -97,10 +98,12 @@ def build_wheel(version, platform, binary, out_dir):
 def main(argv):
     if len(argv) != 4:
         sys.exit(__doc__)
-    version = argv[1].removeprefix("v")
-    # A release, or a pre-release in the form PEP 440 uses, such as 0.4.6rc1.
-    if not re.fullmatch(r"\d+(\.\d+)*((a|b|rc)\d+)?", version):
-        sys.exit(f"build-wheels: not a release version: {argv[1]!r}")
+    # PyPI rejects a local part, such as +gb3ae314.dirty, so only a local
+    # build has one.
+    try:
+        version = str(Version(argv[1]))
+    except InvalidVersion:
+        sys.exit(f"build-wheels: not a PEP 440 version: {argv[1]!r}")
     binary_dir, out_dir = Path(argv[2]), Path(argv[3])
     out_dir.mkdir(parents=True, exist_ok=True)
 
