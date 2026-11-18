@@ -237,6 +237,7 @@ flake-update-diff:
     after=$(nix build --no-link --no-warn-dirty --print-out-paths "$target")
     nix shell nixpkgs#nvd --command nvd diff "$before" "$after"
 
-# Remove build artifacts and the local JPM trees.
+# Remove build artifacts.
 clean:
-    rm -rf build dist jpm_tree build.ninja .ninja_log .ninja_deps src/*.egg-info .venv
+    rm -rf build dist jpm_tree build.ninja .ninja_log .ninja_deps src/*.egg-info .venv .ruff_cache
+    find . -name .git -prune -o -name .jj -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
