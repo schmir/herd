@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.7 - 2026-11-19
 
 - `herd --version` now says "(managed by uv)" when uv installed the herd.
 - `herd self-update` on a herd that uv installed now installs the latest
