@@ -34,10 +34,8 @@ DIST_NAME = "herd-cli"
 
 # The Linux binaries are static, so they run on any libc.
 PLATFORM_TAGS = {
-    "linux-x86_64": ("manylinux_2_17_x86_64.manylinux2014_x86_64.musllinux_1_1_x86_64"),
-    "linux-aarch64": (
-        "manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64"
-    ),
+    "linux-x86_64": "manylinux_2_17_x86_64.manylinux2014_x86_64.musllinux_1_1_x86_64",
+    "linux-aarch64": "manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64",
     # The binaries need macOS 11 or later.
     "macos-arm64": "macosx_11_0_arm64",
     "macos-x86_64": "macosx_11_0_x86_64",
@@ -52,12 +50,14 @@ BINARY_DIR = ROOT / "dist"
 OUT_DIR = BINARY_DIR / "wheels"
 
 
-def record_line(path, data):
+def record_line(path: str, data: bytes) -> str:
+    """Return the RECORD line for a file: path, SHA-256 digest and size."""
     digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest())
     return f"{path},sha256={digest.rstrip(b'=').decode()},{len(data)}"
 
 
-def metadata(version):
+def metadata(version: str) -> str:
+    """Return the METADATA text, with the README as the description."""
     readme = (ROOT / "README.md").read_text()
     return (
         "Metadata-Version: 2.4\n"
@@ -75,7 +75,8 @@ def metadata(version):
     )
 
 
-def build_wheel(version, platform, binary, out_dir):
+def build_wheel(version: str, platform: str, binary: Path, out_dir: Path) -> Path:
+    """Write the wheel for one platform to out_dir and return its path."""
     tag = PLATFORM_TAGS[platform]
     stem = f"{DIST_NAME.replace('-', '_')}-{version}"
     dist_info = f"{stem}.dist-info"
@@ -106,7 +107,8 @@ def build_wheel(version, platform, binary, out_dir):
     return wheel
 
 
-def main():
+def main() -> None:
+    """Build the wheels for the version in HERD_VERSION."""
     raw_version = os.environ.get("HERD_VERSION")
     if not raw_version:
         sys.exit("Error: HERD_VERSION not set")

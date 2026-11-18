@@ -14,3 +14,19 @@ includes = ["justfile", ".justfile", "*.just"]
 command = "prettier"
 options = ["--write"]
 includes = ["*.md"]
+
+[formatter.ruff-check]
+command = "uv"
+options = ["run", "ruff", "check", "--fix"]
+includes = ["*.py"]
+priority = 1
+
+[formatter.ruff-format]
+command = "uv"
+options = ["run", "ruff", "format"]
+includes = ["*.py"]
+priority = 2
+
+[formatter.nixfmt]
+command = "nixfmt"
+includes = ["*.nix"]

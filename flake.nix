@@ -58,36 +58,42 @@
           # else. CI uses this rather than the shell below, whose editor
           # tooling is built from source and would be rebuilt on every run.
           ci = pkgs.mkShell {
-            packages = with pkgs; [
-              janet
-              jp
-              jpm
-              jujutsu
-              just
-              ninja
-              zig
-            ]
-            ++ shells;
+            packages =
+              with pkgs;
+              [
+                janet
+                jp
+                jpm
+                jujutsu
+                just
+                ninja
+                zig
+              ]
+              ++ shells;
           };
 
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              coreutils
-              gitMinimal
-              janet
-              janet-format
-              janet-lsp
-              jp
-              jpm
-              jujutsu
-              just
-              ninja
-              prettier
-              treefmt
-              uv
-              zig
-            ]
-            ++ shells;
+            packages =
+              with pkgs;
+              [
+                coreutils
+                gitMinimal
+                janet
+                janet-format
+                janet-lsp
+                jp
+                jpm
+                jujutsu
+                just
+                ninja
+                nixfmt
+                prettier
+                ruff
+                treefmt
+                uv
+                zig
+              ]
+              ++ shells;
 
             # janet-lsp needs spork and the native modules on the module path;
             # see .janet-path/README.md.

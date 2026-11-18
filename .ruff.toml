@@ -1,0 +1,20 @@
+target-version = "py313"
+line-length = 99
+
+[lint]
+select = ["ALL"]
+ignore = [
+  "COM812", # conflicts with the formatter
+  "D203",   # conflicts with D211
+  "D213",   # conflicts with D212
+  "E501",   # the formatter wraps lines, and cannot split a string
+  "CPY001", # no copyright notice in each file
+  "T201",   # print is fine in scripts
+]
+
+[lint.per-file-ignores]
+# Scripts are not importable packages.
+"tools/**" = ["INP001"]
+
+[lint.pydocstyle]
+convention = "pep257"
