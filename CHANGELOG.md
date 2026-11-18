@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `herd --version` now says "(managed by uv)" when uv installed the herd.
 - `herd self-update` on a herd that uv installed now installs the latest
   release with `uv tool install --force herd-cli@latest`. It used to run
   `uv tool upgrade`, which did nothing after `herd self-update VERSION` had

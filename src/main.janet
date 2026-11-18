@@ -631,7 +631,10 @@
   [& args]
   # Answered before the configuration is read, so a broken one cannot stop it.
   (when (arguments/version-requested? args)
-    (print "herd " version)
+    (def managed-by-uv
+      (try (self-update/uv-tool-install? (self-update/own-executable (dyn :executable)))
+        ([_] false)))
+    (print "herd " version (if managed-by-uv " (managed by uv)" ""))
     (os/exit 0))
   # Likewise, so that a broken configuration cannot stop herd from updating
   # itself. It reads no settings, so it needs none; only a command name
