@@ -13,7 +13,7 @@
 # change when a file is added or removed, so ninja runs this script again by
 # itself when that happens.
 #
-# The steps are those the dist recipe used to run:
+# The steps:
 #
 #   1. jpm fetches the dependencies, then runs src/main.janet on the host and
 #      writes the marshaled image to build/herd.c. jpm decides what is out of
@@ -127,7 +127,8 @@
 # built-in `:`. ninja only sees an input become newer, never one disappear, and
 # runs a step again when its command changes. Without this, deleting or renaming a
 # source file would leave the old binary in place.
-# The final check is the one the release workflow makes.
+# The final check makes sure that the binary reports the version. The check
+# job in .github/workflows/test.yml does the same for each release binary.
 (emit "rule jpm")
 (emit "  command = : $inputs && rm -f build/herd build/herd.c build/*.o && export HERD_VERSION=\"$$(cat build/version)\" && jpm --local build && test \"$$(build/herd --version)\" = \"herd $$HERD_VERSION\"")
 (emit "  description = jpm build")

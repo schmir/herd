@@ -37,8 +37,8 @@
 
 (defn platform
   ``The release platform name for `os` and `arch`, as os/which and os/arch
-  name them, or nil when no release is built for it. The names are those of
-  the dist recipe in the justfile.``
+  name them, or nil when no release is built for it. The names are those
+  tools/gen-ninja.janet builds.``
   [os arch]
   (case [os arch]
     [:linux :x64] "linux-x86_64"

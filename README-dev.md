@@ -56,10 +56,9 @@ machine.
 writes `build.ninja` first, and ninja runs it again by itself when a source
 file is added or removed. ninja compiles the platforms in parallel and only
 recompiles what changed: after an edit to a Janet file, `janet.c` and the
-native modules are not compiled again. It also notices when `HERD_VERSION`,
-or else `git describe`, names another version. `just dist macos-arm64`
-builds one platform. `just build` builds only `build/herd`, for this
-machine.
+native modules are not compiled again. It also notices when the version
+changes. `just dist macos-arm64` builds one platform. `just build` builds
+only `build/herd`, for this machine.
 
 `tools/build-deps.sh` fetches the dependencies for ninja and works around
 ninja making directories inside jpm's cache; `test/build-deps.janet` tests
