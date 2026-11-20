@@ -52,10 +52,8 @@
               mksh
             ]
             ++ lib.optional stdenv.hostPlatform.isLinux busybox-only;
-        in
-        {
           # What the test suite and the release build reach for and nothing
-          # else. CI uses this rather than the shell below, whose editor
+          # else. CI uses this rather than the default shell, whose editor
           # tooling is built from source and would be rebuilt on every run.
           ci = pkgs.mkShell {
             packages =
@@ -71,29 +69,33 @@
               ]
               ++ shells;
           };
+          # What treefmt runs, for the format check in CI. Without git,
+          # treefmt also formats the files that .gitignore lists.
+          fmt = pkgs.mkShell {
+            packages = with pkgs; [
+              gitMinimal
+              janet-format
+              just
+              nixfmt
+              prettier
+              ruff
+              treefmt
+              uv
+            ];
+          };
+        in
+        {
+          inherit ci fmt;
 
           default = pkgs.mkShell {
-            packages =
-              with pkgs;
-              [
-                coreutils
-                gitMinimal
-                janet
-                janet-format
-                janet-lsp
-                jp
-                jpm
-                jujutsu
-                just
-                ninja
-                nixfmt
-                prettier
-                ruff
-                treefmt
-                uv
-                zig
-              ]
-              ++ shells;
+            inputsFrom = [
+              ci
+              fmt
+            ];
+            packages = with pkgs; [
+              coreutils
+              janet-lsp
+            ];
 
             # janet-lsp needs spork and the native modules on the module path;
             # see .janet-path/README.md.

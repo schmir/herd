@@ -14,11 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      # Fetch the dev shell's packages in a step of their own, so that the nix
-      # output stays out of the log of the check.
-      - name: Set up the dev shell
-        run: nix develop --command true
+      # The fmt shell rather than the default one, whose editor tooling is
+      # built from source. Fetch its packages in a step of their own, so that
+      # the nix output stays out of the log of the check.
+      - name: Set up the fmt shell
+        run: nix develop .#fmt --command true
       - name: Check formatting
         run: |
-          nix develop --command treefmt
+          nix develop .#fmt --command treefmt
           git diff --exit-code
