@@ -93,7 +93,7 @@ jobs:
       - name: Create the draft release
         run: |
           prerelease=$(uv run python -c 'import os; from packaging.version import Version; print(Version(os.environ["GITHUB_REF_NAME"]).is_prerelease)')
-          flags=(--draft --verify-tag)
+          flags=(--draft --verify-tag --title "$GITHUB_REF_NAME")
           if [[ -s "$RUNNER_TEMP/notes.md" ]]; then
             flags+=(--notes-file "$RUNNER_TEMP/notes.md")
           else
