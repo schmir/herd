@@ -42,7 +42,9 @@ tag.
 
 `pins.jdn` pins Janet and spork to a commit, so every build compiles the
 same sources. `tools/gen-ninja.janet` reads it. To update one, change it
-there; the next build fetches it.
+there; the next build fetches it. Then check that the copyright lines in
+`THIRD-PARTY-NOTICES` still match the `LICENSE` files of the new commits.
+The release archives and the wheels include that file.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
@@ -93,10 +95,10 @@ failed jobs again; the draft job replaces a draft that an earlier run left.
 
 `tools/build-wheels.py` builds the wheels, one for each platform.
 `HERD_VERSION=v0.4.6 just wheels` builds the binaries with `just dist` and
-then the wheels. A wheel holds only the binary. The `pypi` job uses trusted
-publishing, so there is no token. The project on PyPI names this repository,
-the workflow `release.yml` and the GitHub environment `pypi`. The
-environment needs no secrets.
+then the wheels. A wheel holds the binary and the license files. The `pypi`
+job uses trusted publishing, so there is no token. The project on PyPI names
+this repository, the workflow `release.yml` and the GitHub environment
+`pypi`. The environment needs no secrets.
 
 A tag such as `v0.4.6rc1` makes a release candidate. Write it as PEP 440
 does, without a dash, so that the wheel version matches the tag. A tag that

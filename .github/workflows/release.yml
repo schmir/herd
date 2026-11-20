@@ -49,11 +49,13 @@ jobs:
 
       # All binaries have the name `herd`. Use the directory name to identify
       # the platform. The archive name includes the release tag and the
-      # platform. The file in the archive keeps the name `herd`.
+      # platform. The file in the archive keeps the name `herd`, and
+      # THIRD-PARTY-NOTICES goes with it.
       - name: Collect assets
         run: |
           mkdir dist stage
-          # The same binary gives the same archive: the file gets the time of
+          install -m 644 THIRD-PARTY-NOTICES stage/THIRD-PARTY-NOTICES
+          # The same binary gives the same archive: the files get the time of
           # the commit, and gzip -n leaves out the name and time it would
           # otherwise record.
           mtime=$(git log -1 --format=%ct)
@@ -63,7 +65,7 @@ jobs:
             # Set the owner and group IDs to 0. This prevents the archive from
             # containing runner account information.
             tar -cf - --mtime="@$mtime" --owner=0 --group=0 --numeric-owner \
-              -C stage herd | gzip -n >"dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz"
+              -C stage herd THIRD-PARTY-NOTICES | gzip -n >"dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz"
           done
           rm -rf stage
           # Include the tag in the checksum file name. This gives each release

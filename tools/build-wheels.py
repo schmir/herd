@@ -12,7 +12,8 @@ the herd binary in it. The script builds a wheel for each platform in
 PLATFORM_TAGS, and stops when a binary is missing. A platform that PyPI has
 no tag for (the BSDs) is ignored.
 
-The wheels go to dist/wheels/. A wheel holds only the binary, as a script. An
+The wheels go to dist/wheels/. A wheel holds the binary, as a script, and the
+license files: LICENSE and THIRD-PARTY-NOTICES. An
 installer puts a script in the bin directory of the environment, so
 `uv tool install herd-cli` gives the command `herd`. The wheel is not tied to
 a Python version.
@@ -70,6 +71,7 @@ def metadata(version: str) -> str:
         "Description-Content-Type: text/markdown\n"
         "License-Expression: GPL-3.0-only\n"
         "License-File: LICENSE\n"
+        "License-File: THIRD-PARTY-NOTICES\n"
         "Project-URL: Homepage, https://github.com/schmir/herd\n"
         "Project-URL: Changelog, "
         "https://github.com/schmir/herd/blob/main/CHANGELOG.md\n"
@@ -94,6 +96,11 @@ def build_wheel(version: str, platform: str, binary: Path, out_dir: Path) -> Pat
         (f"{dist_info}/METADATA", metadata(version).encode(), 0o644),
         (f"{dist_info}/WHEEL", wheel_meta.encode(), 0o644),
         (f"{dist_info}/licenses/LICENSE", (ROOT / "LICENSE").read_bytes(), 0o644),
+        (
+            f"{dist_info}/licenses/THIRD-PARTY-NOTICES",
+            (ROOT / "THIRD-PARTY-NOTICES").read_bytes(),
+            0o644,
+        ),
     ]
     record = [record_line(name, data) for name, data, _ in files]
     record.append(f"{dist_info}/RECORD,,")
