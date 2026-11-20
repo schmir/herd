@@ -23,7 +23,7 @@
   number without the v the tags start with. Raise when it cannot be a tag, so
   nothing but a tag ever ends up in a URL.``
   [version]
-  (unless (peg/match ~(* (some (+ :w (set "._-"))) -1) version)
+  (unless (peg/match ~(* (some (+ :w (set "._+-"))) -1) version)
     (error (string (describe version) " is not a release version")))
   (if (peg/match ~(* :d) version) (string "v" version) version))
 

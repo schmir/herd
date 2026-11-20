@@ -38,6 +38,8 @@
   (assert (= "v0.3.1" (self-update/release-tag "0.3.1")) "the v is added to a number")
   (assert (= "v1.0.0-rc_1" (self-update/release-tag "1.0.0-rc_1")))
   (assert (= "nightly" (self-update/release-tag "nightly")) "a tag need not be a number")
+  (assert (= "v0.4.7.post2.dev0+3a7ff94" (self-update/release-tag "0.4.7.post2.dev0+3a7ff94"))
+          "a version with a local part, as a build from source has")
   (each bad ["" "../latest" "v1/x" "v1 x" "v1?x" "v1#x"]
     (assert-error (string (describe bad) " is no tag") (self-update/release-tag bad))))
 
