@@ -27,6 +27,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # For the pre-release check below, with the packaging that uv.lock pins.
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       # The binaries the test workflow built and checked, as PLATFORM/herd.
       - uses: actions/download-artifact@v8
         with:
@@ -57,12 +60,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        # A tag with a pre-release suffix, such as v0.4.6rc1, is marked as a
-        # pre-release. GitHub's "latest release" skips those, so self-update
-        # and the releases page keep pointing at the last full release.
+        # A tag that PEP 440 calls a pre-release, such as v0.4.6rc1 or
+        # v0.5.0.dev1, is marked as a pre-release. GitHub's "latest release"
+        # skips those, so self-update and the releases page keep pointing at
+        # the last full release. packaging decides, as it does for uv and pip.
         run: |
+          prerelease=$(uv run python -c 'import os; from packaging.version import Version; print(Version(os.environ["GITHUB_REF_NAME"]).is_prerelease)')
           flags=()
-          if [[ "$GITHUB_REF_NAME" =~ (a|b|rc)[0-9]+$ ]]; then
+          if [[ "$prerelease" == True ]]; then
             flags+=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" --generate-notes "${flags[@]}" dist/*

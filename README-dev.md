@@ -91,9 +91,10 @@ environment needs no secrets.
 A tag such as `v0.4.6rc1` makes a release candidate. Write it as PEP 440
 does, without a dash, so that the wheel version matches the tag. A tag that
 is not a normalized PEP 440 version, such as `v0.4.6-rc1`, stops the release
-before anything is published. The GitHub release is marked as a pre-release,
-so it does not become the latest release, which `herd self-update` installs.
-uv skips pre-releases unless it is told otherwise:
+before anything is published. The GitHub release of a pre-release, which
+includes a development release such as `v0.5.0.dev1`, is marked as one, so
+it does not become the latest release, which `herd self-update` installs. uv
+skips pre-releases unless it is told otherwise:
 `uv tool install --prerelease allow herd-cli`.
 
 `herd self-update` does not replace a herd that `uv tool` installed. It runs
