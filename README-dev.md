@@ -70,9 +70,14 @@ path wherever the host's `janet` runs the sources: for the image, in
 ## Release
 
 Before a release, rename the `Unreleased` heading in `CHANGELOG.md` to the
-new version. Then tag the commit and push the tag, for example `v0.4.6`. The
-`release` workflow runs the tests, builds the binaries for every platform
-and does three things with them, in this order:
+new version, such as `## 0.4.6 - 2026-11-18`. The release stops when the
+version has no section, and the section becomes the release notes. A post
+release, such as `0.4.6.post1`, needs a section of its own. A pre-release
+needs none: it gets the section of the version it leads up to, or the
+`Unreleased` section, or else the notes GitHub generates. Then tag the
+commit and push the tag, for example `v0.4.6`. The `release` workflow runs
+the tests, builds the binaries for every platform and does three things with
+them, in this order:
 
 - It creates the GitHub release as a draft, with an archive for each
   platform. This is where the BSD binaries are published.

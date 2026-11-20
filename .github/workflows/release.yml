@@ -32,9 +32,15 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      # For the pre-release check below, with the packaging that uv.lock pins.
+      # For the release notes and the pre-release check below, with the
+      # packaging that uv.lock pins.
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
+      # First, so that a missing changelog section stops the release at once.
+      # A pre-release needs none, and may get no notes from the changelog:
+      # then GitHub generates them. See tools/release-notes.py.
+      - name: Write the release notes
+        run: uv run python tools/release-notes.py "$GITHUB_REF_NAME" >"$RUNNER_TEMP/notes.md"
       # The binaries the test workflow built and checked, as PLATFORM/herd.
       - uses: actions/download-artifact@v8
         with:
@@ -85,7 +91,12 @@ jobs:
       - name: Create the draft release
         run: |
           prerelease=$(uv run python -c 'import os; from packaging.version import Version; print(Version(os.environ["GITHUB_REF_NAME"]).is_prerelease)')
-          flags=(--draft --verify-tag --generate-notes)
+          flags=(--draft --verify-tag)
+          if [[ -s "$RUNNER_TEMP/notes.md" ]]; then
+            flags+=(--notes-file "$RUNNER_TEMP/notes.md")
+          else
+            flags+=(--generate-notes)
+          fi
           if [[ "$prerelease" == True ]]; then
             flags+=(--prerelease)
           fi
