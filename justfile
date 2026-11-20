@@ -56,12 +56,13 @@ test-cli herd="":
 test-cli-shells herd="":
     #!/usr/bin/env bash
     set -euo pipefail
+    # Build once here and name the binary, so that test-cli does not build
+    # again for each shell, and a build failure is not reported for each.
     herd="{{ herd }}"
     if [[ -z "$herd" ]]; then
         just build
         herd=build/herd
     fi
-    [[ "$herd" == /* ]] || herd="$PWD/$herd"
     bin=$(mktemp -d)
     trap 'rm -rf "$bin"' EXIT
     failed=()
@@ -73,7 +74,7 @@ test-cli-shells herd="":
         rm -f "$bin/sh"
         ln -s "$target" "$bin/sh"
         echo "== sh is $shell ($target)" >&2
-        if ! PATH="$bin:$PATH" HERD="$herd" uv run prysk test/cli/; then
+        if ! PATH="$bin:$PATH" just test-cli "$herd"; then
             failed+=("$shell")
         fi
     done
