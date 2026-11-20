@@ -35,6 +35,17 @@ jobs:
         run: |
           zig=$(nix develop .#ci --command zig version)
           echo "zig=$zig" >> "$GITHUB_OUTPUT"
+      # Janet's boot step and the spork checkout, once per pinned commit. With
+      # them restored, build-janet.sh and fetch-spork.sh find nothing to do.
+      # Both jobs make the same files, so either may save them.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            dist/janet-*
+            deps/spork
+            !deps/spork/spork/*.so
+            deps/spork.commit
+          key: janet-spork-${{ hashFiles('pins.jdn', 'tools/build-janet.sh', 'tools/fetch-spork.sh') }}
       # just test links build/herd with zig, so the zig cache of the build job
       # below helps here too. Only restored: this job links one target, and a
       # cache it saved under the same key would lack the others.
@@ -84,6 +95,17 @@ jobs:
         run: |
           zig=$(nix develop .#ci --command zig version)
           echo "zig=$zig" >> "$GITHUB_OUTPUT"
+      # Janet's boot step and the spork checkout, once per pinned commit. With
+      # them restored, build-janet.sh and fetch-spork.sh find nothing to do.
+      # Both jobs make the same files, so either may save them.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            dist/janet-*
+            deps/spork
+            !deps/spork/spork/*.so
+            deps/spork.commit
+          key: janet-spork-${{ hashFiles('pins.jdn', 'tools/build-janet.sh', 'tools/fetch-spork.sh') }}
       # zig builds libc and compiler-rt for each target the first time it
       # links for it, which is most of the time a cross-compile takes. The
       # targets are in tools/gen-ninja.janet. A change there starts from the
