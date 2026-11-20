@@ -14,9 +14,11 @@ permissions:
   contents: read
 
 env:
-  # A tag build bakes its own tag into the binary. Anything else is not a
-  # release, and says so when asked for its version.
-  HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+  # A tag build bakes its own tag into the binary. Anything else leaves it
+  # empty, and the justfile derives a version from the last tag, such as
+  # v0.4.7.post13.dev0+e6000fe, which says that it is not a release. That
+  # needs the tags, so the jobs that build fetch the whole history, and uvx.
+  HERD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
 
 jobs:
   # The suites in test/ load herd's modules into Janet, so they test the
@@ -25,6 +27,9 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.2.0
       - uses: cachix/install-nix-action@v31
       # The ci shell rather than the default one: the editor tooling in that
       # shell is built from source, and none of it is needed to run the
@@ -87,8 +92,13 @@ jobs:
   # pinned Janet or zig breaks here rather than while a tag is being cut.
   build:
     runs-on: ubuntu-26.04
+    outputs:
+      herd-version: ${{ steps.version.outputs.herd }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.2.0
       - uses: cachix/install-nix-action@v31
       - name: Set up the ci shell
         id: ci
@@ -119,6 +129,10 @@ jobs:
           restore-keys: zig-${{ steps.ci.outputs.zig }}-
       - name: Cross-compile
         run: nix develop .#ci --command just dist
+      # The version the binaries report, for the check job.
+      - name: Record the version
+        id: version
+        run: echo "herd=$(cat build/version)" >> "$GITHUB_OUTPUT"
 
       # One artifact for all platforms. It keeps the layout of dist/, with
       # PLATFORM/herd for each platform. GitHub has no BSD runners, so the
@@ -138,7 +152,8 @@ jobs:
     needs: build
     runs-on: ${{ matrix.runner }}
     env:
-      HERD: ${{ github.workspace }}/bin/${{ matrix.platform }}/herd
+      HERD: ${{ github.workspace }}/dist/${{ matrix.platform }}/herd
+      HERD_VERSION: ${{ needs.build.outputs.herd-version }}
     strategy:
       fail-fast: false
       matrix:
@@ -174,10 +189,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
+      # As dist/PLATFORM/herd, the layout tools/build-wheels.py reads.
       - uses: actions/download-artifact@v8
         with:
           name: binaries
-          path: bin
+          path: dist
 
       - name: Check the binary runs
         run: |
@@ -194,6 +210,14 @@ jobs:
           esac
           # Asking for the version also proves the build baked one in.
           test "$("$HERD" --version)" = "herd $HERD_VERSION"
+
+      # The wheels the release uploads to PyPI. uv installs the one for this
+      # runner, so a wrong platform tag fails here too.
+      - name: Check the wheel for this platform
+        run: |
+          uv run python tools/build-wheels.py
+          out=$(uvx --no-index --find-links dist/wheels --from "herd-cli==${HERD_VERSION#v}" herd --version)
+          test "$out" = "herd $HERD_VERSION"
 
       # The filter tests skip themselves without jp, which the runner lacks.
       - name: Install jp
