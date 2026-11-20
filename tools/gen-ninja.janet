@@ -217,7 +217,8 @@
 (build ["natives"] "phony" [host-modules [spork-stamp]])
 (build ["build/herd.c"] "image"
        [image-inputs
-        ["tools/make-image.janet" "build/version" "dist/janet.checked" spork-stamp
+        ["tools/make-image.janet" "THIRD-PARTY-NOTICES" "build/version" "dist/janet.checked"
+         spork-stamp
          ;host-modules]]
        {"inputs" (string/join image-inputs " ")
         "natives" (string/join (map first modules) " ")})

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `herd --licenses` prints the license of herd and the licenses of the code
+  from Janet, spork and jpm that the binary contains. The release archives
+  and the wheels also hold them, in the file `THIRD-PARTY-NOTICES`.
+
 ## 0.4.7 - 2026-11-19
 
 - `herd --version` now says "(managed by uv)" when uv installed the herd.

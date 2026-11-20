@@ -78,7 +78,9 @@
                   "file, in place of HERD_CONFIG.")
     :summary "Read the configuration from PATH."}
    {:name "version" :short "V" :kind :flag
-    :help "Show the version and exit."}])
+    :help "Show the version and exit."}
+   {:name "licenses" :kind :flag
+    :help "Show the licenses of herd and of the code it contains, and exit."}])
 
 (defn for-command
   ``The options `command` takes, in the order its help lists them. A command

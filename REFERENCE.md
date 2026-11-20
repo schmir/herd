@@ -12,6 +12,7 @@ Top-level options:
 ```text
 -c, --config PATH   Read this configuration directory or settings file.
 -V, --version       Print the build version.
+--licenses          Print the licenses of herd and of the code it contains.
 -h, --help          Show help.
 ```
 
@@ -226,8 +227,9 @@ named `config.jdn`; it uses Janet data notation. The file contains data
 only. herd does not run it as code.
 
 Use `--version` or `-V` as the first argument to show the version before
-herd reads the configuration. Other commands read the configuration before
-they show help. An invalid configuration can therefore make `--help` fail.
+herd reads the configuration. `--licenses` as the first argument works the
+same way. Other commands read the configuration before they show help. An
+invalid configuration can therefore make `--help` fail.
 
 A missing configuration directory, or one that contains no repository lists,
 is normal for `clone`, `run`, custom commands, and plain `list`: herd prints

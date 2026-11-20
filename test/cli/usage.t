@@ -8,6 +8,16 @@ not stop it.
   $ echo '[' >"$CONFIG/broken.json"
   $ herd --version
   herd \S+ (re)
+
+--licenses does too. The binary carries the notices, as herd self-update
+installs nothing but the binary.
+
+  $ (cd / && herd --licenses) | sed -n '1p;/^Third-party/p;/Copyright/p'
+  herd is licensed under the GNU General Public License, version 3 only
+  Third-party notices for the herd binary
+    Copyright (c) 2026 Calvin Rose and contributors
+    Copyright (c) 2022 Calvin Rose and contributors
+    Copyright (c) 2022 Calvin Rose and contributors
   $ rm "$CONFIG/broken.json"
 
 --help shows how herd was invoked and lists the built-in commands.

@@ -28,7 +28,7 @@
 (defn test-top-level-options
   "Bare herd takes help, config and version."
   []
-  (assert (deep= @["help" "config" "version"]
+  (assert (deep= @["help" "config" "version" "licenses"]
                  (map (fn [option] (option :name)) options/top-level))))
 
 (defn test-options-are-well-formed

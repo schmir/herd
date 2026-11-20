@@ -1,6 +1,7 @@
 # The herd command line: argument parsing and the subcommands.
 
 (import spork/argparse)
+(import spork/path)
 (import ./arguments)
 (import ./checkout)
 (import ./clone)
@@ -30,6 +31,18 @@
 (def version
   "Version this build was compiled for."
   (baked-version))
+
+(defmacro- baked-notices
+  ``THIRD-PARTY-NOTICES, read while this file is compiled, so that the binary
+  carries it wherever it is copied. herd self-update keeps only the binary.``
+  []
+  (slurp (string (path/dirname (dyn :current-file)) "/../THIRD-PARTY-NOTICES")))
+
+(def licenses
+  "What herd --licenses prints: herd's own license, then the notices."
+  (string "herd is licensed under the GNU General Public License, version 3 only\n"
+          "(GPL-3.0-only). Its source code is at https://github.com/schmir/herd.\n\n"
+          (baked-notices)))
 
 (defn- argparse-option
   "The argparse specification of the declared `option`, with its default from `defaults`."
@@ -635,6 +648,10 @@
       (try (self-update/uv-tool-install? (self-update/own-executable (dyn :executable)))
         ([_] false)))
     (print "herd " version (if managed-by-uv " (managed by uv)" ""))
+    (os/exit 0))
+  # Likewise. Only the first argument asks, as for the version.
+  (when (= "--licenses" (get args 1))
+    (prin licenses)
     (os/exit 0))
   # Likewise, so that a broken configuration cannot stop herd from updating
   # itself. It reads no settings, so it needs none; only a command name
