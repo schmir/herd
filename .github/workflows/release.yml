@@ -47,13 +47,17 @@ jobs:
       - name: Collect assets
         run: |
           mkdir dist stage
+          # The same binary gives the same archive: the file gets the time of
+          # the commit, and gzip -n leaves out the name and time it would
+          # otherwise record.
+          mtime=$(git log -1 --format=%ct)
           for dir in artifacts/*/; do
             platform="$(basename "$dir")"
             install -m 755 "$dir/herd" stage/herd
             # Set the owner and group IDs to 0. This prevents the archive from
             # containing runner account information.
-            tar -czf "dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz" \
-              --owner=0 --group=0 --numeric-owner -C stage herd
+            tar -cf - --mtime="@$mtime" --owner=0 --group=0 --numeric-owner \
+              -C stage herd | gzip -n >"dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz"
           done
           rm -rf stage
           # Include the tag in the checksum file name. This gives each release
