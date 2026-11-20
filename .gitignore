@@ -1,6 +1,6 @@
 /build/
 /dist/
-/jpm_tree/
+/deps/
 /test/cli/*.t.err
 /build.ninja
 /.ninja_log
@@ -8,3 +8,4 @@
 /.ninja_lock
 /.venv
 *.egg-info
+*.so

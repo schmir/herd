@@ -12,12 +12,11 @@ just install
 `just install` compiles the binary a release would ship for this machine and
 installs it as `~/.local/bin/herd`.
 
-Without Nix, install [Janet](https://janet-lang.org/),
-[JPM](https://github.com/janet-lang/jpm), `just`,
-[ninja](https://ninja-build.org/), and `jj`, then run `just build` and copy
-`build/herd` onto your `PATH`. `just install` and `just dist` also need
-[Zig](https://ziglang.org/): they compile with `zig cc`, against a Janet
-they build from source, which takes `git`, `make` and a C compiler as well.
+Without Nix, install [Janet](https://janet-lang.org/), `just`,
+[ninja](https://ninja-build.org/), [Zig](https://ziglang.org/), `git`,
+`make`, a C compiler and `jj`, then run `just install`. The build compiles
+with `zig cc`, against a Janet it builds from source. The Janet you install
+must be the release that `pins.jdn` names.
 
 ## Test
 
@@ -41,14 +40,14 @@ default adds a `v`, as in `v0.4.6.post2+gb3ae314`, so that a build of a tag
 reports the tag, which `herd self-update` expects. Release builds pass their
 tag.
 
-`pins.jdn` pins Janet and every JPM dependency to a commit, so every build
-compiles the same sources. `project.janet` and `tools/gen-ninja.janet` both
-read it. To update one, change it there and run `just deps`.
+`pins.jdn` pins Janet and spork to a commit, so every build compiles the
+same sources. `tools/gen-ninja.janet` reads it. To update one, change it
+there; the next build fetches it.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build
-artifacts and locally installed JPM dependencies are stored in `build/` and
-`jpm_tree/`. `just dist` compiles the release binaries for every platform
+artifacts are stored in `build/` and `dist/`, and the spork checkout in
+`deps/spork`. `just dist` compiles the release binaries for every platform
 with `zig cc` into `dist/`, and `just install` installs the one for this
 machine.
 
@@ -58,11 +57,15 @@ file is added or removed. ninja compiles the platforms in parallel and only
 recompiles what changed: after an edit to a Janet file, `janet.c` and the
 native modules are not compiled again. It also notices when the version
 changes. `just dist macos-arm64` builds one platform. `just build` builds
-only `build/herd`, for this machine.
+only `build/herd`, a copy of the binary for this machine.
 
-`tools/build-deps.sh` fetches the dependencies for ninja and works around
-ninja making directories inside jpm's cache; `test/build-deps.janet` tests
-it with a stub `jpm`.
+`tools/make-image.janet` runs `src/main.janet` with the host's `janet` and
+writes the marshaled image, with a C `main` that runs it, into
+`build/herd.c`. The native modules are compiled for the host too, so that
+the host's `janet` can load them: `access` and `terminal` into `lib/`,
+spork's beside its sources, which `lib/spork` links to. `lib/` is the module
+path wherever the host's `janet` runs the sources: for the image, in
+`just run`, `just repl` and `just test`, and in the devshell for the editor.
 
 ## Release
 

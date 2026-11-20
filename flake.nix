@@ -59,9 +59,9 @@
             packages =
               with pkgs;
               [
+                gitMinimal
                 janet
                 jp
-                jpm
                 jujutsu
                 just
                 ninja
@@ -98,14 +98,14 @@
             ];
 
             # janet-lsp needs spork and the native modules on the module path;
-            # see .janet-path/README.md.
+            # see lib/README.md. pins.jdn marks the root of the project.
             shellHook = ''
               root="$PWD"
-              while [ ! -d "$root/.janet-path" ] && [ -n "$root" ]; do
+              while [ ! -f "$root/pins.jdn" ] && [ -n "$root" ]; do
                 root="''${root%/*}"
               done
               [ -n "$root" ] || root="$PWD"
-              export JANET_PATH="$root/.janet-path"
+              export JANET_PATH="$root/lib"
               unset root
             '';
           };

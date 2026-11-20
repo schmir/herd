@@ -1,8 +1,8 @@
 # Running an operation on each repository in parallel, with progress.
 
 (import spork/rawterm)
-# By bare name, not `./terminal`: jpm puts the build directory on the native
-# module path only for names that are neither relative nor absolute.
+# By bare name, not `./terminal`: the module is found on the module path, in
+# lib/, not beside this file.
 (import terminal)
 
 (def default-jobs
@@ -185,12 +185,12 @@
 
 (defn- watch-for-interrupt
   ``Take over SIGINT for the duration of a run, so an interrupt winds the run
-  down rather than being ignored: a standalone binary built by jpm installs
-  none of the handling the interpreter does, and removing a handler again
-  leaves the signal ignored rather than restoring the default. During a run
-  the first interrupt stops it claiming repositories; asked a second time, or
-  asked once the run is over, there is nothing left to wind down and this
-  exits.``
+  down rather than being ignored: a standalone binary built by
+  tools/make-image.janet installs none of the handling the interpreter does,
+  and removing a handler again leaves the signal ignored rather than restoring
+  the default. During a run the first interrupt stops it claiming
+  repositories; asked a second time, or asked once the run is over, there is
+  nothing left to wind down and this exits.``
   [progress]
   (os/sigaction :int
                 (fn []

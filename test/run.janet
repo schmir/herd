@@ -424,7 +424,7 @@
                     "before 40 processes, " after " after"))))
 
 # An interrupt has to reach the built binary, not just the interpreter: the
-# standalone jpm builds installs none of the interpreter's signal handling,
+# standalone binary installs none of the interpreter's signal handling,
 # which is how SIGINT came to be ignored outright.
 (let [dir (fixture)
       config (string dir "/repos.json")

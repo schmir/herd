@@ -8,30 +8,36 @@ export HERD_VERSION
 default:
     @just --list
 
-# Install the dependencies project.janet pins in the local JPM tree.
-deps:
-    jpm --local deps
-
-# Janet looks for a native module by bare name on the module path, and jpm
-# adds build/ to it only for the builds and test runs it drives itself. These
-# two recipes run the interpreter directly, so they say where to look, and
-# they build first so there is something there to find.
-native_path := '(array/insert module/paths 1 ["build/:all:.so" :native])'
+# The janet that runs the sources, with lib/ as its module path; see
+# lib/README.md. The recipes that use it build the natives target first, so
+# that what lib/ links to is there.
+janet := "JANET_PATH=lib janet"
 
 # Run the program.
-run *args: build
-    jpm --local janet -e '{{ native_path }}' -- src/main.janet {{ args }}
+run *args: (dist "natives")
+    {{ janet }} -- src/main.janet {{ args }}
 
 # Start a REPL inside a source file, private bindings included.
-repl file="src/main.janet": build
-    jpm --local janet -e '{{ native_path }}' -e '(repl nil nil (dofile "{{ file }}"))'
+repl file="src/main.janet": (dist "natives")
+    {{ janet }} -e '(repl nil nil (dofile "{{ file }}"))'
 
 [doc('Build the standalone executable in build/.')]
 build: (dist "host")
 
-# Run the test suite in test/.
-test: deps
-    jpm --local test
+# Run the test suite in test/. Some tests run build/herd.
+test: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    failed=()
+    for file in test/*.janet; do
+        echo "running $file ..."
+        {{ janet }} "$file" || failed+=("$file")
+    done
+    if (( ${#failed[@]} )); then
+        echo "failing test scripts: ${failed[*]}" >&2
+        exit 1
+    fi
+    echo "All test scripts passed."
 
 # Name a release binary to test what ships.
 [doc('Run the command-line tests in test/cli/ against build/herd or the binary named.')]
@@ -85,11 +91,11 @@ test-cli-shells herd="":
 
 # The server evaluates a file and its imports to find definitions, so a module
 # path that misses spork or the native access and terminal modules makes every
-# lookup answer null. See .janet-path/README.md. Needs the devshell for janet-lsp and the
-# JANET_PATH it relies on.
+# lookup answer null. See lib/README.md. Needs the devshell for janet-lsp and
+# the JANET_PATH it relies on.
 [doc('Check that janet-lsp finds a definition in config.janet.')]
 [extension('.py')]
-check-lsp: build
+check-lsp: (dist "natives")
     #!/usr/bin/env -S uv run --script
     # /// script
     # dependencies = ["pytest"]
@@ -173,8 +179,8 @@ ci: && test test-cli
 # The platforms are linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64,
 # openbsd-arm64, openbsd-amd64, freebsd-arm64 and freebsd-amd64.
 #
-# jpm's own build runs src/main.janet with the host janet and writes the
-# marshaled image into build/herd.c. That step has to run here, since it loads
+# tools/make-image.janet runs src/main.janet with the host janet and writes
+# the marshaled image into build/herd.c. That step has to run here, since it loads
 # native modules, but what it writes is portable C. Only the final compile needs
 # the target, and that is plain C: herd.c, the amalgamated janet.c, and every
 # native module the image registers, built in statically.
@@ -225,5 +231,5 @@ flake-update-diff:
 
 # Remove build artifacts.
 clean:
-    rm -rf build dist jpm_tree build.ninja .ninja_log .ninja_deps src/*.egg-info .venv .ruff_cache
+    rm -rf build deps dist lib/*.so build.ninja .ninja_log .ninja_deps src/*.egg-info .venv .ruff_cache
     find . -name .git -prune -o -name .jj -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +

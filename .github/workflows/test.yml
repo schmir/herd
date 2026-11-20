@@ -70,10 +70,10 @@ jobs:
           chmod +x bin/linux-x86_64/herd
           nix develop .#ci --command just test-cli-shells bin/linux-x86_64/herd
 
-  # One job builds every platform: zig cc cross-compiles the image jpm writes
-  # into build/herd.c, so no build has to run on the machine it targets.
-  # Running on every push means a change to jpm, spork, the pinned Janet or
-  # zig breaks here rather than while a tag is being cut.
+  # One job builds every platform: zig cc cross-compiles the image
+  # tools/make-image.janet writes into build/herd.c, so no build has to run on
+  # the machine it targets. Running on every push means a change to spork, the
+  # pinned Janet or zig breaks here rather than while a tag is being cut.
   build:
     runs-on: ubuntu-26.04
     steps:

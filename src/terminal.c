@@ -6,7 +6,7 @@
  * draws on, stdout for results and stderr for progress, and needs to know
  * when there is none.
  */
-/* fileno is POSIX, which jpm's -std=c99 hides on Linux unless asked for. */
+/* fileno is POSIX. A strict C mode, such as -std=c99, hides it unless asked for. */
 #define _POSIX_C_SOURCE 200809L
 
 #include <janet.h>

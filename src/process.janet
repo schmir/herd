@@ -1,7 +1,7 @@
 # Running a subprocess and collecting what it did.
 
-# By bare name, not `./access`: jpm puts the build directory on the native
-# module path only for names that are neither relative nor absolute.
+# By bare name, not `./access`: the module is found on the module path, in
+# lib/, not beside this file.
 (import access)
 
 (defn find-executable

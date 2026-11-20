@@ -3,6 +3,7 @@
 #   janet tools/gen-ninja.janet && ninja            # all platforms
 #   janet tools/gen-ninja.janet && ninja macos-arm64
 #   ninja host                                      # build/herd for this machine
+#   ninja natives                                   # what janet needs to run src/
 #
 # ninja needs HERD_VERSION in the environment, and the build stops without
 # it. just sets it, so use HERD_VERSION=v0.4.6 ninja host when you run ninja
@@ -15,14 +16,18 @@
 #
 # The steps:
 #
-#   1. jpm fetches the dependencies, then runs src/main.janet on the host and
-#      writes the marshaled image to build/herd.c. jpm decides what is out of
-#      date by itself and gets it wrong, so ninja removes its outputs whenever
-#      any input changed, and when the version HERD_VERSION names changed.
-#   2. janet.c comes from Janet's own boot step, built once per pinned commit.
-#   3. Each platform compiles janet.c, the image and every native module with
+#   1. spork is checked out into deps/spork, and janet.c comes from Janet's
+#      own boot step, each once per pinned commit.
+#   2. The native modules are compiled for the host, so that the host's janet
+#      can load them: herd's into lib/, spork's beside spork's sources.
+#   3. tools/make-image.janet runs src/main.janet on the host and writes the
+#      marshaled image to build/herd.c.
+#   4. Each platform compiles janet.c, the image and every native module with
 #      zig cc, and links them. A platform recompiles only what changed, and
-#      ninja runs the platforms in parallel.
+#      ninja runs the platforms in parallel. build/herd is a copy of the binary
+#      for this machine.
+
+(import ./make-image)
 
 (def platforms
   # name, zig target
@@ -34,6 +39,23 @@
    ["openbsd-amd64" "x86_64-openbsd.7.8"]
    ["freebsd-arm64" "aarch64-freebsd.14.0"]
    ["freebsd-amd64" "x86_64-freebsd.14.0"]])
+
+# The platform of this machine, as os/which and os/arch name it, or nil when
+# no release is built for it.
+(def host-platform
+  (case [(os/which) (os/arch)]
+    [:linux :x64] "linux-x86_64"
+    [:linux :aarch64] "linux-aarch64"
+    [:linux :arm64] "linux-aarch64"
+    [:macos :aarch64] "macos-arm64"
+    [:macos :arm64] "macos-arm64"
+    [:macos :x64] "macos-x86_64"
+    [:openbsd :x64] "openbsd-amd64"
+    [:openbsd :aarch64] "openbsd-arm64"
+    [:openbsd :arm64] "openbsd-arm64"
+    [:freebsd :x64] "freebsd-amd64"
+    [:freebsd :aarch64] "freebsd-arm64"
+    [:freebsd :arm64] "freebsd-arm64"))
 
 (def program "herd")
 
@@ -55,23 +77,32 @@
 (def janet-c (string janet-dir "/build/c/janet.c"))
 (def janet-h (string janet-dir "/build/janet.h"))
 
-# jpm keeps the cache of every spork commit it has fetched.
-(def spork-dir
-  (string "jpm_tree/lib/.cache/git_" spork-commit "_https___github.com_janet-lang_spork.git"))
+# The spork checkout. lib/spork links to the modules in it.
+(def spork-dir "deps/spork")
+(def spork-stamp (string spork-dir ".commit"))
 
-# Native modules the image registers: source and the entry name jpm gives it.
-# A module loaded as a .so exports janet_module_entry, but linked into one
-# binary they would clash, so each is compiled with JANET_ENTRY_NAME set to a
-# name of its own. jpm makes it from the module name: it prefixes
-# janet_module_entry_ and writes any byte that is not a letter, digit or _ as
-# _<decimal code>_, so spork/crc, with / being 47, becomes
-# janet_module_entry_spork_47_crc.
+# The native modules src/main.janet loads, by import name, with their sources.
+# Linked into one binary, their entry functions would clash, so each is
+# compiled with JANET_ENTRY_NAME set to the name make-image/entry-name gives.
 (def modules
-  [["src/access.c" "janet_module_entry_access"]
-   ["src/terminal.c" "janet_module_entry_terminal"]
-   [(string spork-dir "/src/crc.c") "janet_module_entry_spork_47_crc"]
-   [(string spork-dir "/src/json.c") "janet_module_entry_spork_47_json"]
-   [(string spork-dir "/src/rawterm.c") "janet_module_entry_spork_47_rawterm"]])
+  [["access" "src/access.c"]
+   ["terminal" "src/terminal.c"]
+   ["spork/crc" (string spork-dir "/src/crc.c")]
+   ["spork/json" (string spork-dir "/src/json.c")]
+   ["spork/rawterm" (string spork-dir "/src/rawterm.c")]])
+
+(def spork-sources
+  (seq [[name source] :in modules :when (string/has-prefix? "spork/" name)] source))
+
+(defn- host-module
+  ``Where the host's native module `name` goes: beside spork's sources for
+  spork's, which lib/spork links to, and in lib/ for herd's.``
+  [name]
+  (if (string/has-prefix? "spork/" name)
+    (string spork-dir "/" name ".so")
+    (string "lib/" name ".so")))
+
+(def host-modules (map (fn [[name _]] (host-module name)) modules))
 
 (defn files-in
   "Paths of the files directly in `dir` whose names end with one of `suffixes`."
@@ -82,8 +113,8 @@
       (array/push found (string dir "/" name))))
   found)
 
-# Everything jpm reads to build the image.
-(def jpm-inputs [;(files-in "src" [".janet" ".c"]) "project.janet" "pins.jdn"])
+# The program the image is made from.
+(def image-inputs (files-in "src" [".janet"]))
 
 (def out @"")
 
@@ -115,39 +146,48 @@
 (emit "  description = version")
 (emit "  restat = 1")
 (emit)
-# The outputs are inside jpm's cache of the spork checkout, and ninja makes
-# their directories before the step runs, which misleads jpm. The script clears
-# that up first; see tools/build-deps.sh, and test/build-deps.janet.
-(emit "rule deps")
-(emit "  command = bash tools/build-deps.sh $checkout")
-(emit "  description = jpm deps")
+(emit "rule spork")
+(emit "  command = bash tools/fetch-spork.sh $dir $commit")
+(emit "  description = fetching spork $commit")
 (emit "  restat = 1")
+(emit)
+# A module is loaded by the host's janet, which resolves the Janet functions
+# it calls; macOS has to be told to leave them for then.
+(emit "rule so")
+(emit "  command = cc -shared -fPIC -O2 -I" janet-dir "/build"
+      (if (= :macos (os/which)) " -undefined dynamic_lookup" "")
+      " -MD -MF $out.d -o $out $in")
+(emit "  description = so $out")
+(emit "  depfile = $out.d")
+(emit "  deps = gcc")
 (emit)
 # The list of inputs is part of the command, as the argument of the no-op
 # built-in `:`. ninja only sees an input become newer, never one disappear, and
 # runs a step again when its command changes. Without this, deleting or renaming a
-# source file would leave the old binary in place.
-# The final check makes sure that the binary reports the version. The check
-# job in .github/workflows/test.yml does the same for each release binary.
-(emit "rule jpm")
-(emit "  command = : $inputs && rm -f build/herd build/herd.c build/*.o && export HERD_VERSION=\"$$(cat build/version)\" && jpm --local build && test \"$$(build/herd --version)\" = \"herd $$HERD_VERSION\"")
-(emit "  description = jpm build")
+# source file would leave the old image in place.
+(emit "rule image")
+(emit "  command = : $inputs && HERD_VERSION=\"$$(cat build/version)\" JANET_PATH=lib"
+      " janet tools/make-image.janet src/main.janet $out $natives")
+(emit "  description = image $out")
 (emit)
 (emit "rule janet-src")
 (emit "  command = bash tools/build-janet.sh $dir $commit")
 (emit "  description = building janet.c from $commit")
 (emit)
-# The image is marshaled by the host's Janet and unmarshaled by the pinned one,
-# so the two must be the same release.
-(emit "rule check-janet")
-(emit "  command = test \"$$(jpm --local janet -e '(print janet/version)')\" = \"$$(sed -n 's/^#define JANET_VERSION \"\\(.*\\)\"$$/\\1/p' $dir/src/conf/janetconf.h)\" && touch $out")
-(emit "  description = checking that the host Janet is the pinned release")
+# The janet on PATH: its path, release and build. Like build/version, the file
+# is rewritten only when that changes, so that the check below runs again
+# when another janet comes first on PATH, and only then.
+(emit "rule janet-host")
+(emit "  command = mkdir -p build && v=\"$$(command -v janet) $$(janet -e '(print janet/version \" \" janet/build)')\" && { [ \"$$(cat $out 2>/dev/null)\" = \"$$v\" ] || printf '%s\\n' \"$$v\" > $out; }")
+(emit "  description = janet on PATH")
+(emit "  restat = 1")
 (emit)
-# A module the image registers and the list lacks would fail to link, but one
-# the list has and the image lacks would link silently, so compare both ways.
-(emit "rule check-modules")
-(emit "  command = test \"$$(grep -o 'janet_module_entry_[a-z0-9_]*(temptab)' $in | sed 's/(temptab)//' | sort)\" = \"$$(printf '%s\\n' $listed | sort)\" && touch $out")
-(emit "  description = checking the native modules of $in")
+# The image is marshaled by the host's Janet and unmarshaled by the pinned one,
+# and the host's janet loads modules compiled against the pinned janet.h, so
+# the two must be the same release.
+(emit "rule check-janet")
+(emit "  command = test \"$$(janet -e '(print janet/version)')\" = \"$$(sed -n 's/^#define JANET_VERSION \"\\(.*\\)\"$$/\\1/p' $dir/src/conf/janetconf.h)\" && touch $out")
+(emit "  description = checking that the host Janet is the pinned release")
 (emit)
 (emit "rule cc")
 (emit "  command = zig cc -target $target -O2 -I" janet-dir "/build $flags -MD -MF $out.d -c $in -o $out")
@@ -159,29 +199,37 @@
 (emit "  command = zig cc -target $target -s -o $out $in -lm -lpthread")
 (emit "  description = link $out")
 (emit)
+# The check makes sure that the binary reports the version. The check job in
+# .github/workflows/test.yml does the same for each release binary.
+(emit "rule host")
+(emit "  command = cp $in $out && test \"$$($out --version)\" = \"herd $$(cat build/version)\"")
+(emit "  description = host $out")
+(emit)
 
 # Run again when a file is added or removed in these directories.
 (build ["build.ninja"] "regen"
-       [[] ["tools/gen-ninja.janet" "pins.jdn" "project.janet" "src"]])
+       [[] ["tools/gen-ninja.janet" "tools/make-image.janet" "pins.jdn" "src"]])
 (emit)
 
 # Never exists, so whatever depends on it is always out of date.
 (build ["FORCE"] "phony" [[]])
 (build ["build/version"] "version" [["FORCE"]])
-(build (map (fn [[source _]] source) (slice modules 2)) "deps"
-       [["project.janet" "pins.jdn"] ["tools/build-deps.sh"]]
-       {"checkout" spork-dir})
-(build ["build/herd" "build/herd.c"] "jpm"
-       [jpm-inputs
-        ["build/version" ;(map (fn [[source _]] source) (slice modules 2))]]
-       {"inputs" (string/join jpm-inputs " ")})
-(build ["host"] "phony" [["build/herd"]])
+(build [spork-stamp ;spork-sources] "spork" [[] ["tools/fetch-spork.sh"]]
+       {"dir" spork-dir "commit" spork-commit})
+(build [janet-c janet-h] "janet-src" [[]] {"dir" janet-dir "commit" janet-commit})
+(build ["build/janet-host"] "janet-host" [["FORCE"]])
+(build ["dist/janet.checked"] "check-janet" [[] [janet-c "build/janet-host"]] {"dir" janet-dir})
 (emit)
 
-(build [janet-c janet-h] "janet-src" [[]] {"dir" janet-dir "commit" janet-commit})
-(build ["dist/janet.checked"] "check-janet" [[] [janet-c]] {"dir" janet-dir})
-(build ["dist/modules.checked"] "check-modules" [["build/herd.c"]]
-       {"listed" (string/join (map (fn [[_ entry]] entry) modules) " ")})
+(each [name source] modules
+  (build [(host-module name)] "so" [[source] [janet-h] ["dist/janet.checked"]]))
+(build ["natives"] "phony" [host-modules [spork-stamp]])
+(build ["build/herd.c"] "image"
+       [image-inputs
+        ["tools/make-image.janet" "build/version" "dist/janet.checked" spork-stamp
+         ;host-modules]]
+       {"inputs" (string/join image-inputs " ")
+        "natives" (string/join (map first modules) " ")})
 (emit)
 
 (defn- stem [path] (string/slice path (+ 1 (last (string/find-all "/" path))) -3))
@@ -197,13 +245,18 @@
     (build [object] "cc" [[source] [janet-h]] (merge vars {"flags" (or flags "")})))
   (compile janet-c "janet")
   (compile (string "build/" program ".c") program)
-  (each [source entry] modules
-    (compile source (stem source) (string "-DJANET_ENTRY_NAME=" entry)))
+  (each [name source] modules
+    (compile source (stem source)
+             (string "-DJANET_ENTRY_NAME=" (make-image/entry-name name))))
   (def exe (string "dist/" platform "/" program))
-  (build [exe] "link" [objs ["dist/janet.checked" "dist/modules.checked"]] vars)
+  (build [exe] "link" [objs ["dist/janet.checked"]] vars)
   (build [platform] "phony" [[exe]])
   (array/push all platform)
   (emit))
+
+(when host-platform
+  (build ["build/herd"] "host" [[(string "dist/" host-platform "/" program)] ["build/version"]])
+  (build ["host"] "phony" [["build/herd"]]))
 
 (build ["all"] "phony" [all])
 (emit "default all")
