@@ -28,6 +28,7 @@
 #      for this machine.
 
 (import ./make-image)
+(import ../src/platform)
 
 (def platforms
   # name, zig target
@@ -40,22 +41,8 @@
    ["freebsd-arm64" "aarch64-freebsd.14.0"]
    ["freebsd-amd64" "x86_64-freebsd.14.0"]])
 
-# The platform of this machine, as os/which and os/arch name it, or nil when
-# no release is built for it.
-(def host-platform
-  (case [(os/which) (os/arch)]
-    [:linux :x64] "linux-x86_64"
-    [:linux :aarch64] "linux-aarch64"
-    [:linux :arm64] "linux-aarch64"
-    [:macos :aarch64] "macos-arm64"
-    [:macos :arm64] "macos-arm64"
-    [:macos :x64] "macos-x86_64"
-    [:openbsd :x64] "openbsd-amd64"
-    [:openbsd :aarch64] "openbsd-arm64"
-    [:openbsd :arm64] "openbsd-arm64"
-    [:freebsd :x64] "freebsd-amd64"
-    [:freebsd :aarch64] "freebsd-arm64"
-    [:freebsd :arm64] "freebsd-arm64"))
+# The platform of this machine, or nil when no release is built for it.
+(def host-platform (platform/name (os/which) (os/arch)))
 
 (def program "herd")
 
@@ -205,10 +192,14 @@
 (emit "  command = cp $in $out && test \"$$($out --version)\" = \"herd $$(cat build/version)\"")
 (emit "  description = host $out")
 (emit)
+(emit "rule no-host")
+(emit "  command = echo 'no release binary is built for " (os/which) "-" (os/arch) "' >&2 && false")
+(emit "  description = host")
+(emit)
 
 # Run again when a file is added or removed in these directories.
 (build ["build.ninja"] "regen"
-       [[] ["tools/gen-ninja.janet" "tools/make-image.janet" "pins.jdn" "src"]])
+       [[] ["tools/gen-ninja.janet" "tools/make-image.janet" "pins.jdn" "src" "src/platform.janet"]])
 (emit)
 
 # Never exists, so whatever depends on it is always out of date.
@@ -254,9 +245,12 @@
   (array/push all platform)
   (emit))
 
-(when host-platform
-  (build ["build/herd"] "host" [[(string "dist/" host-platform "/" program)] ["build/version"]])
-  (build ["host"] "phony" [["build/herd"]]))
+(if host-platform
+  (do
+    (build ["build/herd"] "host" [[(string "dist/" host-platform "/" program)] ["build/version"]])
+    (build ["host"] "phony" [["build/herd"]]))
+  # Without this, ninja would only say that host is an unknown target.
+  (build ["host"] "no-host" [[]]))
 
 (build ["all"] "phony" [all])
 (emit "default all")

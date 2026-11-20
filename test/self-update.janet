@@ -6,24 +6,6 @@
 
 (start-suite "self-update")
 
-(defn test-platform-names
-  "Every built platform has the name its release archive carries, and others none."
-  []
-  (assert (= "linux-x86_64" (self-update/platform :linux :x64)))
-  (assert (= "linux-aarch64" (self-update/platform :linux :aarch64)))
-  (assert (= "macos-arm64" (self-update/platform :macos :aarch64)))
-  (assert (= "macos-arm64" (self-update/platform :macos :arm64)))
-  (assert (= "macos-x86_64" (self-update/platform :macos :x64)))
-  (assert (= "openbsd-amd64" (self-update/platform :openbsd :x64)))
-  (assert (= "openbsd-arm64" (self-update/platform :openbsd :aarch64)))
-  (assert (= "openbsd-arm64" (self-update/platform :openbsd :arm64)))
-  (assert (= "freebsd-amd64" (self-update/platform :freebsd :x64)))
-  (assert (= "freebsd-arm64" (self-update/platform :freebsd :aarch64)))
-  (assert (= "freebsd-arm64" (self-update/platform :freebsd :arm64)))
-  (assert (nil? (self-update/platform :netbsd :x64)))
-  (assert (nil? (self-update/platform :windows :x64)))
-  (assert (nil? (self-update/platform :linux :riscv64))))
-
 (defn test-asset-names
   "The archive and the checksum file are named as the release workflow names them."
   []
@@ -259,7 +241,6 @@
   (assert (= "" (self-update/failure-hint (failed 403) "https://mirror.example/latest" nil))
           "a mirror's refusal says nothing about GitHub"))
 
-(test-platform-names)
 (test-asset-names)
 (test-release-tag)
 (test-release-url)

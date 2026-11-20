@@ -6,6 +6,7 @@
 (import spork/json)
 (import spork/path)
 (import spork/sh)
+(import ./platform)
 (import ./process)
 
 (def default-releases-url
@@ -34,25 +35,6 @@
   (if tag
     (string base "/tags/" tag)
     (string base "/latest")))
-
-(defn platform
-  ``The release platform name for `os` and `arch`, as os/which and os/arch
-  name them, or nil when no release is built for it. The names are those
-  tools/gen-ninja.janet builds.``
-  [os arch]
-  (case [os arch]
-    [:linux :x64] "linux-x86_64"
-    [:linux :aarch64] "linux-aarch64"
-    [:linux :arm64] "linux-aarch64"
-    [:macos :aarch64] "macos-arm64"
-    [:macos :arm64] "macos-arm64"
-    [:macos :x64] "macos-x86_64"
-    [:openbsd :x64] "openbsd-amd64"
-    [:openbsd :aarch64] "openbsd-arm64"
-    [:openbsd :arm64] "openbsd-arm64"
-    [:freebsd :x64] "freebsd-amd64"
-    [:freebsd :aarch64] "freebsd-arm64"
-    [:freebsd :arm64] "freebsd-arm64"))
 
 (defn archive-name
   "The name of the archive release `tag` ships for `platform`."
@@ -249,7 +231,7 @@
   [current-version executable version report]
   (def requested (when version (release-tag version)))
   (def platform-name
-    (or (platform (os/which) (os/arch))
+    (or (platform/name (os/which) (os/arch))
         (error (string "there is no release binary for "
                        (os/which) "-" (os/arch)))))
   (def url (release-url (releases-url) requested))
