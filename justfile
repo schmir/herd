@@ -198,24 +198,16 @@ wheels:
     "{{ just_executable() }}" --justfile "{{ justfile() }}" dist
     uv run python tools/build-wheels.py
 
+# The release platform name of this machine. Only macOS on ARM64 has a name
+# that differs from what just calls it. On a platform that has no release,
+# ninja fails with an unknown target.
+host_platform := replace(os() + "-" + arch(), "macos-aarch64", "macos-arm64")
+
 # Install the release binary for the host platform, as just dist builds it.
-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{ os() }}-{{ arch() }}" in
-        linux-x86_64) platform=linux-x86_64 ;;
-        linux-aarch64) platform=linux-aarch64 ;;
-        macos-aarch64) platform=macos-arm64 ;;
-        macos-x86_64) platform=macos-x86_64 ;;
-        *)
-            echo "No release binary for {{ os() }}-{{ arch() }}" >&2
-            exit 1
-            ;;
-    esac
-    just dist "$platform"
+install: (dist host_platform)
     mkdir -p "$HOME/.local/bin"
-    install -m 755 "dist/$platform/herd" "$HOME/.local/bin/herd"
-    echo "Installed dist/$platform/herd as $HOME/.local/bin/herd"
+    install -m 755 "dist/{{ host_platform }}/herd" "$HOME/.local/bin/herd"
+    @echo "Installed dist/{{ host_platform }}/herd as $HOME/.local/bin/herd"
 
 # Update the flake inputs and show the resulting dev shell package changes.
 flake-update-diff:
