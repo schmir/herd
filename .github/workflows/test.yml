@@ -31,7 +31,18 @@ jobs:
       # tests. Fetch its packages in a step of their own, so that the nix
       # output stays out of the log of the tests.
       - name: Set up the ci shell
-        run: nix develop .#ci --command true
+        id: ci
+        run: |
+          zig=$(nix develop .#ci --command zig version)
+          echo "zig=$zig" >> "$GITHUB_OUTPUT"
+      # just test links build/herd with zig, so the zig cache of the build job
+      # below helps here too. Only restored: this job links one target, and a
+      # cache it saved under the same key would lack the others.
+      - uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ steps.ci.outputs.zig }}-${{ hashFiles('tools/gen-ninja.janet') }}
+          restore-keys: zig-${{ steps.ci.outputs.zig }}-
       - name: Run tests
         run: nix develop .#ci --command just test
 
@@ -69,7 +80,21 @@ jobs:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
       - name: Set up the ci shell
-        run: nix develop .#ci --command true
+        id: ci
+        run: |
+          zig=$(nix develop .#ci --command zig version)
+          echo "zig=$zig" >> "$GITHUB_OUTPUT"
+      # zig builds libc and compiler-rt for each target the first time it
+      # links for it, which is most of the time a cross-compile takes. The
+      # targets are in tools/gen-ninja.janet. A change there starts from the
+      # last cache of the same zig and saves a new one, so that a new target
+      # is kept. herd's own sources do not go into the cache, so it does not
+      # grow from one commit to the next.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/zig
+          key: zig-${{ steps.ci.outputs.zig }}-${{ hashFiles('tools/gen-ninja.janet') }}
+          restore-keys: zig-${{ steps.ci.outputs.zig }}-
       - name: Cross-compile
         run: nix develop .#ci --command just dist
 
