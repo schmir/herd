@@ -12,12 +12,11 @@ just install
 `just install` compiles the binary a release would ship for this machine and
 installs it as `~/.local/bin/herd`.
 
-Without Nix, install [Janet](https://janet-lang.org/), `just`,
-[ninja](https://ninja-build.org/), [Zig](https://ziglang.org/), `git`,
-`make`, a C compiler and `jj`, then run `just install`. The build compiles
-with `zig cc`, against a Janet it builds from source. The Janet you install
-only runs `tools/gen-ninja.janet`; the build compiles the pinned Janet for
-the host and uses that for everything else.
+Without Nix, install `just`, [ninja](https://ninja-build.org/),
+[Zig](https://ziglang.org/), `git`, `make`, a C compiler and `jj`, then run
+`just install`. You do not need to install Janet: the build compiles the
+pinned Janet from source, for the host into `build/janet` and with `zig cc`
+into each binary.
 
 ## Test
 
@@ -41,9 +40,11 @@ default adds a `v`, as in `v0.4.6.post2+gb3ae314`, so that a build of a tag
 reports the tag, which `herd self-update` expects. Release builds pass their
 tag.
 
-`pins.jdn` pins Janet and spork to a commit, so every build compiles the
-same sources. `tools/gen-ninja.janet` reads it. To update one, change it
-there; the next build fetches it. Then check that the copyright lines in
+`pins.env` pins Janet and spork to a commit, so every build compiles the
+same sources. `tools/gen-ninja.py` reads it, just loads it into the
+environment of each recipe, and the devshell sources it, so `JANET_COMMIT`
+and `SPORK_COMMIT` are set there. To update one, change it there; the next
+build fetches it. Then check that the copyright lines in
 `THIRD-PARTY-NOTICES` still match the `LICENSE` files of the new commits.
 The release archives and the wheels include that file.
 
@@ -54,22 +55,24 @@ artifacts are stored in `build/` and `dist/`, and the spork checkout in
 with `zig cc` into `dist/`, and `just install` installs the one for this
 machine.
 
-`just dist` runs [ninja](https://ninja-build.org/). `tools/gen-ninja.janet`
+`just dist` runs [ninja](https://ninja-build.org/). `tools/gen-ninja.py`
 writes `build.ninja` first, and ninja runs it again by itself when a source
-file is added or removed. ninja compiles the platforms in parallel and only
-recompiles what changed: after an edit to a Janet file, `janet.c` and the
-native modules are not compiled again. It also notices when the version
+file is added or removed. The generator is Python, not Janet, because the
+build makes the Janet it uses. ninja compiles the platforms in parallel and
+only recompiles what changed: after an edit to a Janet file, `janet.c` and
+the native modules are not compiled again. It also notices when the version
 changes. `just dist macos-arm64` builds one platform. `just build` builds
 only `build/herd`, a copy of the binary for this machine.
 
-The build compiles the pinned `janet.c` for the host into `build/janet`.
-`build/janet` runs `tools/make-image.janet`, which runs `src/main.janet` and
-writes the marshaled image, with a C `main` that runs it, into
-`build/herd.c`. The native modules are compiled for the host too, so that
-`build/janet` can load them: `access` and `terminal` into `lib/`, spork's
-beside its sources, which `lib/spork` links to. `lib/` is the module path
-wherever the sources run: for the image, in `just run`, `just repl` and
-`just test`, and in the devshell for the editor.
+ninja first fetches the pinned Janet, makes `janet.c` with Janet's boot step
+and compiles it for the host into `build/janet`. `build/janet` runs
+`tools/make-image.janet`, which runs `src/main.janet` and writes the
+marshaled image, with a C `main` that runs it, into `build/herd.c`. The
+native modules are compiled for the host too, so that `build/janet` can load
+them: `access` and `terminal` into `lib/`, spork's beside its sources, which
+`lib/spork` links to. `lib/` is the module path wherever the sources run:
+for the image, in `just run`, `just repl` and `just test`, and in the
+devshell for the editor.
 
 ## Release
 

@@ -1,5 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# The pinned commits, as JANET_COMMIT and SPORK_COMMIT in the environment of
+# every recipe.
+set dotenv-filename := "pins.env"
+set dotenv-required
+
 _SET_HERD_VERSION := '''
 HERD_VERSION="${HERD_VERSION:-v$(uvx --quiet uv-dynamic-versioning@0.14.1)}"
 export HERD_VERSION
@@ -179,21 +184,21 @@ ci: && test test-cli
 # The platforms are linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64,
 # openbsd-arm64, openbsd-amd64, freebsd-arm64 and freebsd-amd64.
 #
-# tools/make-image.janet runs src/main.janet with the host janet and writes
+# tools/make-image.janet runs src/main.janet with build/janet and writes
 # the marshaled image into build/herd.c. That step has to run here, since it loads
 # native modules, but what it writes is portable C. Only the final compile needs
 # the target, and that is plain C: herd.c, the amalgamated janet.c, and every
 # native module the image registers, built in statically.
 #
-# tools/gen-ninja.janet writes the build.ninja that runs these steps, reading
-# the Janet and spork commits in pins.jdn. ninja compiles the platforms in
+# tools/gen-ninja.py writes the build.ninja that runs these steps, reading the
+# Janet and spork commits in pins.env. ninja compiles the platforms in
 # parallel and only what changed.
 [doc('Cross-compile release binaries with zig cc, for the platforms named or all of them.')]
 dist *platforms:
     #!/usr/bin/env bash
     set -eu
     {{ _SET_HERD_VERSION }}
-    janet tools/gen-ninja.janet
+    uv run --no-project python tools/gen-ninja.py
     ninja {{ platforms }}
 
 # Build the PyPI wheels in dist/wheels/.

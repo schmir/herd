@@ -60,7 +60,6 @@
               with pkgs;
               [
                 gitMinimal
-                janet
                 jp
                 jujutsu
                 just
@@ -98,7 +97,8 @@
             ];
 
             # janet-lsp needs spork and the native modules on the module path;
-            # see lib/README.md. pins.jdn marks the root of the project.
+            # see lib/README.md. pins.env marks the root of the project, and
+            # the shell gets its pins as JANET_COMMIT and SPORK_COMMIT.
             #
             # janet-lsp runs the janet of nixpkgs, and the modules in lib/ are
             # compiled against the pinned janet.h. Nothing in the build checks
@@ -106,20 +106,24 @@
             # not. The check needs the pinned checkout, which the build makes.
             shellHook = ''
               root="$PWD"
-              while [ ! -f "$root/pins.jdn" ] && [ -n "$root" ]; do
+              while [ ! -f "$root/pins.env" ] && [ -n "$root" ]; do
                 root="''${root%/*}"
               done
               [ -n "$root" ] || root="$PWD"
               export JANET_PATH="$root/lib"
-              commit=$(sed -n 's/^ *:janet "\([0-9a-f]*\)".*/\1/p' "$root/pins.jdn")
-              conf="$root/dist/janet-$commit/src/conf/janetconf.h"
+              if [ -f "$root/pins.env" ]; then
+                set -a
+                . "$root/pins.env"
+                set +a
+              fi
+              conf="$root/dist/janet-''${JANET_COMMIT-}/src/conf/janetconf.h"
               if [ -f "$conf" ]; then
                 pinned=$(sed -n 's/^#define JANET_VERSION "\(.*\)"$/\1/p' "$conf")
                 if [ "$pinned" != "${pkgs.janet.version}" ]; then
-                  echo "warning: janet-lsp runs Janet ${pkgs.janet.version}, but pins.jdn pins Janet $pinned" >&2
+                  echo "warning: janet-lsp runs Janet ${pkgs.janet.version}, but pins.env pins Janet $pinned" >&2
                 fi
               fi
-              unset root commit conf pinned
+              unset root conf pinned
             '';
           };
         }

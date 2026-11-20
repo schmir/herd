@@ -16,7 +16,8 @@
 (defn entry-name
   ``The name of the entry function of the native module `name`, as jpm makes
   it: janet_module_entry_ and the name, with each byte that is not a letter,
-  digit or _ written as _<decimal code>_.``
+  digit or _ written as _<decimal code>_. tools/gen-ninja.py compiles each
+  module with the same name and has a copy of this function.``
   [name]
   (def out @"janet_module_entry_")
   (each b name

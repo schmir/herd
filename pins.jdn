@@ -1,8 +1,0 @@
-# The sources every build is pinned to, as commits. tools/gen-ninja.janet
-# reads this file. To update one, change it here; the next build fetches it.
-{# Janet 1.41.2, which the release binaries are cross-compiled from. The build
- # also compiles it for the host, as build/janet, which makes the image.
- :janet "0fea20c82182fe661f75b00a8889d801fe2d79b6"
- # spork, which the build checks out into deps/spork and the release
- # binaries link in.
- :spork "26af769b7fd8f7214ea8f95dad5c2d360a79f6b4"}
