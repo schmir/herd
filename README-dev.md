@@ -16,7 +16,8 @@ Without Nix, install [Janet](https://janet-lang.org/), `just`,
 [ninja](https://ninja-build.org/), [Zig](https://ziglang.org/), `git`,
 `make`, a C compiler and `jj`, then run `just install`. The build compiles
 with `zig cc`, against a Janet it builds from source. The Janet you install
-must be the release that `pins.jdn` names.
+only runs `tools/gen-ninja.janet`; the build compiles the pinned Janet for
+the host and uses that for everything else.
 
 ## Test
 
@@ -61,13 +62,14 @@ native modules are not compiled again. It also notices when the version
 changes. `just dist macos-arm64` builds one platform. `just build` builds
 only `build/herd`, a copy of the binary for this machine.
 
-`tools/make-image.janet` runs `src/main.janet` with the host's `janet` and
+The build compiles the pinned `janet.c` for the host into `build/janet`.
+`build/janet` runs `tools/make-image.janet`, which runs `src/main.janet` and
 writes the marshaled image, with a C `main` that runs it, into
 `build/herd.c`. The native modules are compiled for the host too, so that
-the host's `janet` can load them: `access` and `terminal` into `lib/`,
-spork's beside its sources, which `lib/spork` links to. `lib/` is the module
-path wherever the host's `janet` runs the sources: for the image, in
-`just run`, `just repl` and `just test`, and in the devshell for the editor.
+`build/janet` can load them: `access` and `terminal` into `lib/`, spork's
+beside its sources, which `lib/spork` links to. `lib/` is the module path
+wherever the sources run: for the image, in `just run`, `just repl` and
+`just test`, and in the devshell for the editor.
 
 ## Release
 

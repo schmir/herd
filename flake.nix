@@ -99,6 +99,11 @@
 
             # janet-lsp needs spork and the native modules on the module path;
             # see lib/README.md. pins.jdn marks the root of the project.
+            #
+            # janet-lsp runs the janet of nixpkgs, and the modules in lib/ are
+            # compiled against the pinned janet.h. Nothing in the build checks
+            # that the two are the same release, so warn here when they are
+            # not. The check needs the pinned checkout, which the build makes.
             shellHook = ''
               root="$PWD"
               while [ ! -f "$root/pins.jdn" ] && [ -n "$root" ]; do
@@ -106,7 +111,15 @@
               done
               [ -n "$root" ] || root="$PWD"
               export JANET_PATH="$root/lib"
-              unset root
+              commit=$(sed -n 's/^ *:janet "\([0-9a-f]*\)".*/\1/p' "$root/pins.jdn")
+              conf="$root/dist/janet-$commit/src/conf/janetconf.h"
+              if [ -f "$conf" ]; then
+                pinned=$(sed -n 's/^#define JANET_VERSION "\(.*\)"$/\1/p' "$conf")
+                if [ "$pinned" != "${pkgs.janet.version}" ]; then
+                  echo "warning: janet-lsp runs Janet ${pkgs.janet.version}, but pins.jdn pins Janet $pinned" >&2
+                fi
+              fi
+              unset root commit conf pinned
             '';
           };
         }

@@ -8,10 +8,10 @@ export HERD_VERSION
 default:
     @just --list
 
-# The janet that runs the sources, with lib/ as its module path; see
-# lib/README.md. The recipes that use it build the natives target first, so
-# that what lib/ links to is there.
-janet := "JANET_PATH=lib janet"
+# The pinned Janet, which runs the sources with lib/ as its module path; see
+# lib/README.md. The recipes that use it build the natives target first, which
+# includes build/janet and what lib/ links to.
+janet := "JANET_PATH=lib build/janet"
 
 # Run the program.
 run *args: (dist "natives")

@@ -3,7 +3,7 @@
 #   janet tools/gen-ninja.janet && ninja            # all platforms
 #   janet tools/gen-ninja.janet && ninja macos-arm64
 #   ninja host                                      # build/herd for this machine
-#   ninja natives                                   # what janet needs to run src/
+#   ninja natives                                   # build/janet and what src/ needs
 #
 # ninja needs HERD_VERSION in the environment, and the build stops without
 # it. just sets it, so use HERD_VERSION=v0.4.6 ninja host when you run ninja
@@ -18,10 +18,11 @@
 #
 #   1. spork is checked out into deps/spork, and janet.c comes from Janet's
 #      own boot step, each once per pinned commit.
-#   2. The native modules are compiled for the host, so that the host's janet
-#      can load them: herd's into lib/, spork's beside spork's sources.
-#   3. tools/make-image.janet runs src/main.janet on the host and writes the
-#      marshaled image to build/herd.c.
+#   2. janet.c is compiled for the host into build/janet, and the native
+#      modules are compiled for the host, so that build/janet can load them:
+#      herd's into lib/, spork's beside spork's sources.
+#   3. build/janet runs tools/make-image.janet, which runs src/main.janet and
+#      writes the marshaled image to build/herd.c.
 #   4. Each platform compiles janet.c, the image and every native module with
 #      zig cc, and links them. A platform recompiles only what changed, and
 #      ninja runs the platforms in parallel. build/herd is a copy of the binary
@@ -63,6 +64,12 @@
 (def janet-dir (string "dist/janet-" janet-commit))
 (def janet-c (string janet-dir "/build/c/janet.c"))
 (def janet-h (string janet-dir "/build/janet.h"))
+# The main function of the janet executable, from the same checkout.
+(def janet-shell (string janet-dir "/src/mainclient/shell.c"))
+
+# The pinned Janet, compiled for the host. It makes the image, which the
+# pinned Janet in each binary unmarshals, so the two are the same release.
+(def host-janet "build/janet")
 
 # The spork checkout. lib/spork links to the modules in it.
 (def spork-dir "deps/spork")
@@ -138,8 +145,8 @@
 (emit "  description = fetching spork $commit")
 (emit "  restat = 1")
 (emit)
-# A module is loaded by the host's janet, which resolves the Janet functions
-# it calls; macOS has to be told to leave them for then.
+# A module is loaded by build/janet, which resolves the Janet functions it
+# calls; macOS has to be told to leave them for then.
 (emit "rule so")
 (emit "  command = cc -shared -fPIC -O2 -I" janet-dir "/build"
       (if (= :macos (os/which)) " -undefined dynamic_lookup" "")
@@ -154,27 +161,18 @@
 # source file would leave the old image in place.
 (emit "rule image")
 (emit "  command = : $inputs && HERD_VERSION=\"$$(cat build/version)\" JANET_PATH=lib"
-      " janet tools/make-image.janet src/main.janet $out $natives")
+      " " host-janet " tools/make-image.janet src/main.janet $out $natives")
 (emit "  description = image $out")
 (emit)
 (emit "rule janet-src")
 (emit "  command = bash tools/build-janet.sh $dir $commit")
 (emit "  description = building janet.c from $commit")
 (emit)
-# The janet on PATH: its path, release and build. Like build/version, the file
-# is rewritten only when that changes, so that the check below runs again
-# when another janet comes first on PATH, and only then.
-(emit "rule janet-host")
-(emit "  command = mkdir -p build && v=\"$$(command -v janet) $$(janet -e '(print janet/version \" \" janet/build)')\" && { [ \"$$(cat $out 2>/dev/null)\" = \"$$v\" ] || printf '%s\\n' \"$$v\" > $out; }")
-(emit "  description = janet on PATH")
-(emit "  restat = 1")
-(emit)
-# The image is marshaled by the host's Janet and unmarshaled by the pinned one,
-# and the host's janet loads modules compiled against the pinned janet.h, so
-# the two must be the same release.
-(emit "rule check-janet")
-(emit "  command = test \"$$(janet -e '(print janet/version)')\" = \"$$(sed -n 's/^#define JANET_VERSION \"\\(.*\\)\"$$/\\1/p' $dir/src/conf/janetconf.h)\" && touch $out")
-(emit "  description = checking that the host Janet is the pinned release")
+# -rdynamic exports the Janet functions, so that the native modules find them.
+(emit "rule host-janet")
+(emit "  command = cc -std=c99 -O2 -fvisibility=hidden -rdynamic -I" janet-dir "/build"
+      " -o $out $in -lm -lpthread" (if (= :linux (os/which)) " -ldl" ""))
+(emit "  description = cc $out")
 (emit)
 (emit "rule cc")
 (emit "  command = zig cc -target $target -O2 -I" janet-dir "/build $flags -MD -MF $out.d -c $in -o $out")
@@ -207,17 +205,16 @@
 (build ["build/version"] "version" [["FORCE"]])
 (build [spork-stamp ;spork-sources] "spork" [[] ["tools/fetch-spork.sh"]]
        {"dir" spork-dir "commit" spork-commit})
-(build [janet-c janet-h] "janet-src" [[]] {"dir" janet-dir "commit" janet-commit})
-(build ["build/janet-host"] "janet-host" [["FORCE"]])
-(build ["dist/janet.checked"] "check-janet" [[] [janet-c "build/janet-host"]] {"dir" janet-dir})
+(build [janet-c janet-h janet-shell] "janet-src" [[]] {"dir" janet-dir "commit" janet-commit})
+(build [host-janet] "host-janet" [[janet-c janet-shell] [janet-h]])
 (emit)
 
 (each [name source] modules
-  (build [(host-module name)] "so" [[source] [janet-h] ["dist/janet.checked"]]))
-(build ["natives"] "phony" [host-modules [spork-stamp]])
+  (build [(host-module name)] "so" [[source] [janet-h]]))
+(build ["natives"] "phony" [[host-janet ;host-modules] [spork-stamp]])
 (build ["build/herd.c"] "image"
        [image-inputs
-        ["tools/make-image.janet" "THIRD-PARTY-NOTICES" "build/version" "dist/janet.checked"
+        ["tools/make-image.janet" "THIRD-PARTY-NOTICES" "build/version" host-janet
          spork-stamp
          ;host-modules]]
        {"inputs" (string/join image-inputs " ")
@@ -241,7 +238,7 @@
     (compile source (stem source)
              (string "-DJANET_ENTRY_NAME=" (make-image/entry-name name))))
   (def exe (string "dist/" platform "/" program))
-  (build [exe] "link" [objs ["dist/janet.checked"]] vars)
+  (build [exe] "link" [objs] vars)
   (build [platform] "phony" [[exe]])
   (array/push all platform)
   (emit))
