@@ -26,15 +26,8 @@ run *args: build
 repl file="src/main.janet": build
     jpm --local janet -e '{{ native_path }}' -e '(repl nil nil (dofile "{{ file }}"))'
 
-# Build the standalone executable in build/. It is the host half of just dist:
-# ninja runs jpm, and rebuilds when a source file, pins.jdn or HERD_VERSION
-# changes.
-build:
-    #!/usr/bin/env bash
-    set -eu
-    {{ _SET_HERD_VERSION }}
-    janet tools/gen-ninja.janet
-    ninja host
+[doc('Build the standalone executable in build/.')]
+build: (dist "host")
 
 # Run the test suite in test/.
 test: deps
