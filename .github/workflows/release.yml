@@ -17,15 +17,20 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
-  # Waits for PyPI: a version there cannot be replaced, so the GitHub release
-  # follows only once the wheels are published. A tag that is not a
-  # normalized PEP 440 version stops the pypi job, and so both.
-  release:
-    needs: [test, pypi]
+  # A version on PyPI cannot be replaced, so everything that can fail runs
+  # before the wheels are uploaded: this job makes the GitHub release as a
+  # draft, with all its assets, and the publish job makes it public once PyPI
+  # has the wheels. A tag that is not a normalized PEP 440 version stops the
+  # pypi job, and so the release stays a draft.
+  draft:
+    needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       # For the pre-release check below, with the packaging that uv.lock pins.
       - uses: actions/checkout@v7
@@ -56,21 +61,31 @@ jobs:
           (cd dist && sha256sum -- *.tar.gz > "herd-${GITHUB_REF_NAME}-SHA256SUMS")
           ls -l dist
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        # A tag that PEP 440 calls a pre-release, such as v0.4.6rc1 or
-        # v0.5.0.dev1, is marked as a pre-release. GitHub's "latest release"
-        # skips those, so self-update and the releases page keep pointing at
-        # the last full release. packaging decides, as it does for uv and pip.
+      # A run that failed after it made the draft leaves the draft behind,
+      # and running it again replaces that draft. A release that is published
+      # already stops the run.
+      - name: Remove the draft of an earlier run
+        run: |
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
+            if [[ "$draft" != true ]]; then
+              echo "The release $GITHUB_REF_NAME is published already." >&2
+              exit 1
+            fi
+            gh release delete "$GITHUB_REF_NAME" --yes
+          fi
+
+      # A tag that PEP 440 calls a pre-release, such as v0.4.6rc1 or
+      # v0.5.0.dev1, is marked as a pre-release. GitHub's "latest release"
+      # skips those, so self-update and the releases page keep pointing at
+      # the last full release. packaging decides, as it does for uv and pip.
+      - name: Create the draft release
         run: |
           prerelease=$(uv run python -c 'import os; from packaging.version import Version; print(Version(os.environ["GITHUB_REF_NAME"]).is_prerelease)')
-          flags=()
+          flags=(--draft --verify-tag --generate-notes)
           if [[ "$prerelease" == True ]]; then
             flags+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" --generate-notes "${flags[@]}" dist/*
+          gh release create "$GITHUB_REF_NAME" "${flags[@]}" dist/*
 
   # Publishes the Linux and macOS binaries to PyPI as wheels, so that
   # `uv tool install herd-cli` gives the command `herd`. PyPI has no tag for
@@ -78,7 +93,7 @@ jobs:
   # publishing: the project on PyPI must name this repository, this workflow
   # and the environment `pypi`. There is no token.
   pypi:
-    needs: test
+    needs: draft
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-26.04
     environment: pypi
@@ -95,6 +110,26 @@ jobs:
         env:
           HERD_VERSION: ${{ github.ref_name }}
         run: uv run python tools/build-wheels.py
+      # The wheel for this runner has to install and run before any wheel is
+      # uploaded. The publish action checks the metadata of all of them.
+      - name: Check the Linux x86_64 wheel
+        run: |
+          wheel=(dist/wheels/*manylinux*_x86_64*.whl)
+          test "$(uvx --from "${wheel[0]}" herd --version)" = "herd $GITHUB_REF_NAME"
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/wheels
+
+  # Makes the draft public, now that PyPI has the wheels.
+  publish:
+    needs: pypi
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false

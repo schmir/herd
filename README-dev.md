@@ -72,14 +72,19 @@ path wherever the host's `janet` runs the sources: for the image, in
 Before a release, rename the `Unreleased` heading in `CHANGELOG.md` to the
 new version. Then tag the commit and push the tag, for example `v0.4.6`. The
 `release` workflow runs the tests, builds the binaries for every platform
-and does two things with them, in this order:
+and does three things with them, in this order:
 
+- It creates the GitHub release as a draft, with an archive for each
+  platform. This is where the BSD binaries are published.
 - It publishes the Linux and macOS binaries to PyPI as the package
   `herd-cli`, so `uv tool install herd-cli` gives the command `herd`. The
   name `herd` on PyPI belongs to another project. PyPI has no tags for the
-  BSDs.
-- It creates the GitHub release with an archive for each platform. This is
-  where the BSD binaries are published.
+  BSDs. Before the upload, the Linux x86_64 wheel is installed and run.
+- It publishes the draft.
+
+A version on PyPI cannot be replaced, so everything that can fail comes
+before the upload. If a later step fails, the release stays a draft. Run the
+failed jobs again; the draft job replaces a draft that an earlier run left.
 
 `tools/build-wheels.py` builds the wheels, one for each platform.
 `HERD_VERSION=v0.4.6 just wheels` builds the binaries with `just dist` and
