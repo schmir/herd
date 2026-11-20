@@ -2,8 +2,10 @@
 
 Usage: build-wheels.py
 
-The environment variable HERD_VERSION has the version, as a PEP 440 version.
-A leading "v" is fine.
+The environment variable HERD_VERSION has the version, as a normalized PEP 440
+version. A leading "v" is fine. A version that is not normalized, such as
+v0.4.8-rc1, is an error: the wheel would get the version 0.4.8rc1, which is
+not the name of the tag.
 
 dist/ has one directory for each platform, such as linux-x86_64, with
 the herd binary in it. The script builds a wheel for each platform in
@@ -109,14 +111,20 @@ def build_wheel(version: str, platform: str, binary: Path, out_dir: Path) -> Pat
 
 
 def get_version() -> str:
-    """Return the version in HERD_VERSION as a normalized PEP 440 version."""
+    """Return the version in HERD_VERSION, without its "v".
+
+    Stop when it is not a normalized PEP 440 version.
+    """
     raw_version = os.environ.get("HERD_VERSION")
     if not raw_version:
         sys.exit("build-wheels: HERD_VERSION not set")
     try:
-        return str(Version(raw_version))
+        version = str(Version(raw_version))
     except InvalidVersion:
         sys.exit(f"build-wheels: not a PEP 440 version: {raw_version!r}")
+    if version != raw_version.removeprefix("v"):
+        sys.exit(f"build-wheels: {raw_version!r} is not normalized; use v{version} or {version}")
+    return version
 
 
 def main() -> None:

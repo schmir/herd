@@ -70,14 +70,14 @@ it with a stub `jpm`.
 Before a release, rename the `Unreleased` heading in `CHANGELOG.md` to the
 new version. Then tag the commit and push the tag, for example `v0.4.6`. The
 `release` workflow runs the tests, builds the binaries for every platform
-and does two things with them:
+and does two things with them, in this order:
 
-- It creates the GitHub release with an archive for each platform. This is
-  where the BSD binaries are published.
 - It publishes the Linux and macOS binaries to PyPI as the package
   `herd-cli`, so `uv tool install herd-cli` gives the command `herd`. The
   name `herd` on PyPI belongs to another project. PyPI has no tags for the
   BSDs.
+- It creates the GitHub release with an archive for each platform. This is
+  where the BSD binaries are published.
 
 `tools/build-wheels.py` builds the wheels, one for each platform.
 `HERD_VERSION=v0.4.6 just wheels` builds the binaries with `just dist` and
@@ -87,10 +87,12 @@ the workflow `release.yml` and the GitHub environment `pypi`. The
 environment needs no secrets.
 
 A tag such as `v0.4.6rc1` makes a release candidate. Write it as PEP 440
-does, without a dash, so that the wheel version matches the tag. The GitHub
-release is marked as a pre-release, so it does not become the latest
-release, which `herd self-update` installs. uv skips pre-releases unless it
-is told otherwise: `uv tool install --prerelease allow herd-cli`.
+does, without a dash, so that the wheel version matches the tag. A tag that
+is not a normalized PEP 440 version, such as `v0.4.6-rc1`, stops the release
+before anything is published. The GitHub release is marked as a pre-release,
+so it does not become the latest release, which `herd self-update` installs.
+uv skips pre-releases unless it is told otherwise:
+`uv tool install --prerelease allow herd-cli`.
 
 `herd self-update` does not replace a herd that `uv tool` installed. It runs
 `uv tool install --force` instead, with the version it is given, or with
