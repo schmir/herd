@@ -229,8 +229,9 @@
                      "cat >" dir "/curl.stdin\n"
                      "echo body\n"))
   (os/chmod curl 8r755)
-  # The fake finds cat and the rest of the system where it usually is.
-  (with-env ["PATH" (string bin ":/usr/bin:/bin") "GH_TOKEN" "s3cret" "GITHUB_TOKEN" nil]
+  (with-env ["PATH" (string bin ":" (os/getenv "PATH"))
+             "GH_TOKEN" "s3cret"
+             "GITHUB_TOKEN" nil]
     (fn []
       (assert (= "body\n" (self-update/fetch "https://api.github.com/x")))
       (def args (slurp (path/join dir "curl.args")))
