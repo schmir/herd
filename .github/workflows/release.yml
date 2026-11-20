@@ -24,22 +24,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      # The binaries the test workflow built and checked, one artifact per
-      # platform.
+      # The binaries the test workflow built and checked, as PLATFORM/herd.
       - uses: actions/download-artifact@v8
         with:
-          pattern: herd-*
+          name: binaries
           path: artifacts
 
-      # All artifact files have the name `herd`. Use the artifact directory
-      # name to identify the platform. The archive name includes the release
-      # tag and the platform. The file in the archive keeps the name `herd`.
+      # All binaries have the name `herd`. Use the directory name to identify
+      # the platform. The archive name includes the release tag and the
+      # platform. The file in the archive keeps the name `herd`.
       - name: Collect assets
         run: |
           mkdir dist stage
           for dir in artifacts/*/; do
             platform="$(basename "$dir")"
-            platform="${platform#herd-}"
             install -m 755 "$dir/herd" stage/herd
             # Set the owner and group IDs to 0. This prevents the archive from
             # containing runner account information.
@@ -82,14 +80,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          pattern: herd-*
+          name: binaries
           path: dist
-      # The artifacts are named herd-PLATFORM. The script wants dist/PLATFORM.
-      - name: Name the directories after the platforms
-        run: |
-          for dir in dist/herd-*/; do
-            mv "${dir%/}" "dist/$(basename "$dir" | sed 's/^herd-//')"
-          done
       - uses: astral-sh/setup-uv@v10.2.0
       - name: Build wheels
         env:
