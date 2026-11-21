@@ -147,9 +147,9 @@ class Janet:
         return f"{self.dir}/Makefile"
 
     @property
-    def shell(self) -> str:
-        """Return the C main of the janet executable."""
-        return f"{self.dir}/src/mainclient/shell.c"
+    def exe(self) -> str:
+        """Return the janet executable that the boot step makes for the host."""
+        return f"{self.dir}/build/janet"
 
     @property
     def c(self) -> str:
@@ -240,7 +240,7 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
     lookup = " -undefined dynamic_lookup" if host_os == "Darwin" else ""
     n.rule(
         "so",
-        f"cc -shared -fPIC -O2 -I{janet.dir}/build{lookup} -MD -MF $out.d -o $out $in",
+        f"zig cc -shared -fPIC -O2 -I{janet.dir}/build{lookup} -MD -MF $out.d -o $out $in",
         description="so $out",
         depfile="$out.d",
         deps="gcc",
@@ -270,27 +270,21 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
         description="fetching janet $commit",
         restat="1",
     )
-    # Nix's compiler wrapper fortifies what it compiles, and Janet builds its
-    # bootstrap with -O0, which glibc warns about once per file. The bootstrap
-    # only writes janet.c, so build it without fortification. The wrapper
-    # reads its hardening from NIX_HARDENING_ENABLE, which nothing outside Nix
-    # reads.
+    # Janet's Makefile makes janet.c, and then the janet executable, which it
+    # needs to write janet.h. It compiles with zig cc, like the release
+    # binaries. The native modules call Janet functions that janet itself
+    # does not, and zig's linker removes those by default. -rdynamic exports
+    # the functions and --no-gc-sections keeps them; without it, a module
+    # fails to load with "symbol not found".
     n.rule(
         "janet-boot",
-        'NIX_HARDENING_ENABLE="$$(for f in $${NIX_HARDENING_ENABLE-}; do'
-        " case $$f in fortify|fortify3) ;; *) printf '%s ' $$f ;; esac; done)\""
-        " make -s -C $dir -j$$(getconf _NPROCESSORS_ONLN) build/c/janet.c build/janet.h",
-        description="building janet.c",
+        "make -s -C $dir -j$$(getconf _NPROCESSORS_ONLN)"
+        ' CC="zig cc" LDFLAGS="-rdynamic -Wl,--no-gc-sections"'
+        " build/c/janet.c build/janet build/janet.h",
+        description="building janet",
         restat="1",
     )
-    # -rdynamic exports the Janet functions, so that the native modules find
-    # them.
-    ldl = " -ldl" if host_os == "Linux" else ""
-    n.rule(
-        "host-janet",
-        f"cc -std=c99 -O2 -fvisibility=hidden -rdynamic -I{janet.dir}/build -o $out $in -lm -lpthread{ldl}",
-        description="cc $out",
-    )
+    n.rule("copy", "cp $in $out", description="copy $out")
     n.rule(
         "cc",
         f"zig cc -target $target -O2 -I{janet.dir}/build $flags -MD -MF $out.d -c $in -o $out",
@@ -333,9 +327,15 @@ def write_host_steps(n: Ninja, janet: Janet, spork_commit: str) -> None:
         dir=SPORK_DIR,
         commit=spork_commit,
     )
-    n.build([janet.makefile, janet.shell], "janet-fetch", dir=janet.dir, commit=janet.commit)
-    n.build([janet.c, janet.h], "janet-boot", [janet.makefile], dir=janet.dir, commit=janet.commit)
-    n.build([HOST_JANET], "host-janet", [janet.c, janet.shell], [janet.h])
+    n.build([janet.makefile], "janet-fetch", dir=janet.dir, commit=janet.commit)
+    n.build(
+        [janet.c, janet.exe, janet.h],
+        "janet-boot",
+        [janet.makefile],
+        dir=janet.dir,
+        commit=janet.commit,
+    )
+    n.build([HOST_JANET], "copy", [janet.exe])
     n.line()
 
     host_modules = [host_module(name) for name, _ in MODULES]

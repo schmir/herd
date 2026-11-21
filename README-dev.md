@@ -13,10 +13,10 @@ just install
 installs it as `~/.local/bin/herd`.
 
 Without Nix, install `just`, [ninja](https://ninja-build.org/),
-[Zig](https://ziglang.org/), `git`, `make`, a C compiler and `jj`, then run
-`just install`. You do not need to install Janet: the build compiles the
-pinned Janet from source, for the host into `build/janet` and with `zig cc`
-into each binary.
+[Zig](https://ziglang.org/), `git`, GNU `make` and `jj`, then run
+`just install`. You do not need to install Janet or another C compiler: the
+build compiles the pinned Janet from source with `zig cc`, for the host into
+`build/janet` and into each binary.
 
 ## Test
 
@@ -64,8 +64,9 @@ the native modules are not compiled again. It also notices when the version
 changes. `just dist macos-arm64` builds one platform. `just build` builds
 only `build/herd`, a copy of the binary for this machine.
 
-ninja first fetches the pinned Janet, makes `janet.c` with Janet's boot step
-and compiles it for the host into `build/janet`. `build/janet` runs
+ninja first fetches the pinned Janet and runs Janet's own Makefile with
+`zig cc`. It makes `janet.c` with Janet's boot step and compiles it for the
+host; `build/janet` is a copy of that executable. `build/janet` runs
 `tools/make-image.janet`, which runs `src/main.janet` and writes the
 marshaled image, with a C `main` that runs it, into `build/herd.c`. The
 native modules are compiled for the host too, so that `build/janet` can load
