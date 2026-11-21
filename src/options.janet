@@ -15,6 +15,10 @@
   {:name "filter" :short "f" :kind :accumulate :value-name "NAME"
    :help "Select only repositories kept by the named filter."})
 
+(def- exclude-option
+  {:name "exclude" :short "x" :kind :accumulate :value-name "NAME"
+   :help "Leave out repositories kept by the named filter."})
+
 (def- jobs
   {:name "jobs" :short "j" :kind :option :value-name "N"
    :help "Run at most N repository operations at the same time."})
@@ -87,7 +91,7 @@
   the configuration defines runs a command in each repository, so anything that
   is not built in takes what `herd run` does apart from the command itself.``
   [command]
-  (def selecting [at all-anchors filter-option help])
+  (def selecting [at all-anchors filter-option exclude-option help])
   (case command
     "clone" [;selecting show-output jobs]
     "list" [;selecting sample ;list-only dirty clean]

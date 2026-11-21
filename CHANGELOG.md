@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `-x NAME` (or `--exclude NAME`) keeps the repositories that a filter or a
+  shell command leaves out. It takes the same values as `-f`, and the two
+  apply in the order they are given.
 - `--show-output on-success` and `:show-output "on-success"` show the output
   of the commands that succeeded and hide the failures. The summary still
   counts the failures.

@@ -526,7 +526,74 @@
     (assert (deep= @["two"] (selected "active" "first"))
             "the first of the active repositories is the active one")
     (assert (empty? (selected "first" "active"))
-            "while the first repository of the list is not active at all")))
+            "while the first repository of the list is not active at all")
+    (assert (deep= @["one"] (selected {:exclude "active"}))
+            "an excluded filter keeps what the filter leaves out")
+    (assert (deep= @["two"] (selected {:exclude "first"}))
+            "excluding a slice keeps all but what the slice takes")
+    (assert (empty? (selected "active" {:exclude "tier"}))
+            "an excluded filter narrows what the one before it kept")
+    (assert (deep= @["one"] (selected {:exclude "active"} {:exclude "active"}))
+            "excluding twice leaves out nothing the first exclusion kept")))
+
+# Entries are compared by value, so an entry the filter wrote out again with
+# its keys in another order still removes the entry it came from.
+(with-fixture dir
+  (def listing
+    (string `[{"path": "one", "ssh_url": "u"},`
+            ` {"path": "two", "ssh_url": "u", "note": "a \"quoted\", [b]"}]`))
+  (with-stub (stub-filter dir
+                          `printf '%s' '[{"ssh_url":"u","note":"a \"quoted\", [b]","path":"two"}]'`)
+    (assert (deep= @["one"]
+                   (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
+            "a reformatted answer removes its entry")))
+
+# Entries are compared by path and clone URL, so a projection that keeps
+# them excludes what it selected, whichever spelling of the URL it gives.
+(with-fixture dir
+  (def listing
+    (string `[{"path": "one", "ssh_url": "u1", "tier": 1},`
+            ` {"path": "two", "ssh_url": "u2", "tier": 2}]`))
+  (with-stub (stub-filter dir `printf '%s' '[{"path":"two","clone_url":"u2"}]'`)
+    (assert (deep= @["one"]
+                   (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
+            "a projection that keeps the path and the URL excludes its entries")))
+
+# Entries with the same path and URL are one repository, so all of them go.
+(with-fixture dir
+  (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"u","n":1}]'`)
+    (assert (empty? (json/decode
+                      (named-filters/apply-filters
+                        `[{"path":"a","clone_url":"u","n":1},{"path":"a","clone_url":"u","n":2}]`
+                        [{:exclude "any"}] {"any" "@"})))
+            "every entry with a matched path and URL is left out")))
+
+# An entry of the list without a path and URL cannot be matched, so it stays.
+(with-fixture dir
+  (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"u"}]'`)
+    (assert (deep= @[@{"kind" "group"}]
+                   (json/decode
+                     (named-filters/apply-filters `[{"kind":"group"},{"path":"a","clone_url":"u"}]`
+                                                  [{:exclude "any"}] {"any" "@"})))
+            "an entry that is not a repository is kept")))
+
+# What the filter answered with must have a path and URL to compare by.
+(each answer [`["a"]` `[{"path":"a"}]` `[{"path":"a","clone_url":"u","ssh_url":"u"}]`]
+  (with-fixture dir
+    (with-stub (stub-filter dir (string `printf '%s' '` answer `'`))
+      (assert (string/find "which -x needs to compare entries"
+                           (error-message
+                             (fn [] (named-filters/apply-filters `[{"path":"a","clone_url":"u"}]`
+                                                                 [{:exclude "any"}] {"any" "@"}))))
+              (string "an answer of " answer " is refused")))))
+
+(with-fixture dir
+  (with-stub (stub-filter dir `printf '%s' '[]'`)
+    (assert (string/find "can only be excluded from an array"
+                         (error-message
+                           (fn [] (named-filters/apply-filters `{"a": 1}` [{:exclude "any"}]
+                                                               {"any" "@"}))))
+            "there is nothing to exclude from where the list is not an array")))
 
 # --- against the real filter program --------------------------------------
 

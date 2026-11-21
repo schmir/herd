@@ -300,6 +300,23 @@ herd clone -f active -f reviewed
 herd run --filter platform -- jj st
 ```
 
+`-x` (or `--exclude`) takes the same names and keeps what the filter leaves
+out instead:
+
+```sh
+herd list -x active
+herd run -f platform -x reviewed -- jj st
+```
+
+`-f` and `-x` apply in the order they are given, as one pipeline. `-x A`
+keeps each entry of what it gets that `A` does not keep. For a `[?…]`
+expression that is every entry that does not match, and for a slice such as
+`[0:1]` it is every entry but the first. Entries are compared by their
+`path` and clone URL, so a projection works too, as long as it keeps both.
+Every entry with a path and URL that `A` returns is left out, and `A` must
+return only such entries: `-x` refuses a filter that answers with anything
+else. An entry of the list without a path and URL is never left out.
+
 A filter named this way is applied to **every** configured list, while a
 row's `:use-filters` applies only to its own `:list`. Lists rarely have the
 same shape — that is why filters exist — and a field a list does not carry
@@ -332,7 +349,13 @@ is how to try one before naming it:
 ```sh
 herd run -f has-makefile make test
 herd list -f platform -f 'git branch --show-current | grep -qx main'
+herd list -x has-makefile
 ```
+
+With `-x`, a command keeps the repositories where it exits with a status
+other than 0. Status 126 and 127 are still a mistake, and a repository that
+is not checked out is still dropped. For a command given in place of a name,
+`-x 'cmd'` does the same as `-f '! cmd'`.
 
 A command runs through `sh -c` with the repository as its working directory,
 nothing on its input and its output discarded, and keeps the repository when
@@ -402,8 +425,8 @@ default, so an entry of the same name in `:commands` replaces them.
 
 `herd completions bash`, `zsh` or `fish` prints a completion script. The
 scripts ask `herd` for its commands each time, so the ones defined in
-`:commands` are completed too. After `-f` or `--filter` they offer the names
-in `:filters` the same way.
+`:commands` are completed too. After `-f`, `--filter`, `-x` or `--exclude`
+they offer the names in `:filters` the same way.
 
 Either load the script when the shell starts, which runs `herd` once per
 shell, or write it to a file once.
@@ -692,6 +715,9 @@ the rows already filtered:
 herd list -a -C / --filter active
 herd clone -a -C / -f active -f reviewed
 ```
+
+Use `-x NAME` (or `--exclude NAME`) to leave out the repositories that a
+named filter selects. It mixes with `-f` in the order given.
 
 `--dirty` and `--clean` narrow the selection by what is in each working
 copy, for `list`, `run`, `fetch`, `diff` and custom commands. A Git

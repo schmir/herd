@@ -28,7 +28,7 @@
 _herd() {
     local cur=${COMP_WORDS[COMP_CWORD]} cmd= cmd_index=0 i
     case ${COMP_WORDS[COMP_CWORD-1]} in
-        -f|--filter)
+        -f|--filter|-x|--exclude)
             COMPREPLY=($(compgen -W "$(herd completions filters 2>/dev/null | cut -f1)" -- "$cur"))
             return ;;
         -C|--at)
@@ -114,7 +114,7 @@ complete -F _herd herd
             " -l " long
             # A filter name is never a file, so offer the names alone.
             (cond
-              (= long "filter") " -x -a '(herd completions filters 2>/dev/null)'"
+              (index-of long ["filter" "exclude"]) " -x -a '(herd completions filters 2>/dev/null)'"
               (= long "at") " -x -a '(__fish_complete_directories)'"
               (= long "show-output")
               (string " -x -a '" (string/join run/show-output-conditions " ") "'")
@@ -191,6 +191,7 @@ complete -F _herd herd
       (string ":" (string/ascii-lower value) ":"
               (case long
                 "filter" " _herd_filters"
+                "exclude" " _herd_filters"
                 "show-output" (string "(" (string/join run/show-output-conditions " ") ")")
                 "at" " _files -/"
                 "config" " _files"

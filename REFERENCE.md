@@ -198,12 +198,14 @@ The common selection options are:
 -C, --at PATH       Select relative to PATH (default: current directory).
 -a, --all-anchors   Consider every configured anchor.
 -f, --filter NAME   Apply a named filter or checkout command; repeatable.
+-x, --exclude NAME  Keep what a named filter or checkout command leaves out;
+                    repeatable.
 ```
 
-`-C`, `-a`, and `-f` apply to `clone`, `list`, `run`, and custom commands.
-`--sample` and `--dirty`/`--clean` apply to `list`, `run`, and custom
-commands, but not `clone`. `--jobs` applies to `clone`, `run`, and custom
-commands, but not `list`.
+`-C`, `-a`, `-f`, and `-x` apply to `clone`, `list`, `run`, and custom
+commands. `--sample` and `--dirty`/`--clean` apply to `list`, `run`, and
+custom commands, but not `clone`. `--jobs` applies to `clone`, `run`, and
+custom commands, but not `list`.
 
 `--sample` accepts whole percentages from 1 to 100, or ranges with
 `0 <= LOW < HIGH <= 100`. Either range end may be empty, so `:50` means
@@ -356,6 +358,16 @@ checkouts. A checkout filter keeps a repository when it exits with status
 zero. Checkout filters receive the same `HERD_*` repository environment as
 commands; `HERD_COLOR` is always `never` because filter output is discarded.
 Multiple list filters run in the order given.
+
+`-x` accepts the same values as `-f` and keeps what they leave out. The `-f`
+and `-x` list filters run as one pipeline in the order given; `-x A` keeps
+the entries of its input whose `path` and clone URL `A` does not return.
+Each entry `A` returns must have a string `path` and exactly one of
+`clone_url` and `ssh_url`, or `-x` fails. With `-x`, a checkout filter or
+command keeps a repository when it exits with a status other than zero.
+Status 126 and 127 are errors, and a repository that is not checked out is
+dropped. `clone` rejects `-x` with a checkout filter or command, as it does
+`-f`.
 
 ### Custom commands
 

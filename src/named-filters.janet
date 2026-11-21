@@ -1,6 +1,7 @@
 # The named filters, and narrowing a repository list with them.
 
 (import spork/json)
+(import ./checkout)
 (import ./process)
 
 (def filter-executable
@@ -16,7 +17,7 @@
   ``Said when a filter named on the command line fails. A row aims its own
   filters at one file; -f meets every list, including those written without
   that filter in mind.``
-  (string "a filter named with -f is applied to every configured list, and a "
+  (string "a filter named with -f or -x is applied to every configured list, and a "
           "field a list does not carry reads as null, which most JMESPath "
           "functions reject rather than treat as no match; naming it as "
           "`field || ''` gives them a string to work with"))
@@ -126,9 +127,8 @@
 (defn apply-filter
   ``Return the JSON `source` narrowed by the JMESPath `expression` that `name`
   stands for, as the JSON the filter answered with. Bytes go in and bytes come
-  back, never Janet values: decoding and re-encoding would round numbers to
-  what a double can hold and reorder every object key, so an expression would
-  no longer see the list as it is written on disk. A `hint` is added to the
+  back, never Janet values: decoding and re-encoding here would round every
+  integer above 2^53 to what a double can hold. A `hint` is added to the
   failure when the filter was named somewhere the list itself never asked
   for.``
   [source name expression &opt hint]
@@ -172,23 +172,74 @@
       # travels on to the next filter and must not be quietly mutable.
       (string stdout))))
 
+(defn excluded?
+  "Whether the filter step `step`, given with -x, leaves out what it matches."
+  [step]
+  (dictionary? step))
+
+(defn step-value
+  "The filter name or command the filter step `step` was given."
+  [step]
+  (if (excluded? step) (step :exclude) step))
+
+(defn- repository-key
+  ``The path and clone URL of the list entry `entry`, or nil when it does not
+  have a string "path" and exactly one clone URL as a string.``
+  [entry]
+  (when (dictionary? entry)
+    (def urls (seq [key :in checkout/url-keys :when (not (nil? (entry key)))]
+                (entry key)))
+    (when (and (string? (entry :path)) (= 1 (length urls)) (string? (urls 0)))
+      [(entry :path) (urls 0)])))
+
+(defn- leave-out
+  ``Return the JSON array `source` without the entries whose path and clone
+  URL are those of an entry in the JSON array `matched`, what the filter
+  `name` answered with. Comparing by these and not by the whole entry lets a
+  projection that keeps them work as it does with -f. Every entry of
+  `matched` must have them, so a filter that answers with something else is
+  an error and does not exclude nothing.``
+  [source matched name]
+  (def entries (json/decode source true))
+  (unless (indexed? entries)
+    (error (string (filter-where name)
+                   " can only be excluded from an array of repositories")))
+  (def keys-matched @{})
+  (each entry (json/decode matched true)
+    (put keys-matched
+         (or (repository-key entry)
+             (error (string (filter-where name) " answered with an entry"
+                            " without a string \"path\" and one clone URL,"
+                            " which -x needs to compare entries")))
+         true))
+  (string (json/encode
+            (filter (fn [entry] (not (get keys-matched (repository-key entry))))
+                    entries))))
+
 (defn apply-filters
-  ``Return the JSON `source` narrowed by each filter in `names`, in order.
-  They run as a pipeline, each reading what the one before it answered with,
-  the way piping one filter program into another does. Several `[?…]`
-  expressions therefore intersect and commute; anything else, a slice or a
-  projection, depends on its place in the order. Naming none hands back the
-  source untouched, and the `hint` is carried to whichever of them fails.``
-  [source names registry &opt hint]
+  ``Return the JSON `source` narrowed by each filter step in `steps`, in
+  order. A step is a filter name, or `{:exclude name}`, which keeps what the
+  filter leaves out. They run as a pipeline, each reading what the one before
+  it answered with, the way piping one filter program into another does.
+  Several `[?…]` expressions therefore intersect and commute; anything else, a
+  slice or a projection, depends on its place in the order. Naming none hands
+  back the source untouched, and the `hint` is carried to whichever of them
+  fails.``
+  [source steps registry &opt hint]
   (var narrowed source)
-  (each name names
-    (set narrowed (apply-filter narrowed name
-                                (list-filter-expression registry name) hint)))
+  (each step steps
+    (def name (step-value step))
+    (def answered (apply-filter narrowed name
+                                (list-filter-expression registry name) hint))
+    (set narrowed (if (excluded? step)
+                    (leave-out narrowed answered name)
+                    answered)))
   narrowed)
 
 (defn narrow
   ``Return the JSON `source` narrowed by the list filters of `registry` that a
-  row names, `row-names`, and then by those named with -f, `command-line-names`.
+  row names, `row-names`, and then by the filter steps given with -f and -x,
+  `command-line-names`.
   A row aimed its own filters at this one file; the command line aimed its
   filters at every file, so only those explain themselves when they fail.``
   [registry source row-names command-line-names]

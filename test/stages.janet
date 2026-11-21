@@ -109,7 +109,20 @@
           "one command keeps those that pass it")
   (assert (deep= (paths [(repositories 0)])
                  (paths ((stages/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
-          "all commands must pass"))
+          "all commands must pass")
+  (assert (deep= (paths [(repositories 1)])
+                 (paths ((stages/filter-by-commands repositories [{:exclude "test -f a"}]) :repositories)))
+          "an excluded command keeps those that fail it")
+  (assert (deep= (paths [(repositories 2)])
+                 (paths ((stages/filter-by-commands repositories ["test -f a" {:exclude "test -f b"}])
+                          :repositories)))
+          "excluded and plain commands combine")
+  (def missing {:path (path/join dir "not-checked-out")})
+  (assert (empty? ((stages/filter-by-commands [missing] [{:exclude "false"}]) :repositories))
+          "a repository that is not checked out is not kept by an excluded command")
+  (assert (try (do (stages/filter-by-commands repositories [{:exclude "no-such-command-here"}]) false)
+            ([_] true))
+          "a command the shell cannot run is still a mistake when excluded"))
 
 (defn test-command-sees-the-command-environment
   "A checkout filter finds its repository described as a command does."

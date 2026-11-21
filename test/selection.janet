@@ -314,7 +314,20 @@
           "names narrow the lists, and what runs in checkouts follows them")
   (assert (deep= @["/srv/foo"]
                  (map (fn [r] (r :path)) ((result :catalog) :repositories)))
-          "only the list filters narrow what is loaded"))
+          "only the list filters narrow what is loaded")
+  (def excluded
+    (selection/select {:directory config-dir :at-path "/srv"
+                       :filter-values [{:exclude "foo"} {:exclude "marked"}
+                                       {:exclude "test -d ."}]}
+                      mixed-settings))
+  (assert (deep= {:list-filters @[{:exclude "foo"}]
+                  :checkout-commands @[{:exclude "test -f marker"} {:exclude "test -d ."}]
+                  :checkout-values @["marked" "test -d ."]}
+                 (excluded :chosen))
+          "-x values are sorted as -f values are, and stay excluded")
+  (assert (not (index-of "/srv/foo"
+                         (map (fn [r] (r :path)) ((excluded :catalog) :repositories))))
+          "an excluded list filter leaves out what it matches"))
 
 (defn test-mistyped-filter
   "A single word that is neither a filter nor a program is most likely a typo."
@@ -333,7 +346,12 @@
                                            :filter-values ["true"]}
                                           mixed-settings)
                         [:reason :kind]))
-          "a word naming a program is a command"))
+          "a word naming a program is a command")
+  (assert (deep= {:kind :mistyped-filter :value "fooo" :known @["foo" "marked"]}
+                 ((selection/select {:directory config-dir :at-path "/srv"
+                                     :filter-values [{:exclude "fooo"}]}
+                                    mixed-settings) :reason))
+          "a typo given with -x is caught too"))
 
 (test-filter-values-are-classified)
 (test-mistyped-filter)
@@ -395,13 +413,19 @@
   (assert (empty? (work-paths (work-select {:requested-state :clean
                                             :filter-values ["test -f marker"]})))
           "the stages combine")
-  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state :clean :commands? true}
+  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state :clean :command-flags @["-f"]}
                  ((work-select {:requested-state :clean
                                 :filter-values ["test -f marker"]}) :reason))
           "what the stages emptied is named")
-  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :commands? true}
+  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :command-flags @["-f"]}
                  ((work-select {:filter-values ["false"]}) :reason))
           "a command that matches nowhere is named")
+  (assert (deep= @["clean"]
+                 (work-paths (work-select {:filter-values [{:exclude "test -f marker"}]})))
+          "an excluded command keeps where it fails")
+  (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :command-flags @["-x"]}
+                 ((work-select {:filter-values [{:exclude "true"}]}) :reason))
+          "an excluded command that matches everywhere is named as -x")
   (def nowhere (path/join work-dir "nowhere"))
   (assert (deep= {:kind :none-beneath-path :at-path nowhere}
                  ((work-select {:at-path nowhere :requested-state :dirty}) :reason))

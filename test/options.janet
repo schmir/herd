@@ -12,14 +12,14 @@
 (defn test-each-command-declares-its-options
   "A command's options come in the order its help and its scripts list them."
   []
-  (assert (deep= @["at" "all-anchors" "filter" "help" "show-output" "jobs"] (names "clone")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "ok" "not-ok" "extra"
+  (assert (deep= @["at" "all-anchors" "filter" "exclude" "help" "show-output" "jobs"] (names "clone")))
+  (assert (deep= @["at" "all-anchors" "filter" "exclude" "help" "sample" "ok" "not-ok" "extra"
                    "tree" "no-pager" "max-depth" "hidden" "follow-links" "dirty" "clean"]
                  (names "list")))
   (assert (deep= @["help"] (names "completions")))
   (assert (deep= @["help"] (names "self-update")))
   (assert (deep= @["help" "repositories" "no-pager"] (names "tree")))
-  (assert (deep= @["at" "all-anchors" "filter" "help" "sample" "show-output" "pager"
+  (assert (deep= @["at" "all-anchors" "filter" "exclude" "help" "sample" "show-output" "pager"
                    "no-pager" "jobs" "limit" "dirty" "clean"]
                  (names "run")))
   (assert (deep= (names "run") (names "a-command-from-config"))

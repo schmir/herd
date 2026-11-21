@@ -3,6 +3,10 @@
 (import spork/path)
 (import ./vcs)
 
+(def url-keys
+  "The names a repository list may give the URL a repository is cloned from."
+  [:clone_url :ssh_url])
+
 (def default-repository-options
   ``Default repository options. Their keys define the options that each
   configuration level accepts.``

@@ -110,10 +110,14 @@
   (or (parsed :rest) @[]))
 
 (defn- describe-filters
-  "Name the filters in play, for a message about an empty selection."
-  [names]
-  (string (if (= 1 (length names)) "filter " "filters ")
-          (string/join (map describe names) " and ")))
+  "Name the filter steps in play, for a message about an empty selection."
+  [steps]
+  (string (if (= 1 (length steps)) "filter " "filters ")
+          (string/join (map (fn [step]
+                              (string (if (named-filters/excluded? step) "not " "")
+                                      (describe (named-filters/step-value step))))
+                            steps)
+                       " and ")))
 
 (defn- exit-unconfigured
   ``Say that `catalog` read no repository lists, and exit successfully.
@@ -130,10 +134,27 @@
           "is no configuration directory to read")
   (os/exit 1))
 
+(defn- filter-steps
+  ``The filter steps `parsed` was given with -f and -x, in the order given:
+  each -f value, and `{:exclude value}` for each -x value. The order matters
+  to a list filter that is not a [?…] expression, such as a slice.``
+  [parsed]
+  (def filters (or (parsed "filter") []))
+  (def excludes (or (parsed "exclude") []))
+  (var next-filter 0)
+  (var next-exclude 0)
+  (def steps @[])
+  (each name (or (parsed :order) [])
+    (case name
+      "filter" (do (array/push steps (filters next-filter)) (++ next-filter))
+      "exclude" (do (array/push steps {:exclude (excludes next-exclude)})
+                  (++ next-exclude))))
+  steps)
+
 (defn- resolve-filters
-  "Sort what `parsed` was given with -f, as selection/resolve-filters does."
+  "Sort what `parsed` was given with -f and -x, as selection/resolve-filters does."
   [parsed repository-settings]
-  (selection/resolve-filters (or (parsed "filter") []) repository-settings))
+  (selection/resolve-filters (filter-steps parsed) repository-settings))
 
 (defn- explain-empty
   ``Say why `reason` says a selection is empty. Unless the reason is that the
@@ -150,7 +171,7 @@
             (string/join [;(if (reason :requested-state)
                              [(string "--" (reason :requested-state))]
                              [])
-                          ;(if (reason :commands?) ["-f"] [])]
+                          ;(reason :command-flags)]
                          " and "))
 
     :emptied-by-sample
@@ -269,11 +290,11 @@
 
 (defn- selection-options
   ``The selection options `parsed` holds: where, from which anchors, by which
-  -f, and which --sample.``
+  -f and -x, and which --sample.``
   [parsed]
   {:at-path (parsed "at")
    :all-anchors? (parsed "all-anchors")
-   :filter-values (or (parsed "filter") [])
+   :filter-values (filter-steps parsed)
    :sample (sample-from parsed)})
 
 (defn- state-from-flags

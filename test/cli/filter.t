@@ -18,6 +18,18 @@ Filters narrow one after the other.
   $ herd list -f platform -f none
   No configured repository is left by .* (re)
 
+-x keeps what a filter leaves out, and mixes with -f in the order given.
+
+  $ herd list -x platform
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ herd list -x platform -x none
+  missing\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ herd list -f platform -x platform
+  No configured repository is left by filters "platform" and not "platform"
+  $ herd list -x nope
+  "nope" is neither a configured filter nor a command; configured filters are "none", "platform"
+  [1]
+
 A name that is neither a filter nor a program is reported, with the filters
 there are.
 
@@ -101,7 +113,7 @@ A filter jp rejects is named, with what jp said.
   Configuration error: $ROOT/home/.config/herd/repos.json: filter "broken" failed: SyntaxError: Incomplete expression
   [?
     ^
-  a filter named with -f is applied to every configured list, and a field a list does not carry reads as null, which most JMESPath functions reject rather than treat as no match; naming it as `field || ''` gives them a string to work with
+  a filter named with -f or -x is applied to every configured list, and a field a list does not carry reads as null, which most JMESPath functions reject rather than treat as no match; naming it as `field || ''` gives them a string to work with
   [1]
 
 A filter named with -f is applied to every list, including ones it was not
@@ -110,7 +122,7 @@ written for, and says so when it fails there.
   $ echo '[{"path": "src/docs", "ssh_url": "docs"}]' >"$CONFIG/more.json"
   $ herd list -f group
   Configuration error: $ROOT/home/.config/herd/more.json: filter "group" failed: Error evaluating JMESPath expression: Invalid type for: <nil>, expected: []jmespath.jpType{"string"}
-  a filter named with -f is applied to every configured list, and a field a list does not carry reads as null, which most JMESPath functions reject rather than treat as no match; naming it as `field || ''` gives them a string to work with
+  a filter named with -f or -x is applied to every configured list, and a field a list does not carry reads as null, which most JMESPath functions reject rather than treat as no match; naming it as `field || ''` gives them a string to work with
   [1]
   $ rm "$CONFIG/more.json"
 

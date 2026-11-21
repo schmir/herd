@@ -342,10 +342,6 @@
                               :anchors @[(placement :path)]}))))))
   resolved)
 
-(def- url-keys
-  "The names a repository list may give the URL a repository is cloned from."
-  [:clone_url :ssh_url])
-
 (defn validate-repository-list
   ``Return the `entries` of a repository list with the clone URL of each under
   `:clone-url`, or raise an error describing their shape. A list may spell the
@@ -366,7 +362,7 @@
                      " relative to its anchor")))
     (when (index-of ".." (path/parts (entry :path)))
       (error (string "entry " index " has a \"path\" with a \"..\" component")))
-    (def spelled (filter (fn [key] (not (nil? (entry key)))) url-keys))
+    (def spelled (filter (fn [key] (not (nil? (entry key)))) checkout/url-keys))
     (when (= 2 (length spelled))
       (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))
     (def url-key (get spelled 0 :clone_url))
@@ -375,7 +371,7 @@
     (checkout/validate-repository-options entry (string "entry " index) `"vcs"`)
     (def normalized @{})
     (eachp [key value] entry
-      (unless (index-of key url-keys)
+      (unless (index-of key checkout/url-keys)
         (put normalized key value)))
     (put normalized :clone-url (entry url-key))))
 
@@ -425,7 +421,7 @@
         (and broken (not (empty? chain)) (not (named-filters/executable-available?)))
         (do
           (array/push broken {:anchor (placement :path)
-                              :message (string list-label ": " (named-filters/missing-executable-message (first chain)))})
+                              :message (string list-label ": " (named-filters/missing-executable-message (named-filters/step-value (first chain))))})
           nil)
 
         (has-key? selected chain)
