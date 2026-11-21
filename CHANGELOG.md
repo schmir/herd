@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A repository list field named `null` no longer breaks herd. It made
+  `HERD_REPO_JSON` invalid JSON, and `-x` and inline lists failed with a
+  decode error. This also applies to a field named `null` inside an object.
+
 ## 0.5.0 - 2026-11-21
 
 - `-x NAME` (or `--exclude NAME`) keeps the repositories that a filter or a

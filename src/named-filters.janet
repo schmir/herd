@@ -162,7 +162,7 @@
       # without saying why. What travels on is what the filter wrote.
       (def answered
         (try
-          (json/decode stdout true)
+          (json/decode stdout)
           ([err] (error (string (filter-where name)
                                 " produced unreadable output: " err)))))
       (unless (indexed? answered)
@@ -188,8 +188,8 @@
   [entry]
   (when (dictionary? entry)
     (def url (entry (checkout/url-key entry)))
-    (when (and (string? (entry :path)) (string? url))
-      [(entry :path) url])))
+    (when (and (string? (entry "path")) (string? url))
+      [(entry "path") url])))
 
 (defn- leave-out
   ``Return the JSON array `source` without the entries whose path and clone
@@ -199,12 +199,12 @@
   `matched` must have them, so a filter that answers with something else is
   an error and does not exclude nothing.``
   [source matched name]
-  (def entries (json/decode source true))
+  (def entries (json/decode source))
   (unless (indexed? entries)
     (error (string (filter-where name)
                    " can only be excluded from an array of repositories")))
   (def keys-matched @{})
-  (each entry (json/decode matched true)
+  (each entry (json/decode matched)
     (put keys-matched
          (or (repository-key entry)
              (error (string (filter-where name) " answered with an entry"

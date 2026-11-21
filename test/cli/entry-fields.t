@@ -39,9 +39,9 @@ inherited does not describe another repository.
 
 HERD_REPO_JSON holds the whole entry, the fields that have no variable too.
 
-  $ herd run -C src/api --show-output always sh -c 'echo "$HERD_REPO_JSON"' | grep -o '"members":\[[^]]*\]'
+  $ herd run -C src/api --show-output always sh -c 'printf "%s\n" "$HERD_REPO_JSON"' | grep -o '"members":\[[^]]*\]'
   "members":[{"user":"bob"}]
-  $ herd run -C src/web --show-output always sh -c 'echo "$HERD_REPO_JSON"' | grep -o '"clone_url":"[^"]*"' | sed "s|$ROOT|\$ROOT|"
+  $ herd run -C src/web --show-output always sh -c 'printf "%s\n" "$HERD_REPO_JSON"' | grep -o '"clone_url":"[^"]*"' | sed "s|$ROOT|\$ROOT|"
   "clone_url":"$ROOT/origins/web"
 
 A custom command can branch on a field.
@@ -75,3 +75,15 @@ holds it.
   "a_b":2
   "empty":null
   "nul":"a\u0000b"
+
+A field named "null", at any depth, is a key in HERD_REPO_JSON, not a JSON
+null.
+
+  $ cat >"$CONFIG/repos.json" <<'EOF'
+  > [{"path": "src/api", "ssh_url": "unused", "vcs": "git",
+  >   "null": 1, "owner": {"null": 2}}]
+  > EOF
+  $ herd run -C src/api --show-output always sh -c 'printf "%s\n" "$HERD_REPO_JSON"' \
+  >   | grep -o -e '"null":1' -e '"owner":{"null":2}' | sort
+  "null":1
+  "owner":{"null":2}

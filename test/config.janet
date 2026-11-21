@@ -62,48 +62,52 @@
 # --- validate-config ------------------------------------------------------
 
 (assert-error "a bare object is not a configuration"
-              (config/validate-repository-list {:path "a" :ssh_url "b"}))
+              (config/validate-repository-list {"path" "a" "ssh_url" "b"}))
 (assert-error "entries must be objects" (config/validate-repository-list [42]))
-(assert-error "path is required" (config/validate-repository-list [{:ssh_url "b"}]))
-(assert-error "ssh_url is required" (config/validate-repository-list [{:path "a"}]))
-(assert-error "path must be a string" (config/validate-repository-list [{:path 1 :ssh_url "b"}]))
+(assert-error "path is required" (config/validate-repository-list [{"ssh_url" "b"}]))
+(assert-error "ssh_url is required" (config/validate-repository-list [{"path" "a"}]))
+(assert-error "path must be a string" (config/validate-repository-list [{"path" 1 "ssh_url" "b"}]))
 (assert-error "vcs must be a string"
-              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs :jj}]))
+              (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" :jj}]))
 (assert-error "vcs cannot be false"
-              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs false}]))
+              (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" false}]))
 (assert-error "vcs must be git or jj"
-              (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "svn"}]))
+              (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" "svn"}]))
 (assert-no-error "a well formed entry passes"
-                 (config/validate-repository-list [{:path "a" :ssh_url "b"}]))
+                 (config/validate-repository-list [{"path" "a" "ssh_url" "b"}]))
 (assert-no-error "a repository can select Git"
-                 (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "git"}]))
+                 (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" "git"}]))
 (assert-no-error "a repository can select jj"
-                 (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "jj"}]))
+                 (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" "jj"}]))
 (assert-no-error "an empty configuration is valid" (config/validate-repository-list []))
 (let [url (fn [entry] ((first (config/validate-repository-list [entry])) :clone-url))]
-  (assert (= "c" (url {:path "a" :ssh_url "s" :clone_url "c"}))
+  (assert (= "c" (url {"path" "a" "ssh_url" "s" "clone_url" "c"}))
           "clone_url wins over ssh_url")
-  (assert (= "s" (url {:path "a" :ssh_url "s" :clone_url ""}))
+  (assert (= "s" (url {"path" "a" "ssh_url" "s" "clone_url" ""}))
           "an empty clone_url gives way to ssh_url")
-  (assert (= "s" (url {:path "a" :ssh_url "s" :clone_url :null}))
+  (assert (= "s" (url {"path" "a" "ssh_url" "s" "clone_url" :null}))
           "a null clone_url gives way to ssh_url")
-  (assert (= "" (url {:path "a" :clone_url ""}))
+  (assert (= "" (url {"path" "a" "clone_url" ""}))
           "an empty clone_url without ssh_url is still the URL")
-  (assert (nil? (get (first (config/validate-repository-list
-                              [{:path "a" :ssh_url "s" :clone_url "c"}])) :ssh_url))
-          "neither spelling is kept beside :clone-url"))
+  (assert (deep= @{"path" "a" "clone_url" "c"}
+                 ((first (config/validate-repository-list
+                           [{"path" "a" "ssh_url" "s" "clone_url" "c"}])) :entry))
+          "the entry holds the URL as clone_url and drops ssh_url"))
 (assert-error "a set clone_url must be a string, even beside ssh_url"
-              (config/validate-repository-list [{:path "a" :ssh_url "s" :clone_url 1}]))
+              (config/validate-repository-list [{"path" "a" "ssh_url" "s" "clone_url" 1}]))
 (assert-error "clone_url must be a string"
-              (config/validate-repository-list [{:path "a" :clone_url 1}]))
+              (config/validate-repository-list [{"path" "a" "clone_url" 1}]))
 (let [entry (first (config/validate-repository-list
-                     [{:path "a" :clone_url "b" :vcs "git"}]))]
-  (assert (and (= "b" (entry :clone-url)) (= "git" (entry :vcs))
-               (nil? (entry :clone_url)))
+                     [{"path" "a" "clone_url" "b" "vcs" "git"}]))]
+  (assert (and (= "b" (entry :clone-url)) (= "git" (entry :vcs)) (= "a" (entry :path)))
           "clone_url is the clone URL"))
-(let [entry (first (config/validate-repository-list [{:path "a" :ssh_url "b"}]))]
-  (assert (and (= "b" (entry :clone-url)) (nil? (entry :ssh_url)))
-          "ssh_url is the clone URL too"))
+(let [entry (first (config/validate-repository-list [{"path" "a" "ssh_url" "b"}]))]
+  (assert (and (= "b" (entry :clone-url)) (= "b" ((entry :entry) "clone_url")))
+          "ssh_url is the clone URL too, and the entry spells it clone_url"))
+(let [repository (first (config/validate-repository-list
+                          [{"path" "a" "clone_url" "b" "anchors" "x" "entry" "y"}]))]
+  (assert (and (nil? (repository :anchors)) (= "x" ((repository :entry) "anchors")))
+          "other fields stay in the entry and set nothing of the repository"))
 
 # --- custom commands ------------------------------------------------------
 
@@ -1234,7 +1238,7 @@
                       ["a/.." "\"..\" component"] ["a/../b" "\"..\" component"]]
   (assert (string/find message
                        (try (config/validate-repository-list
-                              [{:path path :ssh_url "u"}])
+                              [{"path" path "ssh_url" "u"}])
                          ([err] err)))
           (string "a list path " path " is rejected")))
 

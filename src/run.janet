@@ -195,7 +195,7 @@
   fields with no name left, and the strings that contain a NUL.``
   [entry]
   (def own (table ;(kvs entry)))
-  (each key [:path :clone-url :vcs] (put own key nil))
+  (each key ["path" "clone_url" "vcs"] (put own key nil))
   (def found @{})
   (def clashed @{})
   (collect-fields own nil found clashed)
@@ -204,14 +204,6 @@
     (unless (clashed name)
       (put variables (string "HERD_FIELD_" name) value)))
   variables)
-
-(defn- entry-json
-  "The repository list `entry` as the JSON a list file holds."
-  [entry]
-  (def spelled @{})
-  (eachp [key value] entry
-    (put spelled (if (= key :clone-url) "clone_url" key) value))
-  (string (json/encode spelled)))
 
 (defn command-environment
   ``The environment a command runs in: herd's own, plus HERD_COLOR, "always"
@@ -242,7 +234,7 @@
   (merge (os/environ)
          inherited
          (entry-field-variables entry)
-         {"HERD_REPO_JSON" (entry-json entry)
+         {"HERD_REPO_JSON" (string (json/encode entry))
           "HERD_COLOR" (if color? "always" "never")
           "HERD_AT_PATH" resolved-at
           "HERD_REPO_RELPATH" (path/relpath resolved-at

@@ -336,17 +336,17 @@
                               # The path as it stands beneath its anchor, for
                               # the commands that run there to be told.
                               :anchored-path listed-path
-                              # What the list gave, for the commands that run
-                              # there to be told its fields.
-                              :entry entry
                               :anchors @[(placement :path)]}))))))
   resolved)
 
 (defn validate-repository-list
-  ``Return the `entries` of a repository list with the clone URL of each under
-  `:clone-url`, or raise an error describing their shape. A list may spell the
-  URL `clone_url` or, as older lists do, `ssh_url`, or carry both, as
-  checkout/url-key chooses.``
+  ``Return the repositories that the `entries` of a repository list, decoded
+  with string keys, describe, or raise an error describing their shape. Each
+  has :path, :clone-url, :vcs when the entry sets it, and :entry, the entry
+  with its URL as "clone_url". A list may spell the URL "clone_url" or, as
+  older lists do, "ssh_url", or carry both, as checkout/url-key chooses.
+  Only these fields become repository settings, so no other field of a list
+  can set one.``
   [entries]
   (unless (indexed? entries)
     (error "expected a JSON array of repository objects"))
@@ -354,24 +354,46 @@
     (def entry (entries index))
     (unless (dictionary? entry)
       (error (string "entry " index " is not a JSON object")))
-    (unless (string? (entry :path))
+    (def listed-path (entry "path"))
+    (unless (string? listed-path)
       (error (string "entry " index " needs a string \"path\"")))
     # Every repository lies beneath the anchor of its placement, which is how
     # a placement that cannot be read is known to affect only that subtree.
-    (when (path/abspath? (entry :path))
+    (when (path/abspath? listed-path)
       (error (string "entry " index " has an absolute \"path\"; write it"
                      " relative to its anchor")))
-    (when (index-of ".." (path/parts (entry :path)))
+    (when (index-of ".." (path/parts listed-path))
       (error (string "entry " index " has a \"path\" with a \"..\" component")))
     (def url-key (checkout/url-key entry))
-    (unless (string? (entry url-key))
+    (def url (entry url-key))
+    (unless (string? url)
       (error (string "entry " index " needs a string \"" url-key "\"")))
-    (checkout/validate-repository-options entry (string "entry " index) `"vcs"`)
-    (def normalized @{})
+    (def spelled @{})
     (eachp [key value] entry
       (unless (index-of key checkout/url-keys)
-        (put normalized key value)))
-    (put normalized :clone-url (entry url-key))))
+        (put spelled key value)))
+    (put spelled "clone_url" url)
+    (def repository @{:path listed-path :clone-url url :entry spelled})
+    (when (has-key? entry "vcs")
+      (put repository :vcs (entry "vcs")))
+    (checkout/validate-repository-options repository (string "entry " index) `"vcs"`)))
+
+(defn- string-keys
+  ``Return `value` with each key of its dictionaries, at every depth, as a
+  string. The JSON encoder writes a key :null as a JSON null, not as the
+  string "null", which makes JSON that does not parse.``
+  [value]
+  (cond
+    (dictionary? value)
+    (do
+      (def keyed @{})
+      (eachp [key field] value
+        (put keyed (string key) (string-keys field)))
+      keyed)
+
+    (indexed? value) (map string-keys value)
+
+    value))
 
 (defn- inline-list-source
   ``Return the JSON that stands for the inline repository list `entries`, so
@@ -389,7 +411,8 @@
         (error (string "entry " index " needs :clone-url, not :ssh_url")))
       (def spelled @{})
       (eachp [key value] entry
-        (put spelled (if (keyword? key) (string/replace-all "-" "_" key) key) value))
+        (put spelled (if (keyword? key) (string/replace-all "-" "_" key) key)
+             (string-keys value)))
       spelled)))
 
 (defn- read-list-source
@@ -430,8 +453,7 @@
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
                          (json/decode
-                           (named-filters/narrow filters source (placement :use-filters) names)
-                           true))]
+                           (named-filters/narrow filters source (placement :use-filters) names)))]
           (put selected chain computed)
           computed)))
     (when kept

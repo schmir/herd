@@ -67,6 +67,13 @@ An empty inline list is a list with no repositories.
   $ echo '{:checkouts [{:list []}]}' >"$CONFIG/config.jdn"
   $ herd list -a -C /
 
+A nested key :null is a key named "null", not a JSON null.
+
+  $ echo '{:checkouts [{:list [{:path "x" :clone-url "u" :owner {:null 1}}]}]}' \
+  >   >"$CONFIG/config.jdn"
+  $ herd list -a -C /
+  missing\t$ROOT/home/x\tu (esc)
+
 Filters see an inline list as the JSON a file would hold, with the URL
 under clone_url.
 

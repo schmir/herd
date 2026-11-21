@@ -178,3 +178,15 @@ filter removes them; unfiltered, they are errors.
   $ herd list -a -C /
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 2 needs a string "path"
   [1]
+
+-x passes on a field named "null" as a key, not as a JSON null.
+
+  $ cat >"$CONFIG/repos.json" <<'EOF'
+  > [{"path": "a", "ssh_url": "a-url", "null": 1},
+  >  {"path": "b", "ssh_url": "b-url", "group": "drop"}]
+  > EOF
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"drop" "[?group=='drop']"}}
+  > EOF
+  $ herd list -a -C / -x drop
+  missing\t$ROOT/home/a\ta-url (esc)

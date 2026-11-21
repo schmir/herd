@@ -597,23 +597,24 @@
           "a repository containing the location lies above it")
   (sh/rm dir))
 
-(let [entry {:path "team/api"
-             :clone-url "git@example.com:api.git"
-             :vcs "git"
-             :group "platform"
-             :default_branch "main"
-             :approvals 2
-             :archived false
-             :owner {:name "ann" :team {:id 7}}
-             :members [{:user "bob"}]
-             :note nil
-             :nul "a\0b"
-             :a-b 1
-             :a_b 2
+(let [entry {"path" "team/api"
+             "clone_url" "git@example.com:api.git"
+             "vcs" "git"
+             "group" "platform"
+             "default_branch" "main"
+             "approvals" 2
+             "archived" false
+             "owner" {"name" "ann" "team" {"id" 7}}
+             "members" [{"user" "bob"}]
+             "note" :null
+             "nul" "a\0b"
+             "null" "a key named null"
+             "a-b" 1
+             "a_b" 2
              "foo::bar" "colons"
              "__lead__" "edges"
-             :___ "nothing left"
-             :foo {:bar "nested"}}
+             "___" "nothing left"
+             "foo" {"bar" "nested"}}
       variables (run/entry-field-variables entry)]
   (assert (= "platform" (variables "HERD_FIELD_GROUP")) "a string field is a variable")
   (assert (= "main" (variables "HERD_FIELD_DEFAULT_BRANCH"))
@@ -642,11 +643,13 @@
   (assert (= false (env "HERD_FIELD_STALE"))
           "a field variable that herd inherited is removed")
   (assert (= "platform" (env "HERD_FIELD_GROUP")) "a command is told the fields")
-  (def described (json/decode (env "HERD_REPO_JSON") true))
-  (assert (= "git@example.com:api.git" (described :clone_url))
-          "the JSON spells the URL as a list file does")
-  (assert (= "a\0b" (described :nul)) "the JSON keeps the whole string")
-  (assert (= "bob" (get-in described [:members 0 :user]))
+  (def described (json/decode (env "HERD_REPO_JSON")))
+  (assert (= "git@example.com:api.git" (described "clone_url")) "the JSON holds the URL")
+  (assert (= "a\0b" (described "nul")) "the JSON keeps the whole string")
+  (assert (= "a key named null" (described "null"))
+          "a key named null stays a key, so the JSON parses")
+  (assert (= :null (described "note")) "a null stays a null")
+  (assert (= "bob" (get-in described ["members" 0 "user"]))
           "the JSON keeps what the variables leave out"))
 
 (let [env (run/command-environment {:path "/nonexistent"} false)]
