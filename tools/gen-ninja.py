@@ -252,11 +252,12 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
     # built-in `:`. ninja only sees an input become newer, never one
     # disappear, and runs a step again when its command changes. Without
     # this, deleting or renaming a source file would leave the old image in
-    # place.
+    # place. -x normal makes each compile warning an error, so that a warning
+    # stops the build.
     n.rule(
         "image",
         ': $inputs && HERD_VERSION="$$(cat build/version)" JANET_PATH=lib'
-        f" {HOST_JANET} tools/make-image.janet src/main.janet $out $natives",
+        f" {HOST_JANET} -x normal tools/make-image.janet src/main.janet $out $natives",
         description="image $out",
     )
     # The Janet steps keep what is already there, and restat tells ninja when
