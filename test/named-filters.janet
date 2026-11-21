@@ -589,7 +589,7 @@
 (each answer [`["a"]` `[{"path":"a"}]` `[{"path":"a","clone_url":1,"ssh_url":"u"}]`]
   (with-fixture dir
     (with-stub (stub-filter dir (string `printf '%s' '` answer `'`))
-      (assert (string/find "which -x needs to compare entries"
+      (assert (string/find "which an exclusion needs to compare entries"
                            (error-message
                              (fn [] (named-filters/apply-filters `[{"path":"a","clone_url":"u"}]`
                                                                  [{:exclude "any"}] {"any" "@"}))))

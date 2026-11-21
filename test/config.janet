@@ -749,6 +749,32 @@
 (assert-no-error "a row can filter by nothing at all"
                  (config/validate-checkout-row {:list "a.json" :use-filters []}
                                                ":checkouts row 0"))
+(assert-no-error "a row can exclude a filter"
+                 (config/validate-checkout-row
+                   {:list "a.json" :use-filters ["active" "!platform"]}
+                   ":checkouts row 0"))
+(assert-error "a row cannot exclude no filter at all"
+              (config/validate-checkout-row {:list "a.json" :use-filters ["!"]}
+                                            ":checkouts row 0"))
+(assert-error "a row filter step is a string, not a dictionary"
+              (config/validate-checkout-row {:list "a.json" :use-filters [{:exclude "a"}]}
+                                            ":checkouts row 0"))
+(assert-no-error "the defaults can exclude a filter"
+                 (config/validate-checkout-defaults {:use-filters ["!active"]}))
+(assert-error "an excluded filter must be configured"
+              (config/configured-repository-settings
+                {:checkouts [{:list "work.json" :use-filters ["!absent"]}]}))
+(assert-error "an excluded filter cannot be a shell filter"
+              (config/configured-repository-settings
+                {:filters {"c" {:sh "true"}}
+                 :checkout-defaults {:use-filters ["!c"]}}))
+(assert-error "a filter name cannot start with \"!\""
+              (config/configured-repository-settings {:filters {"!a" "[?a]"}}))
+(assert (deep= @["a" {:exclude "b"}]
+               ((first (config/resolve-checkout-rows "/l.json" [{:anchor "/srv"
+                                                                 :use-filters ["a" "!b"]}]))
+                 :use-filters))
+        "a placement reads \"!name\" as an exclusion")
 (assert-error "a default filter must be an array too"
               (config/validate-checkout-defaults {:use-filters "active"}))
 (assert-no-error "the defaults settle filters"

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `:use-filters` can now name a filter as `"!name"`. This keeps the
+  repositories that the filter leaves out, as `-x` does on the command line.
+  A filter name in `:filters` can no longer start with `!`.
 - A repository list field named `null` no longer breaks herd. It made
   `HERD_REPO_JSON` invalid JSON, and `-x` and inline lists failed with a
   decode error. This also applies to a field named `null` inside an object.

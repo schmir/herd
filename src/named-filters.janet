@@ -62,6 +62,9 @@
   (eachp [name entry] filters
     (unless (and (string? name) (not (empty? name)))
       (error "filter names must be non-empty strings"))
+    (when (string/has-prefix? "!" name)
+      (error (string (filter-where name) " starts with \"!\", which"
+                     " :use-filters reads as excluding a filter")))
     (validate-filter-entry name entry))
   filters)
 
@@ -99,13 +102,38 @@
     (tabseq [[name entry] :pairs registry]
       name (or (text-of-kind entry :jp) (text-of-kind entry :sh)))))
 
+(defn excluded?
+  ``Whether the filter step `step`, `{:exclude value}` from -x or a row's
+  `:use-filters`, leaves out what it matches.``
+  [step]
+  (dictionary? step))
+
+(defn step-value
+  "The filter name or command the filter step `step` was given."
+  [step]
+  (if (excluded? step) (step :exclude) step))
+
+(defn row-step
+  ``The filter step that `name`, from a row's `:use-filters`, stands for: a
+  leading "!" makes it `{:exclude rest}`.``
+  [name]
+  (if (string/has-prefix? "!" name)
+    {:exclude (string/slice name 1)}
+    name))
+
+(defn step-label
+  "The filter step `step` as `:use-filters` writes it, with \"!\" for an exclusion."
+  [step]
+  (if (excluded? step) (string "!" (step :exclude)) step))
+
 (defn require-list-filters
-  ``Raise unless every one of `names`, a row's `:use-filters`, is a list filter in
-  `registry`. A checkout filter cannot narrow a list, since it runs in a
-  checkout, so only the command line can use one. `where` says whose names
-  they are. Return `names`.``
+  ``Raise unless every one of `names`, a row's `:use-filters`, names a list
+  filter in `registry`, with or without a leading "!". A checkout filter
+  cannot narrow a list, since it runs in a checkout, so only the command line
+  can use one. `where` says whose names they are. Return `names`.``
   [registry names where]
-  (each name names
+  (each written names
+    (def name (step-value (row-step written)))
     (cond
       (list-filter? registry name) nil
       (checkout-filter-command registry name)
@@ -172,16 +200,6 @@
       # travels on to the next filter and must not be quietly mutable.
       (string stdout))))
 
-(defn excluded?
-  "Whether the filter step `step`, given with -x, leaves out what it matches."
-  [step]
-  (dictionary? step))
-
-(defn step-value
-  "The filter name or command the filter step `step` was given."
-  [step]
-  (if (excluded? step) (step :exclude) step))
-
 (defn- repository-key
   ``The path and clone URL of the list entry `entry`, or nil when it does not
   have a string "path" and a string clone URL.``
@@ -209,7 +227,7 @@
          (or (repository-key entry)
              (error (string (filter-where name) " answered with an entry"
                             " without a string \"path\" and clone URL,"
-                            " which -x needs to compare entries")))
+                            " which an exclusion needs to compare entries")))
          true))
   (string (json/encode
             (filter (fn [entry] (not (get keys-matched (repository-key entry))))

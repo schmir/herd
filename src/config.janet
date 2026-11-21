@@ -83,7 +83,8 @@
   settings)
 
 (defn- validate-filter-setting
-  ``Validate an optional `:use-filters` as an array of filter names. It is
+  ``Validate an optional `:use-filters` as an array of filter names. A name
+  that starts with "!" keeps what that filter leaves out, as -x does. It is
   always an array, even for a single name, so there is one shape to write and
   one to read. An empty array filters nothing, which is how a row drops the
   filters it would otherwise inherit from `:checkout-defaults`.``
@@ -95,7 +96,10 @@
     (each name names
       (unless (and (string? name) (not (empty? name)))
         (error (string where " names an invalid filter " (describe name)
-                       "; expected a non-empty string")))))
+                       "; expected a non-empty string")))
+      (when (= "!" name)
+        (error (string where " names an invalid filter \"!\""
+                       "; expected a filter name after \"!\"")))))
   settings)
 
 (defn- validate-strip-components-setting
@@ -269,7 +273,7 @@
                          name " without HOME")))))
     (merge (repository-options checkout-row)
            {:path resolved
-            :use-filters (get checkout-row :use-filters [])
+            :use-filters (map named-filters/row-step (get checkout-row :use-filters []))
             :strip-components (get checkout-row :strip-components 0)})))
 
 (defn- strip-path-components

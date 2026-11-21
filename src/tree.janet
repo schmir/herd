@@ -4,6 +4,7 @@
 
 (import spork/path)
 (import ./config)
+(import ./named-filters)
 
 (defn- path-parts
   "The components of the absolute `path`."
@@ -35,7 +36,7 @@
   (when (placement :vcs)
     (array/push notes (string "vcs " (placement :vcs))))
   (unless (empty? (placement :use-filters))
-    (array/push notes (string "filters " (string/join (placement :use-filters) ", "))))
+    (array/push notes (string "filters " (string/join (map named-filters/step-label (placement :use-filters)) ", "))))
   (when broken
     (array/push notes (string "broken: " broken)))
   (def strip (placement :strip-components))

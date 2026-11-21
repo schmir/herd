@@ -248,6 +248,9 @@ Filters, and the rows and defaults that name them.
   $ settings '{:checkouts [{:list "repos.json" :use-filters [""]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 names an invalid filter ""; expected a non-empty string
   [1]
+  $ settings '{:checkouts [{:list "repos.json" :use-filters ["!"]}]}'
+  Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row 0 names an invalid filter "!"; expected a filter name after "!"
+  [1]
   $ settings '{:filters {"active" "[?a]"} :checkouts [{:list "repos.json" :use-filters ["typo"]}]}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: :checkouts row for "repos.json" names an unknown filter "typo"
   [1]

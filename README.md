@@ -285,6 +285,15 @@ list and keeps it only if it is active. A row replaces the
 `:vcs` and `:anchor`, so `:use-filters []` is how a row keeps everything
 when `:checkout-defaults` filters.
 
+A name written as `"!name"` keeps what the filter leaves out, as `-x` does
+on the command line (see below). For this reason, a filter name cannot start
+with `!`.
+
+```janet
+{:checkouts [{:list "repos.json" :anchor "src"     :use-filters ["!archived"]}
+             {:list "repos.json" :anchor "archive" :use-filters ["archived"]}]}
+```
+
 Because a row filters the list before anchoring it, two rows can take
 different parts of one file, and only the entries a filter kept are read as
 repositories — a list may carry entries that are not repositories at all.

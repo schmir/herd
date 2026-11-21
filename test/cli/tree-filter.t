@@ -19,3 +19,18 @@ repositories the filter keeps are drawn. Filters need jp.
   
   /srv/platform (repos.json [filters platform], 1 repository)
   └── api
+
+A row can exclude a filter with "!name", and keeps what the filter leaves
+out. It mixes with plain names in the order written.
+
+  $ cat >"$CONFIG/config.jdn" <<'JDN'
+  > {:filters {"platform" "[?group=='platform']"
+  >            "all" "@"}
+  >  :checkouts [{:list "repos.json" :anchor "/srv/other" :use-filters ["!platform"]}
+  >              {:list "repos.json" :anchor "/srv/none" :use-filters ["all" "!all"]}]}
+  > JDN
+  $ herd tree -r
+  /srv/none (repos.json [filters all, !all])
+  
+  /srv/other (repos.json [filters !platform], 1 repository)
+  └── web
