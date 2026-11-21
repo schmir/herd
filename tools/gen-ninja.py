@@ -276,9 +276,12 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
     # does not, and zig's linker removes those by default. -rdynamic exports
     # the functions and --no-gc-sections keeps them; without it, a module
     # fails to load with "symbol not found".
+    #
+    # The Makefile needs GNU make. MAKE names it when it is set. If not,
+    # gmake is used when there is one, because on the BSDs make is BSD make.
     n.rule(
         "janet-boot",
-        "make -s -C $dir -j$$(getconf _NPROCESSORS_ONLN)"
+        "$${MAKE:-$$(command -v gmake || echo make)} -s -C $dir -j$$(getconf _NPROCESSORS_ONLN)"
         ' CC="zig cc" LDFLAGS="-rdynamic -Wl,--no-gc-sections"'
         " build/c/janet.c build/janet build/janet.h",
         description="building janet",

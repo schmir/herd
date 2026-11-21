@@ -14,9 +14,10 @@ installs it as `~/.local/bin/herd`.
 
 Without Nix, install `just`, [ninja](https://ninja-build.org/),
 [Zig](https://ziglang.org/), `git`, GNU `make` and `jj`, then run
-`just install`. You do not need to install Janet or another C compiler: the
-build compiles the pinned Janet from source with `zig cc`, for the host into
-`build/janet` and into each binary.
+`just install`. The build runs `gmake` when there is one, and `make` if not;
+set `MAKE` to choose another. You do not need to install Janet or another C
+compiler: the build compiles the pinned Janet from source with `zig cc`, for
+the host into `build/janet` and into each binary.
 
 ## Test
 
