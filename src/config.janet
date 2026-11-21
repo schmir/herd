@@ -190,9 +190,8 @@
   (unless (indexed? rows)
     (error ":checkouts must be an array of rows"))
   (def checkout-rows
-    (seq [index :range [0 (length rows)]]
-      (validate-checkout-row (rows index)
-                             (string ":checkouts row " index))))
+    (seq [[index row] :pairs rows]
+      (validate-checkout-row row (string ":checkouts row " index))))
   (def filters (named-filters/validate-registry (get settings-file :filters {})))
   (def defaults (validate-checkout-defaults (get settings-file :checkout-defaults {})))
   (named-filters/require-list-filters filters (get defaults :use-filters []) ":checkout-defaults")
@@ -354,8 +353,7 @@
   [entries]
   (unless (indexed? entries)
     (error "expected a JSON array of repository objects"))
-  (seq [index :range [0 (length entries)]]
-    (def entry (entries index))
+  (seq [[index entry] :pairs entries]
     (unless (dictionary? entry)
       (error (string "entry " index " is not a JSON object")))
     (def listed-path (entry "path"))
