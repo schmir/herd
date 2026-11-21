@@ -1309,13 +1309,15 @@
   (assert (deep= @[] (config/read-repository-list config @[]))
           "a list that no row places is not decoded")
   (sh/create-dirs empty-bin)
-  (def broken @[])
-  (defer (os/setenv "PATH" path)
-    (os/setenv "PATH" empty-bin)
-    (assert (deep= @[] (config/read-repository-list config @[{:anchor dir :use-filters ["any"]}]
-                                                    {"any" "@"} [] broken))
-            "a list whose placements cannot run their filters is not decoded"))
-  (assert (= 1 (length broken)) "and the placement is recorded as broken")
+  (def placements
+    (defer (os/setenv "PATH" path)
+      (os/setenv "PATH" empty-bin)
+      (config/read-list-placements config @[{:anchor dir :use-filters ["any"]}]
+                                   {"any" "@"})))
+  (assert (deep= @[@[]] (map (fn [placement] (placement :repositories)) placements))
+          "a list whose placements cannot run their filters is not decoded")
+  (assert (= :no-filter-program (get-in placements [0 :broken :kind]))
+          "and the placement is recorded as broken")
   (assert (string/find "decode error"
                        (error-message (fn [] (config/read-repository-list config @[{:anchor dir}]))))
           "a placement that needs the entries still fails on them")

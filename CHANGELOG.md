@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `herd tree` now refuses two lists that disagree on the URL or on an option
+  of a repository, as the other commands do. Before, it printed the tree.
+  Its configuration errors now name a list file by its full path.
 - `:use-filters` can now name a filter as `"!name"`. This keeps the
   repositories that the filter leaves out, as `-x` does on the command line.
   A filter name in `:filters` can no longer start with `!`.

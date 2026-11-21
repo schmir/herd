@@ -44,20 +44,6 @@
     (array/push notes (string "strip " (if (string? strip) (describe strip) strip))))
   (string list-label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
 
-(defn- list-placements
-  ``Each of the `rows` of the list `list-label` as `{:placement :label :repositories}`,
-  where `read` takes a row and an array to record the placements whose filters
-  could not run in, and returns the repositories the row places.``
-  [list-label rows read]
-  (def placements (config/resolve-checkout-rows list-label rows))
-  (seq [[row placement] :in (map tuple rows placements)]
-    # A row whose filters cannot run is shown, not failed, for the rest of the
-    # tree is still readable.
-    (def broken @[])
-    (def repositories (read row broken))
-    {:placement placement :label list-label :repositories repositories
-     :broken (unless (empty? broken) "needs jp")}))
-
 (defn- ignored-list-entries
   ``One display node for each of the `list-paths` that `settings` leave out,
   because no row places it, so the tree says where its repositories went.``
@@ -69,20 +55,10 @@
      :ignored? true
      :children []}))
 
-(defn- missing-list-placements
-  ``The placements of the `settings` rows that read a list file which is not
-  among the `present` names, as `list-placements` gives them, with no
-  repositories: there is no file to read them from.``
-  [settings present]
-  (def defaults (get settings :checkout-defaults {}))
-  (mapcat (fn [row]
-            (def name (row :list))
-            (if (and (string? name) (not (index-of name present)))
-              (map (fn [placement] {:placement placement :label name :repositories []
-                                    :broken "list file missing"})
-                   (config/resolve-checkout-rows name [(merge defaults row)]))
-              []))
-          (get settings :checkouts [])))
+(def- broken-notes
+  "What the tree says of a broken placement, by the kind of the problem."
+  {:no-filter-program "needs jp"
+   :no-list-file "list file missing"})
 
 (defn- filesystem-trie
   ``Arrange the anchors of `placements` into a trie, and the repositories of
@@ -90,7 +66,10 @@
   goes into the filesystem trie itself.``
   [placements]
   (def trie (new-node))
-  (each {:placement placement :label list-label :repositories repositories :broken broken} placements
+  (each {:placement placement :label list-label :repositories repositories :broken problem} placements
+    # A broken placement is shown, not failed, for the rest of the tree is
+    # still readable.
+    (def broken (when problem (broken-notes (problem :kind))))
     (def anchor-parts (path-parts (placement :path)))
     (def anchor (node-at trie anchor-parts))
     (def own (new-node))
@@ -221,26 +200,10 @@
   and lists them only with `list?`.``
   [directory config &opt list?]
   (def settings (config :settings))
-  (def filters (settings :filters))
-  (def list-paths (config/discover-repository-lists directory))
-  (def placements
-    [;(missing-list-placements settings (map path/basename list-paths))
-     ;(mapcat identity
-              (seq [list-path :in list-paths
-                    :let [name (path/basename list-path)]]
-                (list-placements name (config/checkout-rows-for-list settings name)
-                                 (fn [row broken] (config/read-repository-list list-path [row] filters [] broken)))))
-     ;(mapcat identity
-              (seq [[list-label row] :in (config/inline-lists settings)]
-                (list-placements list-label [row]
-                                 (fn [row broken] (config/read-inline-list list-label row filters [] broken)))))])
-  (def seen @{})
-  (each {:label list-label :repositories repositories} placements
-    (each repository repositories
-      (put seen (repository :path) {:source list-label})))
-  (config/reject-nested-repositories seen)
-  [;(roots-of (filesystem-trie placements) list? true)
-   ;(ignored-list-entries settings list-paths)])
+  # The catalog merges the lists, so the tree refuses what a selection refuses.
+  (def catalog (config/load-repository-catalog directory settings))
+  [;(roots-of (filesystem-trie (catalog :placements)) list? true)
+   ;(ignored-list-entries settings (catalog :repository-lists))])
 
 (defn from-paths
   ``The display nodes of the repositories at `entries`, each `{:path :status}`

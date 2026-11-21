@@ -137,8 +137,19 @@ A repository inside another is an error, as it is for the other commands.
 
   $ echo '[{"path": ".", "clone_url": "u"}, {"path": "a", "clone_url": "v"}]' >"$CONFIG/self.json"
   $ herd tree -r
-  Configuration error: self.json names /srv/work/a, which lies inside the repository /srv/work from self.json
+  Configuration error: $ROOT/home/.config/herd/self.json names /srv/work/a, which lies inside the repository /srv/work from $ROOT/home/.config/herd/self.json
   [1]
+
+Two lists that disagree on a URL are an error too.
+
+  $ echo '[{"path": "a", "clone_url": "u"}]' >"$CONFIG/self.json"
+  $ echo '[{"path": "a", "clone_url": "v"}]' >"$CONFIG/other.json"
+  $ echo '{:checkouts [{:list "self.json" :anchor "/srv/work"} {:list "other.json" :anchor "/srv/work"}]}' >"$CONFIG/config.jdn"
+  $ herd tree
+  Configuration error: $ROOT/home/.config/herd/other.json and $ROOT/home/.config/herd/self.json disagree on the URL for /srv/work/a
+  [1]
+  $ rm "$CONFIG/other.json"
+  $ echo '{:checkouts [{:list "self.json" :anchor "/srv/work"}]}' >"$CONFIG/config.jdn"
 
 --no-pager prints the tree directly. The pager only runs on a terminal, which
 a test does not have, so this shows that the option is taken.

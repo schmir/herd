@@ -411,74 +411,103 @@
       (json-from-jdn value))))
 
 (defn- read-list-entries
-  ``Read one repository list, resolving each repository into checkouts.
+  ``Read one repository list. Return one record for each placement of the
+  list, in the order of `checkout-rows`:
+
+    {:placement placement   # the anchor, options, filters and strip of the row
+     :label list-label      # the list as a listing names it
+     :source source         # the list as an error names it
+     :repositories @[...]   # the checkouts, empty for a broken placement
+     :broken nil}           # or `{:kind :message}`
+
   `load-entries` returns the list as decoded JSON. It is called only when a
   placement needs the entries, so a list that no row places, or whose
-  placements cannot run their filters, is never loaded. `list-label` names
-  the list, as a file path does a file. A row filters before its anchor is
-  applied, so each row can describe a different part of the same list, and
-  `names` narrows every row further. Only the entries a filter kept are
-  validated: a list may carry entries herd could not use, which is the point
-  of filtering it.``
-  [load-entries list-label checkout-rows filters names &opt broken]
-  (def placements (resolve-checkout-rows list-label checkout-rows))
-  (def resolved @[])
+  placements cannot run their filters, is never loaded. A row filters before
+  its anchor is applied, so each row can describe a different part of the
+  same list, and the steps in `names` narrow every row further. Only the
+  entries a filter kept are validated: a list may carry entries herd could
+  not use, which is the point of filtering it.
+
+  A placement whose filters cannot run, because the program is missing, is
+  broken with the kind :no-filter-program. It does not fail the read, so
+  that only a command that needs the placement has to fail.``
+  [load-entries source list-label checkout-rows filters names]
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
   # filter name is an arbitrary string, so joining names into one would let
   # two different chains spell the same key and hand a row the repositories
   # another row had selected.
   (def selected @{})
-  (each placement placements
+  (seq [placement :in (resolve-checkout-rows source checkout-rows)]
     (def chain [;(placement :use-filters) ;names])
+    (def broken
+      (when (and (not (empty? chain)) (not (named-filters/executable-available?)))
+        {:kind :no-filter-program
+         :message (string source ": " (named-filters/missing-executable-message ((first chain) :name)))}))
     (def kept
       (cond
-        # Without the program the filters cannot run. When the caller collects
-        # such placements they are recorded rather than failing the read, so
-        # only a command that needs one has to fail.
-        (and broken (not (empty? chain)) (not (named-filters/executable-available?)))
-        (do
-          (array/push broken {:anchor (placement :path)
-                              :message (string list-label ": " (named-filters/missing-executable-message ((first chain) :name)))})
-          nil)
-
-        (has-key? selected chain)
-        (get selected chain)
-
-        true
+        broken nil
+        (has-key? selected chain) (get selected chain)
         # A row aimed its own filters at this file; the command line aimed
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
                          (named-filters/narrow filters (load-entries) (placement :use-filters) names))]
           (put selected chain computed)
           computed)))
-    (when kept
-      (array/concat resolved (resolve-repository-paths kept [placement]))))
-  resolved)
+    {:placement placement
+     :label list-label
+     :source source
+     :repositories (if kept (resolve-repository-paths kept [placement]) @[])
+     :broken broken}))
 
-(defn read-repository-list
-  ``Read the repository list in the file `list-path`, resolving each
-  repository into checkouts as `read-list-entries` does. The file is
-  decoded once, and only when a placement needs its entries, so a file
-  that does not parse fails only a read that needs it.``
-  [list-path checkout-rows &opt filters names broken]
+(defn read-list-placements
+  ``Read the repository list in the file `list-path`. Return one record for
+  each placement that `checkout-rows` give the list, as `{:placement :label
+  :source :repositories :broken}`. `filters` is the registry of filters, and
+  the steps in `names` narrow every row. The file is decoded once, and only
+  when a placement needs its entries, so a file that does not parse fails
+  only a read that needs it.``
+  [list-path checkout-rows &opt filters names]
   # When the decode fails, a second call of the delay returns nil. That
   # cannot occur, because the error ends the read.
   (read-list-entries (delay (json/decode (slurp list-path)))
                      list-path
+                     (path/basename list-path)
                      checkout-rows
                      (or filters {})
-                     (or names [])
-                     broken))
+                     (or names [])))
+
+(defn read-inline-placements
+  ``Read the repository list held inline by a `:checkouts` row, which is
+  `list-label` to errors. Return the record of its placement in an array, as
+  `{:placement :label :source :repositories :broken}`. The row must already
+  have its defaults merged.``
+  [list-label checkout-row &opt filters names]
+  (def entries (inline-list-entries (checkout-row :list)))
+  (read-list-entries |entries list-label list-label [checkout-row]
+                     (or filters {}) (or names [])))
+
+(defn- placed-repositories
+  ``The repositories of the placement records `placements`, in order. Raise
+  with the message of the first broken placement.``
+  [placements]
+  (when-let [broken (some (fn [placement] (placement :broken)) placements)]
+    (error (broken :message)))
+  (array/concat @[] ;(map (fn [placement] (placement :repositories)) placements)))
+
+(defn read-repository-list
+  ``Read the repository list in the file `list-path` and return the checkouts
+  that `checkout-rows` place. Raise when a placement is broken. `filters` is
+  the registry of filters, and the steps in `names` narrow every row.``
+  [list-path checkout-rows &opt filters names]
+  (placed-repositories (read-list-placements list-path checkout-rows filters names)))
 
 (defn read-inline-list
   ``Read the repository list held inline by a `:checkouts` row, which is
-  `list-label` to errors, resolving each repository into checkouts as
-  `read-list-entries` does. The row must already have its defaults merged.``
-  [list-label checkout-row &opt filters names broken]
-  (def entries (inline-list-entries (checkout-row :list)))
-  (read-list-entries |entries list-label [checkout-row]
-                     (or filters {}) (or names []) broken))
+  `list-label` to errors, and return its checkouts. Raise when the placement
+  is broken. The row must already have its defaults merged.``
+  [list-label checkout-row &opt filters names]
+  (placed-repositories (read-inline-placements list-label checkout-row filters names)))
 
 (defn- parent-path
   "The directory holding `repository-path`, without a trailing slash."
@@ -545,25 +574,29 @@
   (reject-nested-repositories seen)
   merged)
 
-(defn- reject-unknown-sources
-  ``Reject checkouts whose source file is missing. This prevents a
-  renamed list from silently using the defaults. When `broken` is given, the
-  placements of such rows are recorded in it instead, with the anchor they
-  would have placed the list at, so that only a command which has to read
-  one fails.``
-  [list-paths settings &opt broken]
+(defn- missing-list-placements
+  ``One placement record for each `:checkouts` row of `settings` that reads a
+  list file which is not among `list-paths`. Each record is broken with the
+  kind :no-list-file and has no repositories. The record prevents a renamed
+  list from silently using the defaults, and only a command that has to read
+  the placement fails.``
+  [list-paths settings]
   (def present (map path/basename list-paths))
   (def defaults (get settings :checkout-defaults {}))
-  (each name (distinct (filter string? (map (fn [checkout-row] (checkout-row :list)) (get settings :checkouts []))))
-    (unless (index-of name present)
+  (def placements @[])
+  (each row (get settings :checkouts [])
+    (def name (row :list))
+    (when (and (string? name) (not (index-of name present)))
       (def message (string (get settings :file-name settings-file-name)
                            ": :checkouts reads " (describe name)
                            ", which is not in the configuration directory"))
-      (unless broken (error message))
-      (each row (get settings :checkouts [])
-        (when (= name (row :list))
-          (each placement (resolve-checkout-rows name [(merge defaults row)])
-            (array/push broken {:anchor (placement :path) :message message})))))))
+      (each placement (resolve-checkout-rows name [(merge defaults row)])
+        (array/push placements {:placement placement
+                                :label name
+                                :source name
+                                :repositories @[]
+                                :broken {:kind :no-list-file :message message}}))))
+  placements)
 
 (defn inline-lists
   ``Return `[list-label row]` for each `:checkouts` row of `settings` that holds
@@ -576,48 +609,72 @@
              (inline-list-label index))
      (merge defaults row)]))
 
-(defn load-repository-lists
-  ``Read every repository list and merge them into one list of repositories.
-  The files come first, then the lists held inline by `:checkouts` rows.
-  Errors name the list they came from, since a bad entry is otherwise hard to
-  place once several are in play.``
-  [list-paths &opt settings names broken]
+(defn load-placements
+  ``Read every repository list and return one record for each placement, as
+  `{:placement :label :source :repositories :broken}`. The rows whose list
+  file is missing come first, then the files in `list-paths`, then the lists
+  held inline by `:checkouts` rows. The steps in `names` narrow every list.
+  A broken placement has a `:broken` with `:kind` and `:message`, and no
+  repositories. Errors name the list they came from, since a bad entry is
+  otherwise hard to place once several are in play.``
+  [list-paths &opt settings names]
   (default settings default-repository-settings)
-  (reject-unknown-sources list-paths settings broken)
   (def filters (get settings :filters {}))
+  (def placements (missing-list-placements list-paths settings))
+  (each list-path list-paths
+    (array/concat
+      placements
+      (try
+        (read-list-placements list-path
+                              (checkout-rows-for-list settings (path/basename list-path))
+                              filters
+                              names)
+        ([err] (error (string list-path ": " err))))))
+  (each [list-label row] (inline-lists settings)
+    (array/concat
+      placements
+      (try
+        (read-inline-placements list-label row filters names)
+        ([err] (error (string list-label ": " err))))))
+  placements)
+
+(defn- merge-placements
+  "Merge the repositories of the placement records `placements` into one list."
+  [placements]
   (merge-repository-lists
-    [;(seq [list-path :in list-paths]
-        [list-path
-         (try
-           (read-repository-list list-path
-                                 (checkout-rows-for-list settings (path/basename list-path))
-                                 filters
-                                 names
-                                 broken)
-           ([err] (error (string list-path ": " err))))])
-     ;(seq [[list-label row] :in (inline-lists settings)]
-        [list-label
-         (try
-           (read-inline-list list-label row filters names broken)
-           ([err] (error (string list-label ": " err))))])]))
+    (map (fn [placement] [(placement :source) (placement :repositories)])
+         placements)))
+
+(defn load-repository-lists
+  ``Read every repository list, as `load-placements` does, and merge the
+  placements into one list of repositories. Raise when a placement is
+  broken.``
+  [list-paths &opt settings names]
+  (def placements (load-placements list-paths settings names))
+  (when-let [broken (some (fn [placement] (placement :broken)) placements)]
+    (error (broken :message)))
+  (merge-placements placements))
 
 (defn load-repository-catalog
   ``Discover and load the repository configuration. The returned catalog keeps
-  the directory and source paths for command messages, and the repositories
-  are resolved and merged in configuration order. `names` narrows the
-  decoded lists before entries are validated, as required by the filter
-  semantics.``
+  the directory and source paths for command messages. `:placements` holds
+  the records that `load-placements` returns, and `:repositories` is their
+  merge, in configuration order. The steps in `names` narrow the decoded
+  lists before entries are validated, as required by the filter semantics.``
   [directory settings &opt names]
   (default names [])
   (def list-paths (discover-repository-lists directory))
-  (def broken @[])
-  (def repositories (load-repository-lists list-paths settings names broken))
+  (def placements (load-placements list-paths settings names))
   {:directory directory
    :repository-lists list-paths
    :inline-lists (map first (inline-lists settings))
-   :repositories repositories
-   # The placements whose filters could not run, `{:anchor :message}`.
-   :broken broken})
+   :placements placements
+   :repositories (merge-placements placements)
+   # The placements that could not be read, `{:anchor :message}`.
+   :broken (seq [placement :in placements
+                 :let [broken (placement :broken)]
+                 :when broken]
+             {:anchor ((placement :placement) :path) :message (broken :message)})})
 
 (defn- configured-jobs
   "Return the configured job count, or the default when it is not set."
