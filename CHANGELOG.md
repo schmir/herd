@@ -8,6 +8,12 @@
 - A repository list field named `null` no longer breaks herd. It made
   `HERD_REPO_JSON` invalid JSON, and `-x` and inline lists failed with a
   decode error. This also applies to a field named `null` inside an object.
+- When a list or an entry cannot be written as JSON, the error now says what
+  needed it. This occurs for a number too large for a double, or a string
+  that is not valid UTF-8. A filter given such a list names the filter. A
+  command whose entry has such a value says that `HERD_REPO_JSON` cannot be
+  written. Before, the error did not say what failed. A filter also changed
+  such a string to U+FFFD. Now the filter fails.
 
 ## 0.5.0 - 2026-11-21
 

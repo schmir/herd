@@ -655,4 +655,13 @@
 (let [env (run/command-environment {:path "/nonexistent"} false)]
   (assert (= "{}" (env "HERD_REPO_JSON")) "a repository with no entry has an empty one"))
 
+# The error for an entry JSON cannot write says that HERD_REPO_JSON is what
+# failed.
+(assert (string/find "HERD_REPO_JSON cannot be written: encode error"
+                     (try (do (run/command-environment
+                                {:path "/nonexistent" :entry @{"n" math/inf}} false)
+                            "")
+                       ([err] err)))
+        "an entry JSON cannot write names HERD_REPO_JSON")
+
 (end-suite)

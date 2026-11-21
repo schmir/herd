@@ -259,8 +259,8 @@ Filters are named in `:filters`, and everything else refers to them by name:
   {:list "repos.json" :anchor "archive" :use-filters []}]}
 ```
 
-An expression is applied to the whole array in a list file, exactly as it is
-written on disk, so what `jp` prints at a shell prompt is what `herd` sees:
+An expression is applied to the whole array in a list file, so what `jp`
+prints at a shell prompt is what `herd` sees:
 
 ```sh
 jp "[?group=='platform']" <~/.config/herd/repos.json

@@ -382,52 +382,47 @@
       (put repository :vcs (entry "vcs")))
     (checkout/validate-repository-options repository (string "entry " index) `"vcs"`)))
 
-(defn- string-keys
-  ``Return `value` with each key of its dictionaries, at every depth, as a
-  string. The JSON encoder writes a key :null as a JSON null, not as the
-  string "null", which makes JSON that does not parse.``
+(defn- json-from-jdn
+  ``Return the JDN `value` as decoded JSON holds it: tables with string keys,
+  arrays, strings for keywords, symbols and buffers, and :null for nil and
+  for :null, as a JSON null.``
   [value]
   (cond
     (dictionary? value)
-    (do
-      (def keyed @{})
-      (eachp [key field] value
-        (put keyed (string key) (string-keys field)))
-      keyed)
+    (tabseq [[key field] :pairs value] (string key) (json-from-jdn field))
 
-    (indexed? value) (map string-keys value)
-
+    (indexed? value) (map json-from-jdn value)
+    (or (nil? value) (= :null value)) :null
+    (or (keyword? value) (symbol? value) (buffer? value)) (string value)
     value))
 
-(defn- inline-list-source
-  ``Return the JSON that stands for the inline repository list `entries`, so
-  that filters and validation see it as they see a file. A key written
+(defn- inline-list-entries
+  ``Return the inline repository list `entries` as the decoded JSON of a file,
+  so that filters and validation see it as they see a file. A key written
   `:clone-url` becomes `clone_url`, the way the files spell it.``
   [entries]
   (unless (indexed? entries)
     (error "expected an array of repositories"))
-  (json/encode
-    (seq [index :range [0 (length entries)]]
-      (def entry (entries index))
-      (unless (dictionary? entry)
-        (error (string "entry " index " is not a dictionary")))
-      (when (has-key? entry :ssh_url)
-        (error (string "entry " index " needs :clone-url, not :ssh_url")))
-      (def spelled @{})
-      (eachp [key value] entry
-        (put spelled (if (keyword? key) (string/replace-all "-" "_" key) key)
-             (string-keys value)))
-      spelled)))
+  (seq [[index entry] :pairs entries]
+    (unless (dictionary? entry)
+      (error (string "entry " index " is not a dictionary")))
+    (when (has-key? entry :ssh_url)
+      (error (string "entry " index " needs :clone-url, not :ssh_url")))
+    (tabseq [[key value] :pairs entry]
+      (if (keyword? key) (string/replace-all "-" "_" key) (string key))
+      (json-from-jdn value))))
 
-(defn- read-list-source
-  ``Read the JSON `source` of one repository list, resolving each repository
-  into checkouts. `list-label` names the list, as a file path does a file. A row
-  filters before its anchor is applied, so each row can describe a different
-  part of the same list, and `names` narrows every row further. Only the
-  entries a filter kept are validated: a list may carry entries herd could
-  not use, which is the point of filtering it. The source is decoded once,
-  after the filters have had it, so what they see is the list itself.``
-  [source list-label checkout-rows filters names &opt broken]
+(defn- read-list-entries
+  ``Read one repository list, resolving each repository into checkouts.
+  `load-entries` returns the list as decoded JSON. It is called only when a
+  placement needs the entries, so a list that no row places, or whose
+  placements cannot run their filters, is never loaded. `list-label` names
+  the list, as a file path does a file. A row filters before its anchor is
+  applied, so each row can describe a different part of the same list, and
+  `names` narrows every row further. Only the entries a filter kept are
+  validated: a list may carry entries herd could not use, which is the point
+  of filtering it.``
+  [load-entries list-label checkout-rows filters names &opt broken]
   (def placements (resolve-checkout-rows list-label checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
@@ -456,8 +451,7 @@
         # A row aimed its own filters at this file; the command line aimed
         # its filters at every file, so only those need to explain themselves.
         (let [computed (validate-repository-list
-                         (json/decode
-                           (named-filters/narrow filters source (placement :use-filters) names)))]
+                         (named-filters/narrow filters (load-entries) (placement :use-filters) names))]
           (put selected chain computed)
           computed)))
     (when kept
@@ -466,18 +460,27 @@
 
 (defn read-repository-list
   ``Read the repository list in the file `list-path`, resolving each
-  repository into checkouts as `read-list-source` does.``
+  repository into checkouts as `read-list-entries` does. The file is
+  decoded once, and only when a placement needs its entries, so a file
+  that does not parse fails only a read that needs it.``
   [list-path checkout-rows &opt filters names broken]
-  (read-list-source (slurp list-path) list-path checkout-rows
-                    (or filters {}) (or names []) broken))
+  # When the decode fails, a second call of the delay returns nil. That
+  # cannot occur, because the error ends the read.
+  (read-list-entries (delay (json/decode (slurp list-path)))
+                     list-path
+                     checkout-rows
+                     (or filters {})
+                     (or names [])
+                     broken))
 
 (defn read-inline-list
   ``Read the repository list held inline by a `:checkouts` row, which is
   `list-label` to errors, resolving each repository into checkouts as
-  `read-list-source` does. The row must already have its defaults merged.``
+  `read-list-entries` does. The row must already have its defaults merged.``
   [list-label checkout-row &opt filters names broken]
-  (read-list-source (inline-list-source (checkout-row :list)) list-label
-                    [checkout-row] (or filters {}) (or names []) broken))
+  (def entries (inline-list-entries (checkout-row :list)))
+  (read-list-entries |entries list-label [checkout-row]
+                     (or filters {}) (or names []) broken))
 
 (defn- parent-path
   "The directory holding `repository-path`, without a trailing slash."
@@ -603,8 +606,9 @@
 (defn load-repository-catalog
   ``Discover and load the repository configuration. The returned catalog keeps
   the directory and source paths for command messages, and the repositories
-  are resolved and merged in configuration order. `names` narrows source JSON
-  before entries are validated, as required by the filter semantics.``
+  are resolved and merged in configuration order. `names` narrows the
+  decoded lists before entries are validated, as required by the filter
+  semantics.``
   [directory settings &opt names]
   (default names [])
   (def list-paths (discover-repository-lists directory))

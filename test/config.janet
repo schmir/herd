@@ -1297,4 +1297,45 @@
   (os/setenv "HOME" home)
   (sh/rm dir))
 
+# --- a list that is not decoded -----------------------------------------
+
+# A list is decoded only when a placement needs its entries, so a file that
+# does not parse fails only the reads that need it.
+(let [dir (fixture)
+      config (string dir "/repos.json")
+      empty-bin (string dir "/empty")
+      path (os/getenv "PATH")]
+  (spit config "not json")
+  (assert (deep= @[] (config/read-repository-list config @[]))
+          "a list that no row places is not decoded")
+  (sh/create-dirs empty-bin)
+  (def broken @[])
+  (defer (os/setenv "PATH" path)
+    (os/setenv "PATH" empty-bin)
+    (assert (deep= @[] (config/read-repository-list config @[{:anchor dir :use-filters ["any"]}]
+                                                    {"any" "@"} [] broken))
+            "a list whose placements cannot run their filters is not decoded"))
+  (assert (= 1 (length broken)) "and the placement is recorded as broken")
+  (assert (string/find "decode error"
+                       (error-message (fn [] (config/read-repository-list config @[{:anchor dir}]))))
+          "a placement that needs the entries still fails on them")
+  (sh/rm dir))
+
+# --- inline lists as decoded JSON -----------------------------------------
+
+# An inline list reaches filters and HERD_REPO_JSON as a file holding its
+# JSON would: keywords and symbols are strings, and nil is a JSON null.
+(let [[repository] (config/read-inline-list
+                     "config.jdn: :checkouts row 0"
+                     {:anchor "/srv"
+                      :list [{:path "a" :clone-url "u" :vcs :git :group 'platform
+                              :owner {:team :core} :tags [:x nil 1]}]})
+      entry (repository :entry)]
+  (assert (= "git" (entry "vcs")) "a keyword value is a string")
+  (assert (= "platform" (entry "group")) "a symbol value is a string")
+  (assert (deep= @{"team" "core"} (entry "owner"))
+          "a nested dictionary has string keys and values")
+  (assert (deep= @["x" :null 1] (entry "tags")) "nil in an array is a JSON null")
+  (assert (= "u" (entry "clone_url")) ":clone-url is spelled as a file spells it"))
+
 (end-suite)

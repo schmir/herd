@@ -231,10 +231,15 @@
     (when (string/has-prefix? "HERD_FIELD_" name)
       (put inherited name false)))
   (def entry (get repository :entry {}))
+  # Decoded JSON can hold what JSON cannot write: a number too large for a
+  # double, or a string that is not valid UTF-8.
+  (def entry-json
+    (try (string (json/encode entry))
+      ([err] (error (string "HERD_REPO_JSON cannot be written: " err)))))
   (merge (os/environ)
          inherited
          (entry-field-variables entry)
-         {"HERD_REPO_JSON" (string (json/encode entry))
+         {"HERD_REPO_JSON" entry-json
           "HERD_COLOR" (if color? "always" "never")
           "HERD_AT_PATH" resolved-at
           "HERD_REPO_RELPATH" (path/relpath resolved-at

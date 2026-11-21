@@ -153,16 +153,19 @@
   (string (filter-where name) " needs " filter-executable " on PATH"))
 
 (defn apply-filter
-  ``Return the JSON `source` narrowed by the JMESPath `expression` that `name`
-  stands for, as the JSON the filter answered with. Bytes go in and bytes come
-  back, never Janet values: decoding and re-encoding here would round every
-  integer above 2^53 to what a double can hold. A `hint` is added to the
-  failure when the filter was named somewhere the list itself never asked
-  for.``
-  [source name expression &opt hint]
+  ``Return the repository list `entries`, decoded JSON, narrowed by the
+  JMESPath `expression` that `name` stands for, as the decoded JSON the filter
+  answered with. A `hint` is added to the failure when the filter was named
+  somewhere the list itself never asked for.``
+  [entries name expression &opt hint]
   (def executable
     (or (process/find-executable filter-executable)
         (error (missing-executable-message name))))
+  # Decoded JSON can hold a number too large for a double, or a string that
+  # is not valid UTF-8, and JSON cannot write either.
+  (def source
+    (try (json/encode entries)
+      ([err] (error (string (filter-where name) " cannot be given the list: " err)))))
   # The list reaches the filter as its standard input, held in a file with no
   # name: nothing another user on this machine can find, open or replace, and
   # nothing left behind if herd is killed. A regular file rather than a pipe
@@ -185,20 +188,17 @@
         (error (string (filter-where name) " failed: "
                        (string/trimr (if (empty? stderr) stdout stderr))
                        (if hint (string "\n" hint) ""))))
-      # Decoded only to be looked at: an expression that is not a filter answers
-      # with null rather than failing, which would otherwise select nothing
-      # without saying why. What travels on is what the filter wrote.
       (def answered
         (try
           (json/decode stdout)
           ([err] (error (string (filter-where name)
                                 " produced unreadable output: " err)))))
+      # An expression that is not a filter answers with null rather than
+      # failing, which would otherwise select nothing without saying why.
       (unless (indexed? answered)
         (error (string (filter-where name)
                        " did not select an array of repositories")))
-      # A string rather than the buffer that was read into: what comes back
-      # travels on to the next filter and must not be quietly mutable.
-      (string stdout))))
+      answered)))
 
 (defn- repository-key
   ``The path and clone URL of the list entry `entry`, or nil when it does not
@@ -210,40 +210,38 @@
       [(entry "path") url])))
 
 (defn- leave-out
-  ``Return the JSON array `source` without the entries whose path and clone
-  URL are those of an entry in the JSON array `matched`, what the filter
-  `name` answered with. Comparing by these and not by the whole entry lets a
-  projection that keeps them work as it does with -f. Every entry of
-  `matched` must have them, so a filter that answers with something else is
-  an error and does not exclude nothing.``
-  [source matched name]
-  (def entries (json/decode source))
+  ``Return the repository list `entries` without the entries whose path and
+  clone URL are those of an entry in `matched`, what the filter `name`
+  answered with. Both are decoded JSON. Comparing by these and not by the
+  whole entry lets a projection that keeps them work as it does with -f.
+  Every entry of `matched` must have them, so a filter that answers with
+  something else is an error and does not exclude nothing.``
+  [entries matched name]
   (unless (indexed? entries)
     (error (string (filter-where name)
                    " can only be excluded from an array of repositories")))
   (def keys-matched @{})
-  (each entry (json/decode matched)
+  (each entry matched
     (put keys-matched
          (or (repository-key entry)
              (error (string (filter-where name) " answered with an entry"
                             " without a string \"path\" and clone URL,"
                             " which an exclusion needs to compare entries")))
          true))
-  (string (json/encode
-            (filter (fn [entry] (not (get keys-matched (repository-key entry))))
-                    entries))))
+  (filter (fn [entry] (not (get keys-matched (repository-key entry))))
+          entries))
 
 (defn apply-filters
-  ``Return the JSON `source` narrowed by each filter step in `steps`, in
-  order. A step is a filter name, or `{:exclude name}`, which keeps what the
-  filter leaves out. They run as a pipeline, each reading what the one before
-  it answered with, the way piping one filter program into another does.
-  Several `[?…]` expressions therefore intersect and commute; anything else, a
-  slice or a projection, depends on its place in the order. Naming none hands
-  back the source untouched, and the `hint` is carried to whichever of them
-  fails.``
-  [source steps registry &opt hint]
-  (var narrowed source)
+  ``Return the repository list `entries`, decoded JSON, narrowed by each
+  filter step in `steps`, in order. A step is a filter name, or
+  `{:exclude name}`, which keeps what the filter leaves out. They run as a
+  pipeline, each reading what the one before it answered with, the way piping
+  one filter program into another does. Several `[?…]` expressions therefore
+  intersect and commute; anything else, a slice or a projection, depends on
+  its place in the order. Naming none hands back `entries` untouched, and the
+  `hint` is carried to whichever of them fails.``
+  [entries steps registry &opt hint]
+  (var narrowed entries)
   (each step steps
     (def name (step-value step))
     (def answered (apply-filter narrowed name
@@ -254,11 +252,11 @@
   narrowed)
 
 (defn narrow
-  ``Return the JSON `source` narrowed by the list filters of `registry` that a
-  row names, `row-names`, and then by the filter steps given with -f and -x,
-  `command-line-names`.
+  ``Return the repository list `entries`, decoded JSON, narrowed by the list
+  filters of `registry` that a row names, `row-names`, and then by the filter
+  steps given with -f and -x, `command-line-names`.
   A row aimed its own filters at this one file; the command line aimed its
   filters at every file, so only those explain themselves when they fail.``
-  [registry source row-names command-line-names]
-  (apply-filters (apply-filters source row-names registry)
+  [registry entries row-names command-line-names]
+  (apply-filters (apply-filters entries row-names registry)
                  command-line-names registry command-filter-hint))

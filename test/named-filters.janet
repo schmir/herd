@@ -73,26 +73,21 @@
   [thunk]
   (try (do (thunk) nil) ([err] (string err))))
 
-# Filters take and answer with JSON text rather than Janet values, so that an
-# expression sees the file itself. These fixtures are text for the same reason.
+# Filters take and answer with decoded JSON, as read-list-entries has it.
 (def entries
-  (string `[{"path": "a", "ssh_url": "git@example.com:a.git"},`
-          ` {"path": "b", "ssh_url": "git@example.com:b.git"}]`))
+  @[@{"path" "a" "ssh_url" "git@example.com:a.git"}
+    @{"path" "b" "ssh_url" "git@example.com:b.git"}])
 
 (defn- large-entries
   "A list far too large to sit in a pipe buffer."
   []
-  (string "["
-          (string/join
-            (seq [index :range [0 20000]]
-              (string/format `{"path": "repo-%d", "ssh_url": "u"}` index))
-            ",")
-          "]"))
+  (seq [index :range [0 20000]]
+    @{"path" (string "repo-" index) "ssh_url" "u"}))
 
 (defn- paths
   "The paths in a filter's answer, so assertions read as plain lists."
   [answer]
-  (map (fn [repository] (repository :path)) (json/decode answer true)))
+  (map (fn [repository] (repository "path")) answer))
 
 # --- validate-registry ----------------------------------------------------
 
@@ -198,20 +193,17 @@
 (with-fixture dir
   (with-stub (stub-filter dir `echo '[{"path":"a","ssh_url":"git@example.com:a.git"}]'`)
     (def kept (named-filters/apply-filter entries "keep-a" "[?path=='a']"))
-    (assert (string? kept) "a filter answers with the JSON it wrote")
+    (assert (indexed? kept) "a filter answers with the decoded JSON it wrote")
     (assert (deep= (paths kept) @["a"])
             "a filter narrows the list to what it selected")))
 
-# The list arrives on standard input, holding what was read from disk.
+# The list arrives on standard input as JSON.
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
     (named-filters/apply-filter entries "any" "@")
-    # Byte for byte, not merely the same values once decoded: decoding and
-    # re-encoding rounds numbers to what a double can hold and reorders
-    # every object key, behind the expression's back.
-    (assert (= entries (string (slurp copy)))
-            "a filter is handed the list exactly as it stands")))
+    (assert (deep= entries (json/decode (slurp copy)))
+            "a filter is handed the list it was given")))
 
 (with-fixture dir
   (with-stub (stub-filter dir "echo null")
@@ -283,20 +275,25 @@
                               (os/dir place)))
               (string "filtering leaves no input file in " place)))))
 
-# Values a decode/re-encode would quietly change on the way to the filter:
-# an integer wider than a double, a fraction no double holds exactly, an
-# exponent that overflows to infinity, and keys whose order is the file's
-# rather than a hash table's.
-(def awkward
-  (string `[{"zebra": 1, "alpha": 2, "id": 12345678901234567890,`
-          ` "frac": 0.1, "huge": 1e400, "path": "a", "ssh_url": "u"}]`))
-
+# A null is a value of the list, not a missing field, so keys(@) and
+# length(@) see it.
 (with-fixture dir
   (def copy (path/join dir "handed-over"))
   (with-stub (stub-filter dir (string `cat > ` copy "\necho '[]'"))
-    (named-filters/apply-filter awkward "any" "@")
-    (assert (= awkward (string (slurp copy)))
-            "numbers and key order reach the filter untouched")))
+    (named-filters/apply-filter @[@{"path" "a" "note" :null}] "any" "@")
+    (assert (= :null (get-in (json/decode (slurp copy)) [0 "note"]))
+            "a null reaches the filter as a null")))
+
+# Decoded JSON can hold what JSON cannot write: a number too large for a
+# double, and a string that is not valid UTF-8. The filter is named, as the
+# encoder's own error says nothing of where it was.
+(each [what value] [["number" math/inf] ["string" (string "x" "\xff")]]
+  (with-fixture dir
+    (with-stub (stub-filter dir "echo '[]'")
+      (assert (string/find `filter "odd" cannot be given the list: encode error`
+                           (error-message
+                             (fn [] (named-filters/apply-filter @[@{"path" "a" "n" value}] "odd" "@"))))
+              (string "a list with such a " what " is refused with the filter named")))))
 
 # --- filter-entries -------------------------------------------------------
 
@@ -517,8 +514,8 @@
 # entry of the active ones is not taking the active ones of the first entry.
 (when (process/find-executable named-filters/filter-executable)
   (let [listing
-        (string `[{"path": "one", "ssh_url": "u", "active": false, "tier": 1},`
-                ` {"path": "two", "ssh_url": "u", "active": true, "tier": 1}]`)
+        @[@{"path" "one" "ssh_url" "u" "active" false "tier" 1}
+          @{"path" "two" "ssh_url" "u" "active" true "tier" 1}]
         filters {"active" "[?active]" "tier" "[?tier == `1`]" "first" "[0:1]"}
         selected (fn [& names] (paths (named-filters/apply-filters listing names filters)))]
     (assert (deep= (selected "active" "tier") (selected "tier" "active"))
@@ -540,8 +537,8 @@
 # its keys in another order still removes the entry it came from.
 (with-fixture dir
   (def listing
-    (string `[{"path": "one", "ssh_url": "u"},`
-            ` {"path": "two", "ssh_url": "u", "note": "a \"quoted\", [b]"}]`))
+    @[@{"path" "one" "ssh_url" "u"}
+      @{"path" "two" "ssh_url" "u" "note" `a "quoted", [b]`}])
   (with-stub (stub-filter dir
                           `printf '%s' '[{"ssh_url":"u","note":"a \"quoted\", [b]","path":"two"}]'`)
     (assert (deep= @["one"]
@@ -552,8 +549,8 @@
 # them excludes what it selected, whichever spelling of the URL it gives.
 (with-fixture dir
   (def listing
-    (string `[{"path": "one", "ssh_url": "u1", "tier": 1},`
-            ` {"path": "two", "ssh_url": "u2", "tier": 2}]`))
+    @[@{"path" "one" "ssh_url" "u1" "tier" 1}
+      @{"path" "two" "ssh_url" "u2" "tier" 2}])
   (with-stub (stub-filter dir `printf '%s' '[{"path":"two","clone_url":"u2"}]'`)
     (assert (deep= @["one"]
                    (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
@@ -562,27 +559,27 @@
 # An entry with both spellings is compared by the URL that is used to clone.
 (with-fixture dir
   (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"c"}]'`)
-    (assert (empty? (json/decode
-                      (named-filters/apply-filters `[{"path":"a","clone_url":"c","ssh_url":"s"}]`
-                                                   [{:exclude "any"}] {"any" "@"})))
+    (assert (empty? (named-filters/apply-filters
+                      @[@{"path" "a" "clone_url" "c" "ssh_url" "s"}]
+                      [{:exclude "any"}] {"any" "@"}))
             "clone_url wins over ssh_url when entries are compared")))
 
 # Entries with the same path and URL are one repository, so all of them go.
 (with-fixture dir
   (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"u","n":1}]'`)
-    (assert (empty? (json/decode
-                      (named-filters/apply-filters
-                        `[{"path":"a","clone_url":"u","n":1},{"path":"a","clone_url":"u","n":2}]`
-                        [{:exclude "any"}] {"any" "@"})))
+    (assert (empty? (named-filters/apply-filters
+                      @[@{"path" "a" "clone_url" "u" "n" 1}
+                        @{"path" "a" "clone_url" "u" "n" 2}]
+                      [{:exclude "any"}] {"any" "@"}))
             "every entry with a matched path and URL is left out")))
 
 # An entry of the list without a path and URL cannot be matched, so it stays.
 (with-fixture dir
   (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"u"}]'`)
     (assert (deep= @[@{"kind" "group"}]
-                   (json/decode
-                     (named-filters/apply-filters `[{"kind":"group"},{"path":"a","clone_url":"u"}]`
-                                                  [{:exclude "any"}] {"any" "@"})))
+                   (named-filters/apply-filters
+                     @[@{"kind" "group"} @{"path" "a" "clone_url" "u"}]
+                     [{:exclude "any"}] {"any" "@"}))
             "an entry that is not a repository is kept")))
 
 # What the filter answered with must have a path and URL to compare by.
@@ -591,7 +588,7 @@
     (with-stub (stub-filter dir (string `printf '%s' '` answer `'`))
       (assert (string/find "which an exclusion needs to compare entries"
                            (error-message
-                             (fn [] (named-filters/apply-filters `[{"path":"a","clone_url":"u"}]`
+                             (fn [] (named-filters/apply-filters @[@{"path" "a" "clone_url" "u"}]
                                                                  [{:exclude "any"}] {"any" "@"}))))
               (string "an answer of " answer " is refused")))))
 
@@ -599,7 +596,7 @@
   (with-stub (stub-filter dir `printf '%s' '[]'`)
     (assert (string/find "can only be excluded from an array"
                          (error-message
-                           (fn [] (named-filters/apply-filters `{"a": 1}` [{:exclude "any"}]
+                           (fn [] (named-filters/apply-filters @{"a" 1} [{:exclude "any"}]
                                                                {"any" "@"}))))
             "there is nothing to exclude from where the list is not an array")))
 

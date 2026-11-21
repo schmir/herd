@@ -328,6 +328,14 @@ with it. A list can be placed by multiple rows.
 Inline lists use `:clone-url`, not `:ssh_url`. An inline entry with
 `:ssh_url` is rejected.
 
+herd holds each number in a list as a double, as `jp` does. An integer
+larger than 2^53 is rounded, so filters and `HERD_REPO_JSON` can see a value
+that differs from the file. Write such a number, for example a database ID,
+as a string. A number too large for a double, and a string or key that is
+not valid UTF-8, cannot be written as JSON. A filter given such a list
+fails, and so does a command that runs in a repository whose entry holds
+one, as `HERD_REPO_JSON` cannot be written.
+
 Duplicate resolved paths must agree on their clone URL and repository
 options; nested repositories are rejected. Missing repository list files
 named by a checkout row are configuration errors.

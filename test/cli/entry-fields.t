@@ -87,3 +87,20 @@ null.
   >   | grep -o -e '"null":1' -e '"owner":{"null":2}' | sort
   "null":1
   "owner":{"null":2}
+
+An entry that holds a number too large for a double cannot be written as
+HERD_REPO_JSON. The command for that repository fails and says so, the
+command for the others still runs, and herd exits with status 1.
+
+  $ cat >"$CONFIG/repos.json" <<EOF
+  > [{"path": "src/api", "ssh_url": "$ROOT/origins/api", "vcs": "git", "n": 1e400},
+  >  {"path": "src/web", "ssh_url": "$ROOT/origins/web", "vcs": "git"}]
+  > EOF
+  $ herd run -j 1 --show-output always echo ran
+  \xe2\x9c\x97 $ROOT/home/src/api (esc)
+  ! HERD_REPO_JSON cannot be written: encode error: numbers must be finite
+  
+  \xe2\x9c\x93 $ROOT/home/src/web (esc)
+  | ran
+  1 succeeded, 1 failed, 0 skipped, 0 not checked out
+  [1]
