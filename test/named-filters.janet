@@ -96,16 +96,6 @@
 
 # --- validate-registry ----------------------------------------------------
 
-(defmacro- assert-error
-  "Assert that `form` raises."
-  [message form]
-  ~(assert (error-message (fn [] ,form)) ,message))
-
-(defmacro- assert-no-error
-  "Assert that `form` raises nothing."
-  [message form]
-  ~(assert (nil? (error-message (fn [] ,form))) ,message))
-
 (assert-error "the filter registry must be a dictionary"
               (named-filters/validate-registry []))
 (assert-error "a filter needs an expression"

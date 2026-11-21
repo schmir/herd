@@ -8,7 +8,7 @@
 # a colocated repository, so it comes first.
 (def- ids [:vcs/jj :vcs/git])
 
-(def default
+(def default-id
   "The VCS used for repositories that do not select one."
   :vcs/git)
 

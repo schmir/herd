@@ -131,10 +131,10 @@
 (assert (= "2/3  1 succeeded, 0 skipped, 1 f"
            (lines 1))
         "the tally is truncated to the terminal width")
-(each [seconds label] [[0 "0s"] [59.9 "59s"] [60 "1m00s"] [187 "3m07s"]
-                       [3599 "59m59s"] [3600 "1h00m"] [7500 "2h05m"]]
-  (assert (= label (parallel/format-elapsed seconds))
-          (string seconds " seconds read as " label)))
+(each [seconds expected] [[0 "0s"] [59.9 "59s"] [60 "1m00s"] [187 "3m07s"]
+                          [3599 "59m59s"] [3600 "1h00m"] [7500 "2h05m"]]
+  (assert (= expected (parallel/format-elapsed seconds))
+          (string seconds " seconds read as " expected)))
 
 # Below 100 hours every label fits the field the paths are lined up behind.
 (each seconds [59 3599 (dec (* 100 3600))]

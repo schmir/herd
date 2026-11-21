@@ -6,7 +6,7 @@
 (def default-repository-options
   ``Default repository options. Their keys define the options that each
   configuration level accepts.``
-  {:vcs (vcs/name vcs/default)})
+  {:vcs (vcs/name vcs/default-id)})
 
 (def option-keys
   "Repository option names accepted at each configuration level."

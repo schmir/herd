@@ -400,14 +400,14 @@
 
 (defn- read-list-source
   ``Read the JSON `source` of one repository list, resolving each repository
-  into checkouts. `label` names the list, as a file path does a file. A row
+  into checkouts. `list-label` names the list, as a file path does a file. A row
   filters before its anchor is applied, so each row can describe a different
   part of the same list, and `names` narrows every row further. Only the
   entries a filter kept are validated: a list may carry entries herd could
   not use, which is the point of filtering it. The source is decoded once,
   after the filters have had it, so what they see is the list itself.``
-  [source label checkout-rows filters names &opt broken]
-  (def placements (resolve-checkout-rows label checkout-rows))
+  [source list-label checkout-rows filters names &opt broken]
+  (def placements (resolve-checkout-rows list-label checkout-rows))
   (def resolved @[])
   # Rows sharing a chain are the common case, so filter once for each distinct
   # chain rather than once for every anchor. The chain itself is the key: a
@@ -425,7 +425,7 @@
         (and broken (not (empty? chain)) (not (named-filters/executable-available?)))
         (do
           (array/push broken {:anchor (placement :path)
-                              :message (string label ": " (named-filters/missing-executable-message (first chain)))})
+                              :message (string list-label ": " (named-filters/missing-executable-message (first chain)))})
           nil)
 
         (has-key? selected chain)
@@ -453,10 +453,10 @@
 
 (defn read-inline-list
   ``Read the repository list held inline by a `:checkouts` row, which is
-  `label` to errors, resolving each repository into checkouts as
+  `list-label` to errors, resolving each repository into checkouts as
   `read-list-source` does. The row must already have its defaults merged.``
-  [label checkout-row &opt filters names broken]
-  (read-list-source (inline-list-source (checkout-row :list)) label
+  [list-label checkout-row &opt filters names broken]
+  (read-list-source (inline-list-source (checkout-row :list)) list-label
                     [checkout-row] (or filters {}) (or names []) broken))
 
 (defn- parent-path
@@ -545,7 +545,7 @@
             (array/push broken {:anchor (placement :path) :message message})))))))
 
 (defn inline-lists
-  ``Return `[label row]` for each `:checkouts` row of `settings` that holds
+  ``Return `[list-label row]` for each `:checkouts` row of `settings` that holds
   its list inline, with the defaults merged into the row.``
   [settings]
   (def defaults (get settings :checkout-defaults {}))
@@ -574,11 +574,11 @@
                                  names
                                  broken)
            ([err] (error (string list-path ": " err))))])
-     ;(seq [[label row] :in (inline-lists settings)]
-        [label
+     ;(seq [[list-label row] :in (inline-lists settings)]
+        [list-label
          (try
-           (read-inline-list label row filters names broken)
-           ([err] (error (string label ": " err))))])]))
+           (read-inline-list list-label row filters names broken)
+           ([err] (error (string list-label ": " err))))])]))
 
 (defn load-repository-catalog
   ``Discover and load the repository configuration. The returned catalog keeps

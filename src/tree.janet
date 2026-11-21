@@ -30,7 +30,7 @@
 
 (defn- describe-source
   "Name a placement's list and the options it sets, and why it is broken."
-  [placement label &opt broken]
+  [placement list-label &opt broken]
   (def notes @[])
   (when (placement :vcs)
     (array/push notes (string "vcs " (placement :vcs))))
@@ -41,20 +41,20 @@
   (def strip (placement :strip-components))
   (when (if (string? strip) true (pos? strip))
     (array/push notes (string "strip " (if (string? strip) (describe strip) strip))))
-  (string label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
+  (string list-label (if (empty? notes) "" (string " [" (string/join notes "; ") "]"))))
 
 (defn- list-placements
-  ``Each of the `rows` of the list `label` as `{:placement :label :repositories}`,
+  ``Each of the `rows` of the list `list-label` as `{:placement :label :repositories}`,
   where `read` takes a row and an array to record the placements whose filters
   could not run in, and returns the repositories the row places.``
-  [label rows read]
-  (def placements (config/resolve-checkout-rows label rows))
+  [list-label rows read]
+  (def placements (config/resolve-checkout-rows list-label rows))
   (seq [[row placement] :in (map tuple rows placements)]
     # A row whose filters cannot run is shown, not failed, for the rest of the
     # tree is still readable.
     (def broken @[])
     (def repositories (read row broken))
-    {:placement placement :label label :repositories repositories
+    {:placement placement :label list-label :repositories repositories
      :broken (unless (empty? broken) "needs jp")}))
 
 (defn- ignored-list-entries
@@ -89,11 +89,11 @@
   goes into the filesystem trie itself.``
   [placements]
   (def trie (new-node))
-  (each {:placement placement :label label :repositories repositories :broken broken} placements
+  (each {:placement placement :label list-label :repositories repositories :broken broken} placements
     (def anchor-parts (path-parts (placement :path)))
     (def anchor (node-at trie anchor-parts))
     (def own (new-node))
-    (array/push (anchor :placements) {:source (describe-source placement label broken) :broken? (truthy? broken) :trie own})
+    (array/push (anchor :placements) {:source (describe-source placement list-label broken) :broken? (truthy? broken) :trie own})
     (each repository repositories
       (def parts (path-parts (repository :path)))
       (def at-anchor? (deep= (tuple ;parts) (tuple ;anchor-parts)))
@@ -131,7 +131,7 @@
   the placement's own directories of the same name, and in an entry of its
   own, with no placement, beside several.``
   [name node list?]
-  (var label name)
+  (var node-label name)
   (var end node)
   (while (and (empty? (end :placements))
               (not (end :repository?))
@@ -139,7 +139,7 @@
               (let [only (first (values (end :children)))]
                 (or (not (empty? (only :children))) (not (only :repository?)))))
     (def [only-name only] (first (pairs (end :children))))
-    (set label (string label "/" only-name))
+    (set node-label (string node-label "/" only-name))
     (set end only))
   (def placements (end :placements))
   (def entries
@@ -175,7 +175,7 @@
     (def count-note
       (when (pos? counted)
         (if (= 1 counted) "1 repository" (string counted " repositories"))))
-    {:label (string label (if directory? "/" ""))
+    {:label (string node-label (if directory? "/" ""))
      :note (annotation note (end :status) count-note)
      :repository? (and (end :repository?) (empty? placements) (empty? children) (zero? counted))
      :broken? broken?
@@ -206,9 +206,9 @@
       (display start root list?)))
   # A root is a path to copy, so it has no closing slash, unless it is all of it.
   (map (fn [root]
-         (def label (root :label))
-         (if (and (> (length label) 1) (string/has-suffix? "/" label))
-           (merge root {:label (string/slice label 0 -2)})
+         (def root-label (root :label))
+         (if (and (> (length root-label) 1) (string/has-suffix? "/" root-label))
+           (merge root {:label (string/slice root-label 0 -2)})
            root))
        shown))
 
@@ -230,13 +230,13 @@
                 (list-placements name (config/checkout-rows-for-list settings name)
                                  (fn [row broken] (config/read-repository-list list-path [row] filters [] broken)))))
      ;(mapcat identity
-              (seq [[label row] :in (config/inline-lists settings)]
-                (list-placements label [row]
-                                 (fn [row broken] (config/read-inline-list label row filters [] broken)))))])
+              (seq [[list-label row] :in (config/inline-lists settings)]
+                (list-placements list-label [row]
+                                 (fn [row broken] (config/read-inline-list list-label row filters [] broken)))))])
   (def seen @{})
-  (each {:label label :repositories repositories} placements
+  (each {:label list-label :repositories repositories} placements
     (each repository repositories
-      (put seen (repository :path) {:source label})))
+      (put seen (repository :path) {:source list-label})))
   (config/reject-nested-repositories seen)
   [;(roots-of (filesystem-trie placements) list? true)
    ;(ignored-list-entries settings list-paths)])
@@ -276,15 +276,15 @@
   [nodes &opt color?]
   (def lines @[])
   (defn paint [node]
-    (def label (node :label))
+    (def node-label (node :label))
     (def note (get node :note ""))
     (cond
       (and color? (or (node :broken?) (node :ignored?)))
-      (string broken-color label note "\e[0m")
+      (string broken-color node-label note "\e[0m")
       true
       (string (if (and color? (node :repository?))
-                (string repository-color label "\e[0m")
-                label)
+                (string repository-color node-label "\e[0m")
+                node-label)
               (if (and color? (not (empty? note)))
                 (string note-color note "\e[0m")
                 note))))

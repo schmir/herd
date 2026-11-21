@@ -93,10 +93,10 @@
   [progress]
   (var completed 0)
   (def fields @[])
-  (each [key label] (progress :outcomes)
+  (each [key outcome-label] (progress :outcomes)
     (def outcome-count (get (progress :counts) key))
     (+= completed outcome-count)
-    (array/push fields (string outcome-count " " label)))
+    (array/push fields (string outcome-count " " outcome-label)))
   [completed (string/join fields ", ")])
 
 (defn format-elapsed
@@ -132,10 +132,10 @@
   (for slot 0 (progress :jobs)
     (when-let [{:path path :started started} (get (progress :active) slot)]
       (def seconds (- now started))
-      (def label (if (<= seconds quiet-seconds) "" (format-elapsed seconds)))
+      (def elapsed-label (if (<= seconds quiet-seconds) "" (format-elapsed seconds)))
       # A label wider than the field, from 100 hours on, pushes the path over.
-      (def padding (max 0 (- elapsed-width (length label))))
-      (def elapsed (string (string/repeat " " padding) label " "))
+      (def padding (max 0 (- elapsed-width (length elapsed-label))))
+      (def elapsed (string (string/repeat " " padding) elapsed-label " "))
       (array/push lines
                   (string frame " " elapsed
                           (fit-path path (- width 2 (length elapsed)))))))

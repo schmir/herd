@@ -63,7 +63,7 @@
         (def result
           (clone-into-place
             (fn [staging]
-              (vcs/clone-command (or vcs-id vcs/default)
+              (vcs/clone-command (or vcs-id vcs/default-id)
                                  executable url staging))
             path))
         (run/report-result repository result report show-output color?)
@@ -101,7 +101,7 @@
       (defn report-block [& args]
         (report-spaced :block report ;args))
       # Each checkout has its final VCS after loading.
-      (def vcs-id (get repository :vcs vcs/default))
+      (def vcs-id (get repository :vcs vcs/default-id))
       (def executable (get executables vcs-id))
       # Only a clone needs the VCS, so a repository that will not be
       # cloned is reported as what it is rather than as a missing VCS.

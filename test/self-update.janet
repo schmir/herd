@@ -118,7 +118,7 @@
   (spit (path/join environment "uv-receipt.toml") "")
   (assert (self-update/uv-tool-install? executable)))
 
-(defn- with-env
+(defn- with-env-vars
   ``Call `f` with the variables `env` names set, and restore them after. `env`
   holds names and values in turn, a nil value unsetting its variable: a struct
   would drop the names whose value is nil.``
@@ -156,7 +156,7 @@
   (os/chmod uv 8r755)
   (def reports @[])
   (def report (fn [& parts] (array/push reports (string ;parts))))
-  (with-env ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" nil]
+  (with-env-vars ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" nil]
     (fn []
       (assert (= :updated (self-update/update-executable "v0.4.5" executable nil report)))
       (assert (= "tool\ninstall\n--force\nherd-cli@latest\n" (string (slurp args-file)))
@@ -165,11 +165,11 @@
       (assert (= "tool\ninstall\n--force\nherd-cli==0.4.4\n" (string (slurp args-file)))
               "with a version, uv installs that one")
       (assert (= 0 (length reports)) "uv reports nothing itself")))
-  (with-env ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" "3"]
+  (with-env-vars ["PATH" (string bin ":/usr/bin:/bin") "FAKE_UV_STATUS" "3"]
     (fn []
       (assert-error "uv failed"
                     (self-update/update-executable "v0.4.5" executable nil report))))
-  (with-env ["PATH" "/nonexistent" "FAKE_UV_STATUS" nil]
+  (with-env-vars ["PATH" "/nonexistent" "FAKE_UV_STATUS" nil]
     (fn []
       (assert-error "no uv"
                     (self-update/update-executable "v0.4.5" executable nil report)))))
@@ -177,11 +177,11 @@
 (defn test-github-token
   "GH_TOKEN wins over GITHUB_TOKEN, as with gh, and an empty one is none."
   []
-  (with-env ["GH_TOKEN" "gh" "GITHUB_TOKEN" "github"]
+  (with-env-vars ["GH_TOKEN" "gh" "GITHUB_TOKEN" "github"]
     (fn [] (assert (= "gh" (self-update/github-token)))))
-  (with-env ["GH_TOKEN" "" "GITHUB_TOKEN" "github"]
+  (with-env-vars ["GH_TOKEN" "" "GITHUB_TOKEN" "github"]
     (fn [] (assert (= "github" (self-update/github-token)))))
-  (with-env ["GH_TOKEN" nil "GITHUB_TOKEN" nil]
+  (with-env-vars ["GH_TOKEN" nil "GITHUB_TOKEN" nil]
     (fn [] (assert (nil? (self-update/github-token))))))
 
 (defn test-authorization
@@ -211,9 +211,9 @@
                      "cat >" dir "/curl.stdin\n"
                      "echo body\n"))
   (os/chmod curl 8r755)
-  (with-env ["PATH" (string bin ":" (os/getenv "PATH"))
-             "GH_TOKEN" "s3cret"
-             "GITHUB_TOKEN" nil]
+  (with-env-vars ["PATH" (string bin ":" (os/getenv "PATH"))
+                  "GH_TOKEN" "s3cret"
+                  "GITHUB_TOKEN" nil]
     (fn []
       (assert (= "body\n" (self-update/fetch "https://api.github.com/x")))
       (def args (slurp (path/join dir "curl.args")))

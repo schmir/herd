@@ -51,8 +51,8 @@
   (each key [:short :value-name]
     (when (option key)
       (put spec key (option key))))
-  (when-let [default (get defaults (option :name))]
-    (put spec :default default))
+  (when-let [value (get defaults (option :name))]
+    (put spec :default value))
   (table/to-struct spec))
 
 (defn- spec-entries
@@ -80,12 +80,12 @@
                    {}))
 
 (defn- exit-on-error
-  "Return what `attempt` returns, or print `label` and the error and exit 1."
-  [label attempt]
+  "Return what `attempt` returns, or print `prefix` and the error and exit 1."
+  [prefix attempt]
   (try
     (attempt)
     ([err]
-      (eprint label err)
+      (eprint prefix err)
       (os/exit 1))))
 
 (defn- parse-args
@@ -288,15 +288,15 @@
 
 (defn- paged-from-flags
   ``Whether --pager or --no-pager asks for the results to be paged, or
-  `default` when neither does. Asking for both is a mistake.``
-  [parsed default]
+  `fallback` when neither does. Asking for both is a mistake.``
+  [parsed fallback]
   (when (and (parsed "pager") (parsed "no-pager"))
     (eprint "usage error: --pager and --no-pager exclude each other")
     (os/exit 1))
   (cond
     (parsed "pager") true
     (parsed "no-pager") false
-    default))
+    fallback))
 
 (defn- color-output?
   ``Whether to color what is printed to `stream`, stdout unless given: on a

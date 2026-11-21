@@ -30,25 +30,25 @@
   dictionary says what it is: `{:jp expression}` or `{:sh command}`, exactly
   one of them.``
   [name entry]
-  (def label (filter-where name))
+  (def where (filter-where name))
   (cond
     (string? entry)
     (when (empty? entry)
-      (error (string label " needs a non-empty expression")))
+      (error (string where " needs a non-empty expression")))
 
     (dictionary? entry)
     (do
       (eachk key entry
         (unless (index-of key filter-kinds)
-          (error (string label " has an unknown key " (describe key)))))
+          (error (string where " has an unknown key " (describe key)))))
       (def kinds (seq [kind :in filter-kinds :when (has-key? entry kind)] kind))
       (unless (= 1 (length kinds))
-        (error (string label " needs exactly one of :jp and :sh")))
+        (error (string where " needs exactly one of :jp and :sh")))
       (def text (entry (first kinds)))
       (unless (and (string? text) (not (empty? text)))
-        (error (string label " needs a non-empty string in " (describe (first kinds))))))
+        (error (string where " needs a non-empty string in " (describe (first kinds))))))
 
-    (error (string label " needs an expression, or a dictionary with :jp or :sh"))))
+    (error (string where " needs an expression, or a dictionary with :jp or :sh"))))
 
 (defn validate-registry
   ``Validate the `:filters` registry and return it. It maps a filter name to
