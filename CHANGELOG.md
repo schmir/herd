@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-11-21
 
 - `-x NAME` (or `--exclude NAME`) keeps the repositories that a filter or a
   shell command leaves out. It takes the same values as `-f`, and the two
@@ -13,6 +13,8 @@
   and the wheels also hold them, in the file `THIRD-PARTY-NOTICES`.
 - A repository list entry can now carry both `clone_url` and `ssh_url`.
   `clone_url` is used, unless it is empty or null.
+- The binaries now use Janet 1.43.0. A build from source no longer needs an
+  installed Janet or a C compiler other than Zig.
 
 ## 0.4.7 - 2026-11-19
 
