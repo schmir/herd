@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "janet-lsp-nix": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1779873787,
-        "narHash": "sha256-GPN+JxRHVyL3QwWDj/GU9nOCuoB4ywuBonebF7X/R54=",
-        "owner": "Blue-Berry",
-        "repo": "janet-lsp.nix",
-        "rev": "98385eeacff35b02bd4458cae01be5370bdcc3c2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Blue-Berry",
-        "repo": "janet-lsp.nix",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1794495034,
@@ -34,7 +18,6 @@
     },
     "root": {
       "inputs": {
-        "janet-lsp-nix": "janet-lsp-nix",
         "nixpkgs": "nixpkgs",
         "spork": "spork"
       }

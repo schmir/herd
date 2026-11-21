@@ -3,7 +3,8 @@
 The module path of `build/janet`, the pinned Janet compiled for the host:
 the build sets `JANET_PATH` to this directory when it makes the image, and
 the justfile does when it runs the sources and the tests. The Nix devshell
-sets it for editor tooling such as `janet-lsp`, which runs its own Janet.
+sets it for editor tooling such as `janet-lsp`, which the devshell builds
+with the same pinned Janet, so that it can load the native modules here.
 
 It holds what `src/` imports: the link `spork`, to the checkout in
 `deps/spork`, and the native `access` and `terminal` modules, which the
