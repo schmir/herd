@@ -9,3 +9,6 @@
 /.venv
 *.egg-info
 *.so
+/.envrc
+/.direnv/
+__pycache__/

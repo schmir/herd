@@ -12,6 +12,10 @@ just install
 `just install` compiles the binary a release would ship for this machine and
 installs it as `~/.local/bin/herd`.
 
+To enter the development shell with direnv and
+[nix-direnv](https://github.com/nix-community/nix-direnv), copy
+`.envrc.example` to `.envrc`, then run `direnv allow`.
+
 Without Nix, install `just`, [ninja](https://ninja-build.org/),
 [Zig](https://ziglang.org/), `git`, GNU `make` and `jj`, then run
 `just install`. The build runs `gmake` when there is one, and `make` if not;
@@ -43,11 +47,11 @@ tag.
 
 `pins.env` pins Janet and spork to a commit, so every build compiles the
 same sources. `tools/gen-ninja.py` reads it, just loads it into the
-environment of each recipe, and the devshell sources it, so `JANET_COMMIT`
-and `SPORK_COMMIT` are set there. To update one, change it there; the next
-build fetches it. Then check that the copyright lines in
-`THIRD-PARTY-NOTICES` still match the `LICENSE` files of the new commits.
-The release archives and the wheels include that file.
+environment of each recipe, and the devshell reads it, so `JANET_COMMIT` and
+`SPORK_COMMIT` are set there. To update one, change it there; the next build
+fetches it. Then check that the copyright lines in `THIRD-PARTY-NOTICES`
+still match the `LICENSE` files of the new commits. The release archives and
+the wheels include that file.
 
 `treefmt` formats the Janet sources and the justfile; CI checks that the
 tree is already formatted. Useful recipes are listed by `just`. Build

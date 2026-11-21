@@ -1,9 +1,11 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # The pinned commits, as JANET_COMMIT and SPORK_COMMIT in the environment of
-# every recipe.
+# every recipe. The file overrides the environment: the devshell exports the
+# pins it read when Nix evaluated it, which can be stale.
 set dotenv-filename := "pins.env"
 set dotenv-required
+set dotenv-override
 
 _SET_HERD_VERSION := '''
 HERD_VERSION="${HERD_VERSION:-v$(uvx --quiet uv-dynamic-versioning@0.14.1)}"

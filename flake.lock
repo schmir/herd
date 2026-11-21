@@ -18,24 +18,7 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs",
-        "spork": "spork"
-      }
-    },
-    "spork": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1794428286,
-        "narHash": "sha256-Ou6YIj0hPOhkzke0ukV7LrjS/0TEwr8P6o2OorwQQUc=",
-        "owner": "janet-lang",
-        "repo": "spork",
-        "rev": "be21ec7fe45ccc7c59d9a442a1b9d85ba03579ee",
-        "type": "github"
-      },
-      "original": {
-        "owner": "janet-lang",
-        "repo": "spork",
-        "type": "github"
+        "nixpkgs": "nixpkgs"
       }
     }
   },

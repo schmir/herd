@@ -1,0 +1,8 @@
+# Copy this file to .envrc to enter the devshell with direnv and nix-direnv.
+# Nix reads pins.env when it evaluates the devshell. Watch it, so that the
+# devshell loads again when a pin changes. nix-direnv checks the watched
+# files when use flake runs, so watch it first. source_up_if_exists also
+# loads the .envrc of a parent directory, if there is one.
+source_up_if_exists
+watch_file pins.env
+use flake

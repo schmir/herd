@@ -2,17 +2,9 @@
   description = "Development environment for herd";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-  inputs.spork = {
-    url = "github:janet-lang/spork";
-    flake = false;
-  };
 
   outputs =
-    {
-      nixpkgs,
-      spork,
-      ...
-    }:
+    { nixpkgs, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -20,6 +12,35 @@
         "x86_64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+      # The pins of pins.env, as an attribute set of its KEY=value lines.
+      pins = builtins.listToAttrs (
+        map
+          (kv: {
+            name = builtins.elemAt kv 0;
+            value = builtins.elemAt kv 1;
+          })
+          (
+            builtins.filter (kv: kv != null) (
+              map (builtins.match "([A-Z_]+)=(.*)") (nixpkgs.lib.splitString "\n" (builtins.readFile ./pins.env))
+            )
+          )
+      );
+      # The sources that pins.env pins. The commit identifies the source, so
+      # no hash is necessary, and pins.env stays the one place to change it.
+      fetchPinned =
+        repo: rev:
+        builtins.fetchGit {
+          url = "https://github.com/janet-lang/${repo}";
+          inherit rev;
+          shallow = true;
+        };
+      pinned-janet-src = fetchPinned "janet" pins.JANET_COMMIT;
+      pinned-spork-src = fetchPinned "spork" pins.SPORK_COMMIT;
+      pinned-janet-version = builtins.head (
+        builtins.match ''.*#define JANET_VERSION "([^"]*)".*'' (
+          builtins.readFile "${pinned-janet-src}/src/conf/janetconf.h"
+        )
+      );
     in
     {
       devShells = forAllSystems (
@@ -27,38 +48,10 @@
         let
           pkgs = import nixpkgs { inherit system; };
           janet-format = pkgs.writeShellScriptBin "janet-format" ''
-            exec ${pkgs.janet}/bin/janet --syspath ${spork} ${spork}/bin/janet-format "$@"
+            exec ${pkgs.janet}/bin/janet --syspath ${pinned-spork-src} ${pinned-spork-src}/bin/janet-format "$@"
           '';
-          # The pins of pins.env, as an attribute set of its KEY=value lines.
-          pins = builtins.listToAttrs (
-            map
-              (line: {
-                name = builtins.elemAt (builtins.match "([A-Z_]+)=.*" line) 0;
-                value = builtins.elemAt (builtins.match "[A-Z_]+=(.*)" line) 0;
-              })
-              (
-                builtins.filter (line: builtins.match "[A-Z_]+=.*" line != null) (
-                  pkgs.lib.splitString "\n" (builtins.readFile ./pins.env)
-                )
-              )
-          );
-          # The Janet that pins.env pins. The commit identifies the source, so
-          # no hash is necessary, and pins.env stays the one place to change it.
-          pinned-janet-src = builtins.fetchGit {
-            url = "https://github.com/janet-lang/janet";
-            rev = pins.JANET_COMMIT;
-            shallow = true;
-          };
           pinned-janet = pkgs.janet.overrideAttrs {
-            version = builtins.head (
-              builtins.head (
-                builtins.filter (match: match != null) (
-                  map (builtins.match ''#define JANET_VERSION "(.*)"'') (
-                    pkgs.lib.splitString "\n" (builtins.readFile "${pinned-janet-src}/src/conf/janetconf.h")
-                  )
-                )
-              )
-            );
+            version = pinned-janet-version;
             src = pinned-janet-src;
           };
           # janet-lsp loads the native modules in lib/, which are compiled
@@ -185,21 +178,16 @@
               janet-lsp
             ];
 
+            env = pins;
+
             # janet-lsp needs spork and the native modules on the module path;
-            # see lib/README.md. pins.env marks the root of the project, and
-            # the shell gets its pins as JANET_COMMIT and SPORK_COMMIT.
+            # see lib/README.md. pins.env marks the root of the project.
             shellHook = ''
               root="$PWD"
               while [ ! -f "$root/pins.env" ] && [ -n "$root" ]; do
                 root="''${root%/*}"
               done
-              [ -n "$root" ] || root="$PWD"
-              export JANET_PATH="$root/lib"
-              if [ -f "$root/pins.env" ]; then
-                set -a
-                . "$root/pins.env"
-                set +a
-              fi
+              export JANET_PATH="''${root:-$PWD}/lib"
               unset root
             '';
           };
