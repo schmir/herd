@@ -15,7 +15,7 @@
 
 (def show-output-conditions
   "Valid conditions for showing command output."
-  ["never" "on-failure" "always"])
+  ["never" "on-failure" "on-success" "always"])
 
 (defn require-show-output
   ``Return condition, or raise an error when it is not a valid one. The
@@ -23,8 +23,17 @@
   the same names this runs on, so there is one spelling of the condition.``
   [condition]
   (unless (and (string? condition) (index-of condition show-output-conditions))
-    (error `expected "never", "on-failure", or "always"`))
+    (error `expected "never", "on-failure", "on-success", or "always"`))
   condition)
+
+(defn- shows-output?
+  "Whether `show-output` shows the output of a command that `succeeded` or not."
+  [show-output succeeded]
+  (case show-output
+    "never" false
+    "on-failure" (not succeeded)
+    "on-success" succeeded
+    "always" true))
 
 (def- stdout-gutter
   "What each line a command wrote to stdout is printed behind."
@@ -256,18 +265,15 @@
   (def succeeded (zero? status))
   (when (and (or (not succeeded)
                  (pos? (+ (length stdout) (length stderr))))
-             (case show-output
-               "never" false
-               "on-failure" (not succeeded)
-               "always" true))
+             (shows-output? show-output succeeded))
     (report (format-command-result repository status stdout stderr color?))))
 
 (defn report-failure
   ``Report through `report` that `repository` failed for the reason `message`,
-  with no command's exit status to show, unless `show-output` is "never". With
-  `color?`, the result is printed in color.``
+  with no command's exit status to show, if `show-output` shows failures.
+  With `color?`, the result is printed in color.``
   [repository message report show-output color?]
-  (unless (= "never" show-output)
+  (when (shows-output? show-output false)
     (report (heading "✗" (repository :path) failed-color color?) "\n"
             (indent-command-output (string message) stderr-gutter color?))))
 

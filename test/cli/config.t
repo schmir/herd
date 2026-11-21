@@ -150,10 +150,10 @@ Custom commands.
   Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" cannot combine :command with VCS-specific commands
   [1]
   $ settings '{:commands {"check" {:command "true" :description "Check." :show-output :always}}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" has an invalid :show-output; expected "never", "on-failure", or "always"
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" has an invalid :show-output; expected "never", "on-failure", "on-success", or "always"
   [1]
   $ settings '{:commands {"check" {:command "true" :description "Check." :show-output "sometimes"}}}'
-  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" has an invalid :show-output; expected "never", "on-failure", or "always"
+  Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" has an invalid :show-output; expected "never", "on-failure", "on-success", or "always"
   [1]
   $ settings '{:commands {"check" {:command "true" :description "Check." :pager "yes"}}}'
   Configuration error: $ROOT/home/.config/herd/config.jdn: custom command "check" needs true or false for :pager

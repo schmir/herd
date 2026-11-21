@@ -97,7 +97,7 @@ a blank line between blocks. --show-output picks what is shown, as it does there
   0 cloned, 0 already checked out, 0 blocked, 1 failed
   [1]
   $ herd clone --show-output sometimes
-  Invalid --show-output: expected "never", "on-failure", or "always"
+  Invalid --show-output: expected "never", "on-failure", "on-success", or "always"
   [1]
   $ rm "$ROOT/bin/git"
 

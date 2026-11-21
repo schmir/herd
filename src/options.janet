@@ -29,7 +29,7 @@
 
 (def- show-output
   {:name "show-output" :kind :option :value-name "WHEN"
-   :help "Show command output: never, on-failure, or always."})
+   :help "Show command output: never, on-failure, on-success, or always."})
 
 (def- pager
   [{:name "pager" :short "p" :kind :flag

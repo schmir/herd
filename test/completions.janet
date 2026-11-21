@@ -70,7 +70,7 @@
   "Each script offers the conditions --show-output accepts."
   []
   (each shell completions/shells
-    (assert (string/find "never on-failure always" (completions/script shell))
+    (assert (string/find "never on-failure on-success always" (completions/script shell))
             (string shell " completes --show-output values"))))
 
 (defn test-scripts-complete-directories-after-at

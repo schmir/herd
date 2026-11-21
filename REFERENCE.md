@@ -28,7 +28,8 @@ jj repository is `blocked`.
 herd clone [-C PATH] [-a] [-f NAME] [--show-output WHEN] [-j N]
 ```
 
-`--show-output` is `never`, `on-failure` (the default), or `always`.
+`--show-output` is `never`, `on-failure` (the default), `on-success`, or
+`always`.
 
 ### `herd list`
 
@@ -80,8 +81,9 @@ starts. Repositories without a command for their VCS and repositories
 without a checkout do not consume the limit.
 
 Command output is grouped per repository. `--show-output never` hides it;
-`on-failure` shows output only for failures; `always` shows output for both
-successes and failures. A pager is used only for colored terminal output.
+`on-failure` shows output only for failures; `on-success` shows output only
+for successes; `always` shows output for both successes and failures. A
+pager is used only for colored terminal output.
 
 ### `herd tree`
 
@@ -374,12 +376,12 @@ one common command or VCS-specific commands:
 Use `:command` for one shell command, or `:command-git` and `:command-jj`
 for VCS-specific commands. If omitted, `:show-output` defaults to
 `on-failure`, and `:pager` defaults to `false`. `:show-output` accepts
-`never`, `on-failure`, or `always`; `:pager` is a boolean. The protected
-built-in commands are `clone`, `list`, `run`, `tree`, and `completions`;
-they cannot be replaced. `diff` and `fetch` are default custom commands that
-herd supplies. When a repository has both `.git` and `.jj`, herd uses jj. A
-VCS-specific command is skipped when that repository has no command for its
-detected VCS.
+`never`, `on-failure`, `on-success`, or `always`; `:pager` is a boolean. The
+protected built-in commands are `clone`, `list`, `run`, `tree`, and
+`completions`; they cannot be replaced. `diff` and `fetch` are default
+custom commands that herd supplies. When a repository has both `.git` and
+`.jj`, herd uses jj. A VCS-specific command is skipped when that repository
+has no command for its detected VCS.
 
 Arguments for a custom command come after `--`:
 

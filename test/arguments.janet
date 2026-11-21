@@ -352,7 +352,7 @@
     (invoke ["run" "--show-output" "sometimes" "true"]))
   (assert (not= 0 (invalid-show-output :status))
           "an unknown command-line output condition fails")
-  (assert (string/find "expected \"never\", \"on-failure\", or \"always\""
+  (assert (string/find "expected \"never\", \"on-failure\", \"on-success\", or \"always\""
                        (invalid-show-output :output))
           "an invalid output condition lists the valid values")
   (os/link anchor (path/join root "alias") true)

@@ -241,6 +241,21 @@
                  repo ["false"] (fn [& args] (array/push messages (string ;args))) "never")))
     (assert (empty? messages) "never hides failed command results")
     (array/clear messages)
+    (assert (= :succeeded
+               (run/run-in-repository
+                 repo ["printf" "kept"]
+                 (fn [& args] (array/push messages (string ;args))) "on-success")))
+    (assert (and (= 1 (length messages))
+                 (string/find (string "✓ " dir) (messages 0))
+                 (string/find "| kept" (messages 0)))
+            "on-success shows successful command results")
+    (array/clear messages)
+    (assert (= :failed
+               (run/run-in-repository
+                 repo ["sh" "-c" `printf dropped; exit 3`]
+                 (fn [& args] (array/push messages (string ;args))) "on-success")))
+    (assert (empty? messages) "on-success hides failed command results")
+    (array/clear messages)
     (assert (= :failed
                (run/run-in-repository
                  repo ["false"] (fn [& args] (array/push messages (string ;args))))))

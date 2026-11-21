@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `--show-output on-success` and `:show-output "on-success"` show the output
+  of the commands that succeeded and hide the failures. The summary still
+  counts the failures.
 - `herd --licenses` prints the license of herd and the licenses of the code
   from Janet, spork and jpm that the binary contains. The release archives
   and the wheels also hold them, in the file `THIRD-PARTY-NOTICES`.

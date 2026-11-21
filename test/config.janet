@@ -166,7 +166,7 @@
                             {:command-git "git status"
                              :comand-jj "jj status"
                              :description "Check repositories."}}}))
-(each condition ["never" "on-failure" "always"]
+(each condition ["never" "on-failure" "on-success" "always"]
   (assert-no-error (string "a custom command accepts show-output " condition)
                    (prepare
                      {:commands {"check" {:command "true"

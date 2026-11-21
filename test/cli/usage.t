@@ -77,10 +77,10 @@ An option another command has is unknown to list.
   Invalid --limit: expected a positive integer no greater than 2147483647
   [1]
 
---show-output takes one of three conditions.
+--show-output takes one of four conditions.
 
   $ herd run --show-output sometimes true
-  Invalid --show-output: expected "never", "on-failure", or "always"
+  Invalid --show-output: expected "never", "on-failure", "on-success", or "always"
   [1]
 
   $ herd run
@@ -135,13 +135,13 @@ on repositories document their defaults.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
-   --show-output WHEN=on-failure Show command output: never, on-failure, or always.
+   --show-output WHEN=on-failure Show command output: never, on-failure, on-success, or always.
    -a, --all-anchors Consider repositories from every configuration anchor.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
    -n, --limit N Stop after the command has run in N repositories.
-   --show-output WHEN=on-failure Show command output: never, on-failure, or always.
+   --show-output WHEN=on-failure Show command output: never, on-failure, on-success, or always.
    -a, --all-anchors Consider repositories from every configuration anchor.
    -C, --at PATH=$ROOT Select repositories using PATH as the working location.
    -f, --filter NAME Select only repositories kept by the named filter.
@@ -150,7 +150,7 @@ on repositories document their defaults.
    -f, --filter NAME Select only repositories kept by the named filter.
    -j, --jobs N=6 Run at most N repository operations at the same time.
    -n, --limit N Stop after the command has run in N repositories.
-   --show-output WHEN=on-failure Show command output: never, on-failure, or always.
+   --show-output WHEN=on-failure Show command output: never, on-failure, on-success, or always.
 
 Asking for help in a cluster works only when every flag in it is known;
 anything else in it, before or after the h, is a mistake.
@@ -215,7 +215,7 @@ documented default, whatever the command line asks for.
     mark        Create a marker in each repository.
   $ herd mark --help | grep -E -e '-j, |--show-output' | sed 's/  */ /g'
    -j, --jobs N=2 Run at most N repository operations at the same time.
-   --show-output WHEN=always Show command output: never, on-failure, or always.
+   --show-output WHEN=always Show command output: never, on-failure, on-success, or always.
   $ for command in clone fetch run; do herd $command --help | grep -o 'jobs N=[0-9]*'; done
   jobs N=2
   jobs N=2
