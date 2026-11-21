@@ -278,8 +278,8 @@ Each entry requires `path` and either `clone_url` or `ssh_url`:
 Other entry fields are retained and may be used by filters. Entries are
 validated after list filters run, so a filter can remove an entry that herd
 could not use. A path is relative to the anchor: it must be neither absolute
-nor contain a `..` component. An entry cannot contain both `clone_url` and
-`ssh_url`.
+nor contain a `..` component. An entry can contain both `clone_url` and
+`ssh_url`; `clone_url` is used unless it is empty or null.
 
 `:checkouts` says where lists are placed. A row can name a file or contain
 an inline array of repository objects:
@@ -362,12 +362,11 @@ Multiple list filters run in the order given.
 `-x` accepts the same values as `-f` and keeps what they leave out. The `-f`
 and `-x` list filters run as one pipeline in the order given; `-x A` keeps
 the entries of its input whose `path` and clone URL `A` does not return.
-Each entry `A` returns must have a string `path` and exactly one of
-`clone_url` and `ssh_url`, or `-x` fails. With `-x`, a checkout filter or
-command keeps a repository when it exits with a status other than zero.
-Status 126 and 127 are errors, and a repository that is not checked out is
-dropped. `clone` rejects `-x` with a checkout filter or command, as it does
-`-f`.
+Each entry `A` returns must have a string `path` and a string clone URL, or
+`-x` fails. With `-x`, a checkout filter or command keeps a repository when
+it exits with a status other than zero. Status 126 and 127 are errors, and a
+repository that is not checked out is dropped. `clone` rejects `-x` with a
+checkout filter or command, as it does `-f`.
 
 ### Custom commands
 

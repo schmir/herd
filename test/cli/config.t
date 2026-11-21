@@ -82,8 +82,8 @@ Each entry in a list is checked.
   $ entries '[{"path": "a", "ssh_url": "b", "vcs": false}]'
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has an invalid "vcs"; expected "git" or "jj"
   [1]
-  $ entries '[{"path": "a", "clone_url": "b", "ssh_url": "c"}]'
-  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 has both "clone_url" and "ssh_url"
+  $ entries '[{"path": "a", "clone_url": 1, "ssh_url": "c"}]'
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 needs a string "clone_url"
   [1]
   $ entries '[]'
   $ cp repos.json.saved "$CONFIG/repos.json"

@@ -7,6 +7,19 @@
   "The names a repository list may give the URL a repository is cloned from."
   [:clone_url :ssh_url])
 
+(defn url-key
+  ``The key that holds the clone URL of the list entry `entry`. "clone_url"
+  wins when it is set and not empty, so a list can carry both, and "ssh_url"
+  is used only when it is not. A JSON null is not set. With neither set it
+  is "clone_url", the key an error names.``
+  [entry]
+  (defn set? [value] (not (or (nil? value) (= :null value))))
+  (def preferred (entry :clone_url))
+  (cond
+    (and (set? preferred) (not= "" preferred)) :clone_url
+    (set? (entry :ssh_url)) :ssh_url
+    :clone_url))
+
 (def default-repository-options
   ``Default repository options. Their keys define the options that each
   configuration level accepts.``

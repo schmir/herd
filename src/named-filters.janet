@@ -184,13 +184,12 @@
 
 (defn- repository-key
   ``The path and clone URL of the list entry `entry`, or nil when it does not
-  have a string "path" and exactly one clone URL as a string.``
+  have a string "path" and a string clone URL.``
   [entry]
   (when (dictionary? entry)
-    (def urls (seq [key :in checkout/url-keys :when (not (nil? (entry key)))]
-                (entry key)))
-    (when (and (string? (entry :path)) (= 1 (length urls)) (string? (urls 0)))
-      [(entry :path) (urls 0)])))
+    (def url (entry (checkout/url-key entry)))
+    (when (and (string? (entry :path)) (string? url))
+      [(entry :path) url])))
 
 (defn- leave-out
   ``Return the JSON array `source` without the entries whose path and clone
@@ -209,7 +208,7 @@
     (put keys-matched
          (or (repository-key entry)
              (error (string (filter-where name) " answered with an entry"
-                            " without a string \"path\" and one clone URL,"
+                            " without a string \"path\" and clone URL,"
                             " which -x needs to compare entries")))
          true))
   (string (json/encode

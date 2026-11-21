@@ -80,8 +80,20 @@
 (assert-no-error "a repository can select jj"
                  (config/validate-repository-list [{:path "a" :ssh_url "b" :vcs "jj"}]))
 (assert-no-error "an empty configuration is valid" (config/validate-repository-list []))
-(assert-error "a repository cannot spell its URL both ways"
-              (config/validate-repository-list [{:path "a" :ssh_url "b" :clone_url "b"}]))
+(let [url (fn [entry] ((first (config/validate-repository-list [entry])) :clone-url))]
+  (assert (= "c" (url {:path "a" :ssh_url "s" :clone_url "c"}))
+          "clone_url wins over ssh_url")
+  (assert (= "s" (url {:path "a" :ssh_url "s" :clone_url ""}))
+          "an empty clone_url gives way to ssh_url")
+  (assert (= "s" (url {:path "a" :ssh_url "s" :clone_url :null}))
+          "a null clone_url gives way to ssh_url")
+  (assert (= "" (url {:path "a" :clone_url ""}))
+          "an empty clone_url without ssh_url is still the URL")
+  (assert (nil? (get (first (config/validate-repository-list
+                              [{:path "a" :ssh_url "s" :clone_url "c"}])) :ssh_url))
+          "neither spelling is kept beside :clone-url"))
+(assert-error "a set clone_url must be a string, even beside ssh_url"
+              (config/validate-repository-list [{:path "a" :ssh_url "s" :clone_url 1}]))
 (assert-error "clone_url must be a string"
               (config/validate-repository-list [{:path "a" :clone_url 1}]))
 (let [entry (first (config/validate-repository-list

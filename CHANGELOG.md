@@ -11,6 +11,8 @@
 - `herd --licenses` prints the license of herd and the licenses of the code
   from Janet, spork and jpm that the binary contains. The release archives
   and the wheels also hold them, in the file `THIRD-PARTY-NOTICES`.
+- A repository list entry can now carry both `clone_url` and `ssh_url`.
+  `clone_url` is used, unless it is empty or null.
 
 ## 0.4.7 - 2026-11-19
 

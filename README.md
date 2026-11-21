@@ -75,8 +75,9 @@ repositories:
 
 Both `path` and `clone_url`, the URL the repository is cloned from, are
 required and must be strings. Older lists spell the URL `ssh_url`, which is
-still read, but an entry may not carry both. The optional `vcs` is `"jj"` or
-`"git"` and decides how `herd clone` checks that repository out; see
+still read. An entry may carry both: then `clone_url` is used, unless it is
+empty or null. The optional `vcs` is `"jj"` or `"git"` and decides how
+`herd clone` checks that repository out; see
 [Repository options](#repository-options). A few repositories can also be
 written [inline](#inline-lists) in `config.jdn` instead of in a file.
 

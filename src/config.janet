@@ -345,7 +345,8 @@
 (defn validate-repository-list
   ``Return the `entries` of a repository list with the clone URL of each under
   `:clone-url`, or raise an error describing their shape. A list may spell the
-  URL `clone_url` or, as older lists do, `ssh_url`, but not both.``
+  URL `clone_url` or, as older lists do, `ssh_url`, or carry both, as
+  checkout/url-key chooses.``
   [entries]
   (unless (indexed? entries)
     (error "expected a JSON array of repository objects"))
@@ -362,10 +363,7 @@
                      " relative to its anchor")))
     (when (index-of ".." (path/parts (entry :path)))
       (error (string "entry " index " has a \"path\" with a \"..\" component")))
-    (def spelled (filter (fn [key] (not (nil? (entry key)))) checkout/url-keys))
-    (when (= 2 (length spelled))
-      (error (string "entry " index " has both \"clone_url\" and \"ssh_url\"")))
-    (def url-key (get spelled 0 :clone_url))
+    (def url-key (checkout/url-key entry))
     (unless (string? (entry url-key))
       (error (string "entry " index " needs a string \"" url-key "\"")))
     (checkout/validate-repository-options entry (string "entry " index) `"vcs"`)

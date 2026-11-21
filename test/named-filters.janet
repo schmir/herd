@@ -559,6 +559,14 @@
                    (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
             "a projection that keeps the path and the URL excludes its entries")))
 
+# An entry with both spellings is compared by the URL that is used to clone.
+(with-fixture dir
+  (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"c"}]'`)
+    (assert (empty? (json/decode
+                      (named-filters/apply-filters `[{"path":"a","clone_url":"c","ssh_url":"s"}]`
+                                                   [{:exclude "any"}] {"any" "@"})))
+            "clone_url wins over ssh_url when entries are compared")))
+
 # Entries with the same path and URL are one repository, so all of them go.
 (with-fixture dir
   (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"u","n":1}]'`)
@@ -578,7 +586,7 @@
             "an entry that is not a repository is kept")))
 
 # What the filter answered with must have a path and URL to compare by.
-(each answer [`["a"]` `[{"path":"a"}]` `[{"path":"a","clone_url":"u","ssh_url":"u"}]`]
+(each answer [`["a"]` `[{"path":"a"}]` `[{"path":"a","clone_url":1,"ssh_url":"u"}]`]
   (with-fixture dir
     (with-stub (stub-filter dir (string `printf '%s' '` answer `'`))
       (assert (string/find "which -x needs to compare entries"
