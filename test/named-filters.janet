@@ -336,7 +336,8 @@
                                   `echo '[{"path":"a","ssh_url":"u"}]'`))
     (def kept (named-filters/apply-filters entries ["first" "second"]
                                            {"first" "@" "second" "@"}))
-    (def logged (map scan-number
+    # BSD wc puts spaces before the count, and scan-number does not take them.
+    (def logged (map |(scan-number (string/trim $))
                      (string/split "\n" (string/trimr (slurp sizes)))))
     (assert (= 2 (length logged)) "both filters ran")
     (assert (< (logged 1) (logged 0))
