@@ -439,7 +439,7 @@
         (and broken (not (empty? chain)) (not (named-filters/executable-available?)))
         (do
           (array/push broken {:anchor (placement :path)
-                              :message (string list-label ": " (named-filters/missing-executable-message (named-filters/step-value (first chain))))})
+                              :message (string list-label ": " (named-filters/missing-executable-message ((first chain) :name)))})
           nil)
 
         (has-key? selected chain)

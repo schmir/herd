@@ -102,29 +102,24 @@
     (tabseq [[name entry] :pairs registry]
       name (or (text-of-kind entry :jp) (text-of-kind entry :sh)))))
 
-(defn excluded?
-  ``Whether the filter step `step`, `{:exclude value}` from -x or a row's
-  `:use-filters`, leaves out what it matches.``
-  [step]
-  (dictionary? step))
-
-(defn step-value
-  "The filter name or command the filter step `step` was given."
-  [step]
-  (if (excluded? step) (step :exclude) step))
+(defn step
+  ``Make a filter step, `{:name :exclude?}`. `name` is the filter name or the
+  command as written. With `exclude?`, the step leaves out what it matches.``
+  [name &opt exclude?]
+  {:name name :exclude? (truthy? exclude?)})
 
 (defn row-step
-  ``The filter step that `name`, from a row's `:use-filters`, stands for: a
-  leading "!" makes it `{:exclude rest}`.``
+  ``The filter step that `name`, from a row's `:use-filters`, stands for. A
+  leading "!" makes it an exclusion.``
   [name]
   (if (string/has-prefix? "!" name)
-    {:exclude (string/slice name 1)}
-    name))
+    (step (string/slice name 1) true)
+    (step name)))
 
 (defn step-label
   "The filter step `step` as `:use-filters` writes it, with \"!\" for an exclusion."
   [step]
-  (if (excluded? step) (string "!" (step :exclude)) step))
+  (string (if (step :exclude?) "!" "") (step :name)))
 
 (defn require-list-filters
   ``Raise unless every one of `names`, a row's `:use-filters`, names a list
@@ -133,7 +128,7 @@
   can use one. `where` says whose names they are. Return `names`.``
   [registry names where]
   (each written names
-    (def name (step-value (row-step written)))
+    (def name ((row-step written) :name))
     (cond
       (list-filter? registry name) nil
       (checkout-filter-command registry name)
@@ -233,8 +228,8 @@
 
 (defn apply-filters
   ``Return the repository list `entries`, decoded JSON, narrowed by each
-  filter step in `steps`, in order. A step is a filter name, or
-  `{:exclude name}`, which keeps what the filter leaves out. They run as a
+  filter step in `steps`, in order. A step with `:exclude?` keeps what its
+  filter leaves out. They run as a
   pipeline, each reading what the one before it answered with, the way piping
   one filter program into another does. Several `[?…]` expressions therefore
   intersect and commute; anything else, a slice or a projection, depends on
@@ -243,20 +238,20 @@
   [entries steps registry &opt hint]
   (var narrowed entries)
   (each step steps
-    (def name (step-value step))
+    (def name (step :name))
     (def answered (apply-filter narrowed name
                                 (list-filter-expression registry name) hint))
-    (set narrowed (if (excluded? step)
+    (set narrowed (if (step :exclude?)
                     (leave-out narrowed answered name)
                     answered)))
   narrowed)
 
 (defn narrow
   ``Return the repository list `entries`, decoded JSON, narrowed by the list
-  filters of `registry` that a row names, `row-names`, and then by the filter
-  steps given with -f and -x, `command-line-names`.
+  filter steps of a row, `row-steps`, and then by the filter steps given with
+  -f and -x, `command-line-steps`. `registry` holds the list filters.
   A row aimed its own filters at this one file; the command line aimed its
   filters at every file, so only those explain themselves when they fail.``
-  [registry entries row-names command-line-names]
-  (apply-filters (apply-filters entries row-names registry)
-                 command-line-names registry command-filter-hint))
+  [registry entries row-steps command-line-steps]
+  (apply-filters (apply-filters entries row-steps registry)
+                 command-line-steps registry command-filter-hint))

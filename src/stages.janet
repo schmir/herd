@@ -72,19 +72,20 @@
     false))
 
 (defn- step-matches?
-  ``Whether the repository passes the checkout filter step `step`: a command
-  that must exit 0, or `{:exclude command}`, which must not. Status 126 and
-  127 raise for both, and a repository with no working copy passes neither.``
+  ``Whether the repository passes the checkout filter step `step`. Its
+  `:command` must exit 0, or must not when the step has `:exclude?`. Status
+  126 and 127 raise for both, and a repository with no working copy passes
+  neither.``
   [repository step shell at]
-  (if (dictionary? step)
+  (if (step :exclude?)
     (and (vcs/detect (repository :path))
-         (not (command-matches? repository (step :exclude) shell at)))
-    (command-matches? repository step shell at)))
+         (not (command-matches? repository (step :command) shell at)))
+    (command-matches? repository (step :command) shell at)))
 
 (defn filter-by-commands
   ``Keep the `repositories` that pass every one of the checkout filter
-  `steps`, in their order. A step is a shell command that must exit 0, or
-  `{:exclude command}`, a command that must not. A step is not run once an
+  `steps`, in their order. The shell command in `:command` of a step must
+  exit 0, or must not when the step has `:exclude?`. A step is not run once an
   earlier one has failed. They run in `shell`, as process/shell-argv takes
   it, and are told `at`, the location the repositories were selected from.``
   [repositories steps &opt jobs shell at]

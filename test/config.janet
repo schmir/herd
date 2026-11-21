@@ -770,7 +770,7 @@
                  :checkout-defaults {:use-filters ["!c"]}}))
 (assert-error "a filter name cannot start with \"!\""
               (config/configured-repository-settings {:filters {"!a" "[?a]"}}))
-(assert (deep= @["a" {:exclude "b"}]
+(assert (deep= @[{:name "a" :exclude? false} {:name "b" :exclude? true}]
                ((first (config/resolve-checkout-rows "/l.json" [{:anchor "/srv"
                                                                  :use-filters ["a" "!b"]}]))
                  :use-filters))

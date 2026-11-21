@@ -9,6 +9,16 @@
 
 (start-suite "named-filters")
 
+(defn- exclude
+  "A filter step that leaves out what `name` matches."
+  [name]
+  (named-filters/step name true))
+
+(defn- steps
+  "The filter steps for `items`: a name, or a step that `exclude` made."
+  [& items]
+  (map (fn [item] (if (string? item) (named-filters/step item) item)) items))
+
 (var fixture-count 0)
 
 (defn- fixture
@@ -164,13 +174,13 @@
 
 (with-fixture dir
   (without-filter-program dir
-                          (assert (= entries (named-filters/narrow narrow-registry entries [] []))
+                          (assert (= entries (named-filters/narrow narrow-registry entries (steps) (steps)))
                                   "naming no filter needs no filter program")))
 
 (with-fixture dir
   (def log (path/join dir "expressions"))
   (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
-    (named-filters/narrow narrow-registry entries ["row"] ["cli"])
+    (named-filters/narrow narrow-registry entries (steps "row") (steps "cli"))
     (assert (deep= @["[?row]" "[?cli]"]
                    (string/split "\n" (string/trimr (slurp log))))
             "a row's filters narrow first, then those named with -f")))
@@ -178,12 +188,12 @@
 (with-fixture dir
   (with-stub (stub-filter dir "echo boom >&2" 1)
     (def own (error-message
-               (fn [] (named-filters/narrow narrow-registry entries ["row"] []))))
+               (fn [] (named-filters/narrow narrow-registry entries (steps "row") (steps)))))
     (assert (and (string/find `filter "row" failed` own)
                  (not (string/find "applied to every configured list" own)))
             "a row's own filter fails without the hint")
     (def named (error-message
-                 (fn [] (named-filters/narrow narrow-registry entries [] ["cli"]))))
+                 (fn [] (named-filters/narrow narrow-registry entries (steps) (steps "cli")))))
     (assert (and (string/find `filter "cli" failed` named)
                  (string/find "applied to every configured list" named))
             "a filter named with -f fails with the hint")))
@@ -301,13 +311,13 @@
   (without-filter-program dir
                           # Naming no filter must not reach for the program at all, so an
                           # unfiltered herd needs nothing installed.
-                          (assert (= entries (named-filters/apply-filters entries [] {}))
+                          (assert (= entries (named-filters/apply-filters entries (steps) {}))
                                   "naming no filter hands the source back untouched")))
 
 (with-fixture dir
   (def log (path/join dir "expressions"))
   (with-stub (stub-filter dir (string `printf '%s\n' "$2" >> ` log "\necho '[]'"))
-    (named-filters/apply-filters entries ["first" "second"]
+    (named-filters/apply-filters entries (steps "first" "second")
                                  {"first" "[?a]" "second" "[?b]"})
     (assert (deep= @["[?a]" "[?b]"]
                    (string/split "\n" (string/trimr (slurp log))))
@@ -321,7 +331,7 @@
   (with-stub (stub-filter dir
                           (string `wc -c >> ` sizes "\n"
                                   `echo '[{"path":"a","ssh_url":"u"}]'`))
-    (def kept (named-filters/apply-filters entries ["first" "second"]
+    (def kept (named-filters/apply-filters entries (steps "first" "second")
                                            {"first" "@" "second" "@"}))
     # BSD wc puts spaces before the count, and scan-number does not take them.
     (def logged (map |(scan-number (string/trim $))
@@ -354,7 +364,7 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def message (error-message
-                   (fn [] (named-filters/apply-filters entries ["first" "second"]
+                   (fn [] (named-filters/apply-filters entries (steps "first" "second")
                                                        {"first" "ok" "second" "no"}
                                                        named-filters/command-filter-hint))))
     (assert (string/find `filter "second" failed` message)
@@ -426,7 +436,7 @@
     (assert (empty? (config/read-repository-list config
                                                  @[{:anchor src :use-filters ["first"]}]
                                                  answers
-                                                 ["none"]))
+                                                 (steps "none")))
             "a command-line filter narrows what the row already kept")))
 
 # Which filter a name came from decides whether the failure explains itself,
@@ -441,7 +451,7 @@
   (with-stub (stub-filter dir
                           (string `case "$2" in ok) echo '[]';; *) echo boom >&2; exit 1;; esac`))
     (def from-command
-      (error-message (fn [] (config/read-repository-list config @[{:anchor src}] answers ["bad"]))))
+      (error-message (fn [] (config/read-repository-list config @[{:anchor src}] answers (steps "bad")))))
     (assert (string/find "applied to every configured list" from-command)
             "a filter named with -f explains why it reached this list")
 
@@ -458,7 +468,7 @@
     (def both
       (error-message
         (fn [] (config/read-repository-list config @[{:anchor src :use-filters ["bad"]}]
-                                            answers ["good"]))))
+                                            answers (steps "good")))))
     (assert (not (string/find "applied to every configured list" both))
             "the row's filter fails first, and speaks for itself")))
 
@@ -517,20 +527,20 @@
         @[@{"path" "one" "ssh_url" "u" "active" false "tier" 1}
           @{"path" "two" "ssh_url" "u" "active" true "tier" 1}]
         filters {"active" "[?active]" "tier" "[?tier == `1`]" "first" "[0:1]"}
-        selected (fn [& names] (paths (named-filters/apply-filters listing names filters)))]
+        selected (fn [& items] (paths (named-filters/apply-filters listing (steps ;items) filters)))]
     (assert (deep= (selected "active" "tier") (selected "tier" "active"))
             "filter expressions commute, so naming them either way round agrees")
     (assert (deep= @["two"] (selected "active" "first"))
             "the first of the active repositories is the active one")
     (assert (empty? (selected "first" "active"))
             "while the first repository of the list is not active at all")
-    (assert (deep= @["one"] (selected {:exclude "active"}))
+    (assert (deep= @["one"] (selected (exclude "active")))
             "an excluded filter keeps what the filter leaves out")
-    (assert (deep= @["two"] (selected {:exclude "first"}))
+    (assert (deep= @["two"] (selected (exclude "first")))
             "excluding a slice keeps all but what the slice takes")
-    (assert (empty? (selected "active" {:exclude "tier"}))
+    (assert (empty? (selected "active" (exclude "tier")))
             "an excluded filter narrows what the one before it kept")
-    (assert (deep= @["one"] (selected {:exclude "active"} {:exclude "active"}))
+    (assert (deep= @["one"] (selected (exclude "active") (exclude "active")))
             "excluding twice leaves out nothing the first exclusion kept")))
 
 # Entries are compared by value, so an entry the filter wrote out again with
@@ -542,7 +552,7 @@
   (with-stub (stub-filter dir
                           `printf '%s' '[{"ssh_url":"u","note":"a \"quoted\", [b]","path":"two"}]'`)
     (assert (deep= @["one"]
-                   (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
+                   (paths (named-filters/apply-filters listing (steps (exclude "any")) {"any" "@"})))
             "a reformatted answer removes its entry")))
 
 # Entries are compared by path and clone URL, so a projection that keeps
@@ -553,7 +563,7 @@
       @{"path" "two" "ssh_url" "u2" "tier" 2}])
   (with-stub (stub-filter dir `printf '%s' '[{"path":"two","clone_url":"u2"}]'`)
     (assert (deep= @["one"]
-                   (paths (named-filters/apply-filters listing [{:exclude "any"}] {"any" "@"})))
+                   (paths (named-filters/apply-filters listing (steps (exclude "any")) {"any" "@"})))
             "a projection that keeps the path and the URL excludes its entries")))
 
 # An entry with both spellings is compared by the URL that is used to clone.
@@ -561,7 +571,7 @@
   (with-stub (stub-filter dir `printf '%s' '[{"path":"a","clone_url":"c"}]'`)
     (assert (empty? (named-filters/apply-filters
                       @[@{"path" "a" "clone_url" "c" "ssh_url" "s"}]
-                      [{:exclude "any"}] {"any" "@"}))
+                      (steps (exclude "any")) {"any" "@"}))
             "clone_url wins over ssh_url when entries are compared")))
 
 # Entries with the same path and URL are one repository, so all of them go.
@@ -570,7 +580,7 @@
     (assert (empty? (named-filters/apply-filters
                       @[@{"path" "a" "clone_url" "u" "n" 1}
                         @{"path" "a" "clone_url" "u" "n" 2}]
-                      [{:exclude "any"}] {"any" "@"}))
+                      (steps (exclude "any")) {"any" "@"}))
             "every entry with a matched path and URL is left out")))
 
 # An entry of the list without a path and URL cannot be matched, so it stays.
@@ -579,7 +589,7 @@
     (assert (deep= @[@{"kind" "group"}]
                    (named-filters/apply-filters
                      @[@{"kind" "group"} @{"path" "a" "clone_url" "u"}]
-                     [{:exclude "any"}] {"any" "@"}))
+                     (steps (exclude "any")) {"any" "@"}))
             "an entry that is not a repository is kept")))
 
 # What the filter answered with must have a path and URL to compare by.
@@ -589,14 +599,14 @@
       (assert (string/find "which an exclusion needs to compare entries"
                            (error-message
                              (fn [] (named-filters/apply-filters @[@{"path" "a" "clone_url" "u"}]
-                                                                 [{:exclude "any"}] {"any" "@"}))))
+                                                                 (steps (exclude "any")) {"any" "@"}))))
               (string "an answer of " answer " is refused")))))
 
 (with-fixture dir
   (with-stub (stub-filter dir `printf '%s' '[]'`)
     (assert (string/find "can only be excluded from an array"
                          (error-message
-                           (fn [] (named-filters/apply-filters @{"a" 1} [{:exclude "any"}]
+                           (fn [] (named-filters/apply-filters @{"a" 1} (steps (exclude "any"))
                                                                {"any" "@"}))))
             "there is nothing to exclude from where the list is not an array")))
 
@@ -621,7 +631,7 @@
                                                      @[{:anchor src :use-filters ["active"]}]
                                                      filters)))
             "a real JMESPath expression selects by a field herd knows nothing of")
-    (assert (empty? (config/read-repository-list config @[{:anchor src}] filters ["none"]))
+    (assert (empty? (config/read-repository-list config @[{:anchor src}] filters (steps "none")))
             "and an expression matching nothing selects nothing")))
 
 (end-suite)

@@ -114,8 +114,8 @@
   [steps]
   (string (if (= 1 (length steps)) "filter " "filters ")
           (string/join (map (fn [step]
-                              (string (if (named-filters/excluded? step) "not " "")
-                                      (describe (named-filters/step-value step))))
+                              (string (if (step :exclude?) "not " "")
+                                      (describe (step :name))))
                             steps)
                        " and ")))
 
@@ -135,9 +135,9 @@
   (os/exit 1))
 
 (defn- filter-steps
-  ``The filter steps `parsed` was given with -f and -x, in the order given:
-  each -f value, and `{:exclude value}` for each -x value. The order matters
-  to a list filter that is not a [?…] expression, such as a slice.``
+  ``The filter steps `parsed` was given with -f and -x, in the order given.
+  A -x value makes a step that excludes. The order matters to a list filter
+  that is not a [?…] expression, such as a slice.``
   [parsed]
   (def filters (or (parsed "filter") []))
   (def excludes (or (parsed "exclude") []))
@@ -146,8 +146,9 @@
   (def steps @[])
   (each name (or (parsed :order) [])
     (case name
-      "filter" (do (array/push steps (filters next-filter)) (++ next-filter))
-      "exclude" (do (array/push steps {:exclude (excludes next-exclude)})
+      "filter" (do (array/push steps (named-filters/step (filters next-filter)))
+                 (++ next-filter))
+      "exclude" (do (array/push steps (named-filters/step (excludes next-exclude) true))
                   (++ next-exclude))))
   steps)
 
@@ -343,11 +344,11 @@
                     "show-output" run/default-show-output}))
   (def show-output (show-output-from parsed))
   (def jobs (jobs-from parsed))
-  (def selection (resolve-filters parsed repository-settings))
+  (def steps (resolve-filters parsed repository-settings))
   # A shell command needs a checkout to run in, and clone is what makes them.
-  (when-let [value (first (selection :checkout-values))]
+  (when-let [step (first (selection/checkout-steps steps))]
     (eprint "usage error: clone can only use the JMESPath filters in :filters, "
-            "and " (describe value) " is not one")
+            "and " (describe (step :name)) " is not one")
     (os/exit 1))
   (def repositories
     ((select-or-exit (selection-options parsed) repository-settings) :repositories))
@@ -453,7 +454,7 @@
       (array/push rows {:status status :path (repository :path)
                         :fields [(repository :path) (repository :clone-url)]})))
   (when discover?
-    (each repository (discover-extra parsed repository-settings ((result :chosen) :list-filters) configured)
+    (each repository (discover-extra parsed repository-settings (selection/list-steps (result :chosen)) configured)
       (array/push rows {:status "extra" :path (repository :path)
                         :fields [(repository :path) (or (survey/remote-url repository) "")]})))
   (if (parsed "tree")

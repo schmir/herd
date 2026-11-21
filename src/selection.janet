@@ -21,40 +21,37 @@
   (and (bare-word? value) (not (process/find-executable value))))
 
 (defn resolve-filters
-  ``Sort the filter steps given with -f and -x, `steps`, in order. A step is
-  a value, or `{:exclude value}` for one given with -x. A name of a list
-  filter in `settings` narrows the lists. A name of a checkout filter stands
-  for its command, and anything else is taken to be a shell command itself.
-  The commands run in the checkouts, so they follow the names. Each step
-  stays a step, so an excluded one keeps the repositories its filter or
-  command leaves out. `:checkout-values` holds what was written for each
-  command, for a message to quote. Return `{:mistyped value}` for the first
-  value that is neither a filter nor a command.``
+  ``Give each of the filter steps `steps`, from -f and -x, its `:kind`, and
+  return them in the order given. The name of a list filter in `settings`
+  makes a :list step, which narrows the lists. The name of a checkout filter
+  makes a :checkout step with the `:command` of the filter. Any other name is
+  a shell command itself, and makes a :checkout step with the name as its
+  `:command`. A name that is neither a filter nor a command makes a :mistyped
+  step.``
   [steps settings]
   (def registry (get settings :filters {}))
-  (def list-filters @[])
-  (def checkout-commands @[])
-  (def checkout-values @[])
-  (var mistyped nil)
-  (each step steps
-    (def value (named-filters/step-value step))
-    (def command (named-filters/checkout-filter-command registry value))
+  (seq [step :in steps]
+    (def name (step :name))
+    (def command (named-filters/checkout-filter-command registry name))
     (cond
-      (named-filters/list-filter? registry value)
-      (array/push list-filters step)
-      (and (nil? command) (mistyped? value))
-      (do (set mistyped value) (break))
-      (do
-        (array/push checkout-commands
-                    (if (named-filters/excluded? step)
-                      {:exclude (or command value)}
-                      (or command value)))
-        (array/push checkout-values value))))
-  (if mistyped
-    {:mistyped mistyped}
-    {:list-filters list-filters
-     :checkout-commands checkout-commands
-     :checkout-values checkout-values}))
+      (named-filters/list-filter? registry name) (struct ;(kvs step) :kind :list)
+      (and (nil? command) (mistyped? name)) (struct ;(kvs step) :kind :mistyped)
+      (struct ;(kvs step) :kind :checkout :command (or command name)))))
+
+(defn- steps-of-kind
+  "The resolved filter steps in `steps` that have the kind `kind`, in order."
+  [steps kind]
+  (filter (fn [step] (= kind (step :kind))) steps))
+
+(defn list-steps
+  "The resolved filter steps in `steps` that narrow the lists, in order."
+  [steps]
+  (steps-of-kind steps :list))
+
+(defn checkout-steps
+  "The resolved filter steps in `steps` that run in the checkouts, in order."
+  [steps]
+  (steps-of-kind steps :checkout))
 
 (defn- filters-in-play?
   ``Whether any filter narrows this run, named on the command line or by a
@@ -83,10 +80,10 @@
 
 (defn- narrow-by-stages
   ``Keep the `repositories` in the `:requested-state` that `options` asks for,
-  and where the checkout filter `commands` succeed. An interrupt during a stage
+  and that pass the checkout filter steps `steps`. An interrupt during a stage
   ends the selection there, since what it kept is only some of what it would
   have. The commands run in `shell`. Return `{:repositories :interrupted?}`.``
-  [options repositories commands shell]
+  [options repositories steps shell]
   (var kept repositories)
   (var interrupted? false)
   (try
@@ -96,8 +93,8 @@
                                            (options :jobs)))
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?)))
-      (when (and (not interrupted?) (not (empty? commands)))
-        (def stage (stages/filter-by-commands kept commands (options :jobs) shell
+      (when (and (not interrupted?) (not (empty? steps)))
+        (def stage (stages/filter-by-commands kept steps (options :jobs) shell
                                               (options :at-path)))
         (set kept (stage :repositories))
         (set interrupted? (stage :interrupted?))))
@@ -107,7 +104,7 @@
 (defn- select-in
   "Select from the catalog in `directory`, as `select` describes."
   [directory options chosen settings]
-  (def list-filters (chosen :list-filters))
+  (def list-filters (list-steps chosen))
   (def catalog
     (config/load-repository-catalog directory settings list-filters))
   # A placement whose filters could not run is only a problem to a command
@@ -136,7 +133,7 @@
       (def sampled (if-let [bounds (options :sample)]
                      (sample/keep-sample located bounds)
                      located))
-      (def commands (chosen :checkout-commands))
+      (def commands (checkout-steps chosen))
       (def narrowed (narrow-by-stages options sampled commands (get settings :shell)))
       (def selected (narrowed :repositories))
       (if (narrowed :interrupted?)
@@ -155,7 +152,7 @@
                      {:kind :emptied-by-state
                       :of (length sampled)
                       :requested-state (options :requested-state)
-                      :command-flags (distinct (map (fn [step] (if (named-filters/excluded? step) "-x" "-f"))
+                      :command-flags (distinct (map (fn [step] (if (step :exclude?) "-x" "-f"))
                                                     commands))}))}))))
 
 (defn select
@@ -165,9 +162,9 @@
   `options` holds `:at-path`, the working location, and `:directory`, where the
   configuration lives. `:all-anchors?` considers every anchor, not just those
   containing the location. `:filter-values` are the filter steps given with
-  -f and -x, in the order given: a value, or `{:exclude value}` for -x. A
-  list filter narrows every repository list, and the rest are checkout
-  filters or commands, which `:chosen` of the result lists.
+  -f and -x, in the order given. A list filter narrows every repository
+  list, and the rest are checkout filters or commands. `:chosen` of the
+  result holds the steps as resolve-filters returns them.
   `:sample`, a `[low high]` range of percentages, keeps only the repositories
   sample/sampled? picks.
   `:requested-state`, :dirty or :clean, and
@@ -178,11 +175,12 @@
   [options settings]
   (def chosen (resolve-filters (get options :filter-values []) settings))
   (def directory (or (options :directory) (config/config-directory)))
+  (def mistyped (first (steps-of-kind chosen :mistyped)))
   (cond
-    (chosen :mistyped)
+    mistyped
     {:repositories []
      :reason {:kind :mistyped-filter
-              :value (chosen :mistyped)
+              :value (mistyped :name)
               :known (named-filters/filter-names (get settings :filters {}))}}
 
     (nil? directory)

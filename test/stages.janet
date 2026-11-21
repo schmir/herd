@@ -6,6 +6,16 @@
 
 (start-suite "stages")
 
+(defn- exclude
+  "A checkout filter step whose `command` must not exit 0."
+  [command]
+  {:command command :exclude? true})
+
+(defn- steps
+  "The checkout filter steps for `items`: a command, or a step that `exclude` made."
+  [& items]
+  (map (fn [item] (if (string? item) {:command item :exclude? false} item)) items))
+
 (def dir (path/join (os/getenv "TMPDIR" "/tmp")
                     (string "herd-stages-test-" (os/getpid))))
 (sh/rm dir)
@@ -105,22 +115,22 @@
   (spit (path/join ((repositories 2) :path) "a") "")
   (def paths (fn [rs] (map (fn [r] (r :path)) rs)))
   (assert (deep= (paths [(repositories 0) (repositories 2)])
-                 (paths ((stages/filter-by-commands repositories ["test -f a"]) :repositories)))
+                 (paths ((stages/filter-by-commands repositories (steps "test -f a")) :repositories)))
           "one command keeps those that pass it")
   (assert (deep= (paths [(repositories 0)])
-                 (paths ((stages/filter-by-commands repositories ["test -f a" "test -f b"]) :repositories)))
+                 (paths ((stages/filter-by-commands repositories (steps "test -f a" "test -f b")) :repositories)))
           "all commands must pass")
   (assert (deep= (paths [(repositories 1)])
-                 (paths ((stages/filter-by-commands repositories [{:exclude "test -f a"}]) :repositories)))
+                 (paths ((stages/filter-by-commands repositories (steps (exclude "test -f a"))) :repositories)))
           "an excluded command keeps those that fail it")
   (assert (deep= (paths [(repositories 2)])
-                 (paths ((stages/filter-by-commands repositories ["test -f a" {:exclude "test -f b"}])
+                 (paths ((stages/filter-by-commands repositories (steps "test -f a" (exclude "test -f b")))
                           :repositories)))
           "excluded and plain commands combine")
   (def missing {:path (path/join dir "not-checked-out")})
-  (assert (empty? ((stages/filter-by-commands [missing] [{:exclude "false"}]) :repositories))
+  (assert (empty? ((stages/filter-by-commands [missing] (steps (exclude "false"))) :repositories))
           "a repository that is not checked out is not kept by an excluded command")
-  (assert (try (do (stages/filter-by-commands repositories [{:exclude "no-such-command-here"}]) false)
+  (assert (try (do (stages/filter-by-commands repositories (steps (exclude "no-such-command-here"))) false)
             ([_] true))
           "a command the shell cannot run is still a mistake when excluded"))
 
@@ -148,7 +158,7 @@
   (assert (deep= @[(repository :path)]
                  (map (fn [r] (r :path))
                       ((stages/filter-by-commands [repository]
-                                                  [`test "$HERD_REPO_RELPATH" = described`]
+                                                  (steps `test "$HERD_REPO_RELPATH" = described`)
                                                   nil nil dir) :repositories)))
           "the location reaches the commands of a stage"))
 

@@ -4,9 +4,20 @@
 (import spork/sh)
 (import ../src/location)
 (import ../src/config)
+(import ../src/named-filters)
 (import ../src/selection)
 
 (start-suite "selection")
+
+(defn- exclude
+  "A filter step that leaves out what `name` matches."
+  [name]
+  (named-filters/step name true))
+
+(defn- steps
+  "The filter steps for `items`: a name, or a step that `exclude` made."
+  [& items]
+  (map (fn [item] (if (string? item) (named-filters/step item) item)) items))
 
 # A HERD_CONFIG of the user's own would take the place of every configuration
 # the tests arrange.
@@ -250,11 +261,11 @@
   "A list filter named with -f narrows the repositories before location."
   []
   (assert (deep= @["/srv/foo"]
-                 (chosen {:at-path "/srv" :filter-values ["foo"]} filter-settings))
+                 (chosen {:at-path "/srv" :filter-values (steps "foo")} filter-settings))
           "the filter keeps what it matches")
-  (assert (deep= {:kind :emptied-by-filters :list-filters @["none"]
+  (assert (deep= {:kind :emptied-by-filters :list-filters @[{:name "none" :exclude? false :kind :list}]
                   :file-name "config.jdn"}
-                 (reason-of {:at-path "/srv" :filter-values ["none"]} filter-settings))
+                 (reason-of {:at-path "/srv" :filter-values (steps "none")} filter-settings))
           "a filter that removes everything is named")
   (assert (deep= {:kind :emptied-by-filters :list-filters @[]
                   :file-name "config.jdn"}
@@ -305,24 +316,31 @@
   []
   (def result
     (selection/select {:directory config-dir :at-path "/srv"
-                       :filter-values ["foo" "marked" "test -d ." "foo"]}
+                       :filter-values (steps "foo" "marked" "test -d ." "foo")}
                       mixed-settings))
-  (assert (deep= {:list-filters @["foo" "foo"]
-                  :checkout-commands @["test -f marker" "test -d ."]
-                  :checkout-values @["marked" "test -d ."]}
+  (assert (deep= @[{:name "foo" :exclude? false :kind :list}
+                   {:name "marked" :exclude? false :kind :checkout :command "test -f marker"}
+                   {:name "test -d ." :exclude? false :kind :checkout :command "test -d ."}
+                   {:name "foo" :exclude? false :kind :list}]
                  (result :chosen))
-          "names narrow the lists, and what runs in checkouts follows them")
+          "each step gets its kind, and the steps keep their order")
+  (assert (deep= @["foo" "foo"]
+                 (map (fn [step] (step :name)) (selection/list-steps (result :chosen))))
+          "the names of list filters narrow the lists")
+  (assert (deep= @["marked" "test -d ."]
+                 (map (fn [step] (step :name)) (selection/checkout-steps (result :chosen))))
+          "the other steps run in the checkouts")
   (assert (deep= @["/srv/foo"]
                  (map (fn [r] (r :path)) ((result :catalog) :repositories)))
           "only the list filters narrow what is loaded")
   (def excluded
     (selection/select {:directory config-dir :at-path "/srv"
-                       :filter-values [{:exclude "foo"} {:exclude "marked"}
-                                       {:exclude "test -d ."}]}
+                       :filter-values (steps (exclude "foo") (exclude "marked")
+                                             (exclude "test -d ."))}
                       mixed-settings))
-  (assert (deep= {:list-filters @[{:exclude "foo"}]
-                  :checkout-commands @[{:exclude "test -f marker"} {:exclude "test -d ."}]
-                  :checkout-values @["marked" "test -d ."]}
+  (assert (deep= @[{:name "foo" :exclude? true :kind :list}
+                   {:name "marked" :exclude? true :kind :checkout :command "test -f marker"}
+                   {:name "test -d ." :exclude? true :kind :checkout :command "test -d ."}]
                  (excluded :chosen))
           "-x values are sorted as -f values are, and stay excluded")
   (assert (not (index-of "/srv/foo"
@@ -334,7 +352,7 @@
   []
   (def result
     (selection/select {:directory config-dir :at-path "/srv"
-                       :filter-values ["fooo"]}
+                       :filter-values (steps "fooo")}
                       mixed-settings))
   (assert (deep= {:kind :mistyped-filter :value "fooo"
                   :known @["foo" "marked"]}
@@ -343,13 +361,13 @@
   (assert (nil? (result :catalog)) "nothing is loaded for a mistake in the arguments")
   (assert (not= :mistyped-filter
                 (get-in (selection/select {:directory config-dir :at-path "/srv"
-                                           :filter-values ["true"]}
+                                           :filter-values (steps "true")}
                                           mixed-settings)
                         [:reason :kind]))
           "a word naming a program is a command")
   (assert (deep= {:kind :mistyped-filter :value "fooo" :known @["foo" "marked"]}
                  ((selection/select {:directory config-dir :at-path "/srv"
-                                     :filter-values [{:exclude "fooo"}]}
+                                     :filter-values (steps (exclude "fooo"))}
                                     mixed-settings) :reason))
           "a typo given with -x is caught too"))
 
@@ -409,22 +427,22 @@
   (assert (deep= @["dirty"] (work-paths (work-select {:requested-state :dirty}))))
   (assert (deep= @["clean"] (work-paths (work-select {:requested-state :clean}))))
   (assert (deep= @["dirty"]
-                 (work-paths (work-select {:filter-values ["test -f marker"]}))))
+                 (work-paths (work-select {:filter-values (steps "test -f marker")}))))
   (assert (empty? (work-paths (work-select {:requested-state :clean
-                                            :filter-values ["test -f marker"]})))
+                                            :filter-values (steps "test -f marker")})))
           "the stages combine")
   (assert (deep= {:kind :emptied-by-state :of 2 :requested-state :clean :command-flags @["-f"]}
                  ((work-select {:requested-state :clean
-                                :filter-values ["test -f marker"]}) :reason))
+                                :filter-values (steps "test -f marker")}) :reason))
           "what the stages emptied is named")
   (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :command-flags @["-f"]}
-                 ((work-select {:filter-values ["false"]}) :reason))
+                 ((work-select {:filter-values (steps "false")}) :reason))
           "a command that matches nowhere is named")
   (assert (deep= @["clean"]
-                 (work-paths (work-select {:filter-values [{:exclude "test -f marker"}]})))
+                 (work-paths (work-select {:filter-values (steps (exclude "test -f marker"))})))
           "an excluded command keeps where it fails")
   (assert (deep= {:kind :emptied-by-state :of 2 :requested-state nil :command-flags @["-x"]}
-                 ((work-select {:filter-values [{:exclude "true"}]}) :reason))
+                 ((work-select {:filter-values (steps (exclude "true"))}) :reason))
           "an excluded command that matches everywhere is named as -x")
   (def nowhere (path/join work-dir "nowhere"))
   (assert (deep= {:kind :none-beneath-path :at-path nowhere}
@@ -437,12 +455,12 @@
   # The filter sends the interrupt to this process, which the stage has taken
   # the signal for, and still succeeds.
   (def interrupt (string "kill -INT " (os/getpid)))
-  (def result (work-select {:filter-values [interrupt]}))
+  (def result (work-select {:filter-values (steps interrupt)}))
   (assert (result :interrupted?) "an interrupted selection says it was")
   (assert (empty? (result :repositories))
           "and picks nothing, since it did not reach them all")
   (assert (nil? (result :reason)) "which is not a reason to explain")
-  (assert (not ((work-select {:filter-values ["true"]}) :interrupted?))
+  (assert (not ((work-select {:filter-values (steps "true")}) :interrupted?))
           "a selection nobody interrupted says so"))
 
 (defn test-unreadable-repository-stops-the-selection
@@ -476,7 +494,7 @@
   []
   (def result
     (work-select {:catalog-only? true :requested-state :dirty
-                  :filter-values [(string "kill -INT " (os/getpid))]}))
+                  :filter-values (steps (string "kill -INT " (os/getpid)))}))
   (assert (not (result :interrupted?)) "no stage ran, or it would have interrupted")
   (assert (empty? (result :repositories)) "nothing is picked")
   (assert (nil? (result :reason)) "so there is nothing to explain")
