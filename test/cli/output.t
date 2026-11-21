@@ -30,6 +30,20 @@ A command that printed nothing is not reported even with `always`.
   $ herd run --show-output always true
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
 
+`on-success` shows output from successful repositories and hides failures.
+
+  $ herd run -j 1 --show-output on-success sh -c 'printf "success\n"; exit 0'
+  ✓ $ROOT/home/first
+  | success
+  
+  ✓ $ROOT/home/second
+  | success
+  2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+  $ herd run -j 1 --show-output on-success sh -c 'printf "failure\n"; exit 1'
+  0 succeeded, 2 failed, 0 skipped, 0 not checked out
+  [1]
+
 A failure shows what the command printed, and names the repository even
 when it printed nothing.
 

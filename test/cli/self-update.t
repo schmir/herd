@@ -46,6 +46,16 @@ Each has an archive for this platform that holds a herd saying what it is.
   > }
   $ export HERD_RELEASES_URL="file://$ROOT/api"
 
+herd self-update does not read the configuration, so a broken one cannot
+stop it. herd knows the command only when it is the first argument.
+
+  $ echo '[' >"$CONFIG/config.jdn"
+  $ release "$version"
+  $ herd self-update
+  Downloading file://$ROOT/api/latest
+  herd \S+ is already the latest release (re)
+  $ rm "$CONFIG/config.jdn"
+
 curl shows a progress meter when it downloads, which varies from run to
 run, so a curl that keeps quiet stands in for it.
 

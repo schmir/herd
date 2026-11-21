@@ -57,3 +57,21 @@ A custom command can branch on a field.
   \xe2\x9c\x93 $ROOT/home/src/web (esc)
   | src/web is
   2 succeeded, 0 failed, 0 skipped, 0 not checked out
+
+A field gives no variable when its name clashes with another or has nothing
+left, when it is null, or when its string holds a NUL. HERD_REPO_JSON still
+holds it.
+
+  $ cat >"$CONFIG/repos.json" <<'EOF'
+  > [{"path": "src/api", "ssh_url": "unused", "vcs": "git",
+  >   "empty": null, "a-b": 1, "a_b": 2, "!!!": "ignored", "nul": "a\u0000b"}]
+  > EOF
+  $ herd run -C src/api --show-output always sh -c 'env | grep ^HERD_FIELD_ | sort'
+  1 succeeded, 0 failed, 0 skipped, 0 not checked out
+  $ herd run -C src/api --show-output always sh -c 'printf "%s\n" "$HERD_REPO_JSON"' \
+  >   | grep -o -e '"empty":null' -e '"a-b":1' -e '"a_b":2' -e '"!!!":"ignored"' -e '"nul":"a\\u0000b"' | sort
+  "!!!":"ignored"
+  "a-b":1
+  "a_b":2
+  "empty":null
+  "nul":"a\u0000b"
