@@ -236,11 +236,14 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
         restat="1",
     )
     # A module is loaded by build/janet, which resolves the Janet functions it
-    # calls; macOS has to be told to leave them for then.
+    # calls; macOS has to be told to leave them for then. -mcpu=baseline makes
+    # a module that runs on every CPU of the architecture, not only on the one
+    # that built it. Then a module that CI caches cannot stop with an illegal
+    # instruction on another runner.
     lookup = " -undefined dynamic_lookup" if host_os == "Darwin" else ""
     n.rule(
         "so",
-        f"zig cc -shared -fPIC -O2 -I{janet.dir}/build{lookup} -MD -MF $out.d -o $out $in",
+        f"zig cc -mcpu=baseline -shared -fPIC -O2 -I{janet.dir}/build{lookup} -MD -MF $out.d -o $out $in",
         description="so $out",
         depfile="$out.d",
         deps="gcc",
@@ -277,12 +280,17 @@ def write_rules(n: Ninja, janet: Janet, host_os: str, host_machine: str) -> None
     # the functions and --no-gc-sections keeps them; without it, a module
     # fails to load with "symbol not found".
     #
+    # zig cc compiles for the CPU it runs on unless told otherwise. CI caches
+    # this janet, and a runner with an older CPU then stops it with an illegal
+    # instruction. -mcpu=baseline makes a janet that runs on every CPU of the
+    # architecture.
+    #
     # The Makefile needs GNU make. MAKE names it when it is set. If not,
     # gmake is used when there is one, because on the BSDs make is BSD make.
     n.rule(
         "janet-boot",
         "$${MAKE:-$$(command -v gmake || echo make)} -s -C $dir -j$$(getconf _NPROCESSORS_ONLN)"
-        ' CC="zig cc" LDFLAGS="-rdynamic -Wl,--no-gc-sections"'
+        ' CC="zig cc -mcpu=baseline" LDFLAGS="-rdynamic -Wl,--no-gc-sections"'
         " build/c/janet.c build/janet build/janet.h",
         description="building janet",
         restat="1",

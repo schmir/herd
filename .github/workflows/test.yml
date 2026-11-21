@@ -42,6 +42,8 @@ jobs:
           echo "zig=$zig" >> "$GITHUB_OUTPUT"
       # Janet's checkout and boot step and the spork checkout, once per pinned
       # commit. With them restored, the steps in build.ninja find nothing to do.
+      # The key also holds tools/gen-ninja.py, which has the command that builds
+      # Janet, so that a change to the command builds Janet again.
       # Both jobs make the same files, so either may save them.
       - uses: actions/cache@v6
         with:
@@ -50,7 +52,7 @@ jobs:
             deps/spork
             !deps/spork/spork/*.so
             deps/spork.commit
-          key: janet-spork-${{ hashFiles('pins.env', 'tools/fetch-spork.sh') }}
+          key: janet-spork-${{ hashFiles('pins.env', 'tools/fetch-spork.sh', 'tools/gen-ninja.py') }}
       # just test links build/herd with zig, so the zig cache of the build job
       # below helps here too. Only restored: this job links one target, and a
       # cache it saved under the same key would lack the others.
@@ -107,6 +109,8 @@ jobs:
           echo "zig=$zig" >> "$GITHUB_OUTPUT"
       # Janet's checkout and boot step and the spork checkout, once per pinned
       # commit. With them restored, the steps in build.ninja find nothing to do.
+      # The key also holds tools/gen-ninja.py, which has the command that builds
+      # Janet, so that a change to the command builds Janet again.
       # Both jobs make the same files, so either may save them.
       - uses: actions/cache@v6
         with:
@@ -115,7 +119,7 @@ jobs:
             deps/spork
             !deps/spork/spork/*.so
             deps/spork.commit
-          key: janet-spork-${{ hashFiles('pins.env', 'tools/fetch-spork.sh') }}
+          key: janet-spork-${{ hashFiles('pins.env', 'tools/fetch-spork.sh', 'tools/gen-ninja.py') }}
       # zig builds libc and compiler-rt for each target the first time it
       # links for it, which is most of the time a cross-compile takes. The
       # targets are in tools/gen-ninja.py. A change there starts from the
