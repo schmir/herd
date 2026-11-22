@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-11-22
 
 - A release archive now holds its files in a directory with the name of the
   archive, such as `herd-v0.6.0-linux-x86_64/herd`. Before, `herd` was at
