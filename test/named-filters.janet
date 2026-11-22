@@ -119,6 +119,8 @@
               (named-filters/validate-registry {"a" {:sh "true" :other 1}}))
 (assert-error "a shell filter must not be empty"
               (named-filters/validate-registry {"a" {:sh ""}}))
+(assert-error "a filter name must not contain a colon"
+              (named-filters/validate-registry {"a:b" "[?a]"}))
 (assert-error "a JMESPath filter must be a string"
               (named-filters/validate-registry {"a" {:jp 1}}))
 

@@ -65,6 +65,9 @@
     (when (string/has-prefix? "!" name)
       (error (string (filter-where name) " starts with \"!\", which"
                      " :use-filters reads as excluding a filter")))
+    (when (string/find ":" name)
+      (error (string (filter-where name) " contains \":\", which -f reads"
+                     " as the start of the arguments of a filter")))
     (validate-filter-entry name entry))
   filters)
 

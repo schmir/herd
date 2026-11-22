@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A shell filter named with `-f` or `-x` can now take arguments, which its
+  command reads as `$1`, `$2` and so on. Write `-f me-active:1w` or
+  `-f 'me-active:1w 5w'`. After a single colon, spaces separate the
+  arguments. After a longer run of colons, that run separates them, as in
+  `-f me-active:::foo bar:::baz`. A filter name in `:filters` can no longer
+  contain a colon.
 - `herd tree` now refuses two lists that disagree on the URL or on an option
   of a repository, as the other commands do. Before, it printed the tree.
   Its configuration errors now name a list file by its full path.

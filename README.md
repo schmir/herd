@@ -367,6 +367,12 @@ other than 0. Status 126 and 127 are still a mistake, and a repository that
 is not checked out is still dropped. For a command given in place of a name,
 `-x 'cmd'` does the same as `-f '! cmd'`.
 
+A shell filter (`:sh`) named in `:filters` takes arguments after a colon:
+`-f me-active:1w` or `-f 'me-active:1w 5w'`. After a single colon, spaces
+separate the arguments. After a longer run of colons, that run does:
+`me-active:::foo bar:::baz` gives `foo bar` and `baz`. The arguments become
+`$1`, `$2` and so on in the command. A JMESPath filter takes none.
+
 A command runs through `sh -c` with the repository as its working directory,
 nothing on its input and its output discarded, and keeps the repository when
 it exits 0. It finds the repository described in the same `HERD_*` variables

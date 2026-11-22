@@ -104,7 +104,9 @@
             ([_] true))
           "a command the shell cannot find raises")
   (assert (stages/command-matches? repository `[[ "$0" == bash ]]` ["bash" "-c"])
-          "the command runs in the shell it is given"))
+          "the command runs in the shell it is given")
+  (assert (stages/command-matches? repository `test "$1 $2" = "a b"` nil nil ["a" "b"])
+          "arguments are the positional parameters of the command"))
 
 (defn test-filter-by-commands
   "Every command must hold, and the order of the repositories is kept."

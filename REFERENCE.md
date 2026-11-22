@@ -359,15 +359,15 @@ keep repositories for which the command succeeds.
 
 `:use-filters` on a checkout row accepts list filters only. A name written
 as `"!name"` keeps what that filter leaves out, as `-x` does. A filter name
-in `:filters` cannot start with `!`. `-f` can name list filters, checkout
-filters, or a shell command. `clone` accepts list filters only; it rejects
-checkout filters and shell commands because it has no checkout in which to
-run them. List filters reduce every configured list. Checkout filters and
-command-line shell commands run in the selected checkouts. A checkout filter
-keeps a repository when it exits with status zero. Checkout filters receive
-the same `HERD_*` repository environment as commands; `HERD_COLOR` is always
-`never` because filter output is discarded. Multiple list filters run in the
-order given.
+in `:filters` cannot start with `!` or contain `:`. `-f` can name list
+filters, checkout filters, or a shell command. `clone` accepts list filters
+only; it rejects checkout filters and shell commands because it has no
+checkout in which to run them. List filters reduce every configured list.
+Checkout filters and command-line shell commands run in the selected
+checkouts. A checkout filter keeps a repository when it exits with status
+zero. Checkout filters receive the same `HERD_*` repository environment as
+commands; `HERD_COLOR` is always `never` because filter output is discarded.
+Multiple list filters run in the order given.
 
 `-x` accepts the same values as `-f` and keeps what they leave out. The `-f`
 and `-x` list filters run as one pipeline in the order given; `-x A` keeps

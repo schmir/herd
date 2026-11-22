@@ -54,15 +54,16 @@
   no working copy never matches, and the command is not run there. Status
   126 and 127 mean the shell could not run the command, which is a mistake
   rather than a repository that does not match, so they raise. The command
+  Words in `arguments` are the positional parameters of the command.
   runs in `shell`, as process/shell-argv takes it, and in the environment
   run/command-environment gives a command, with `at` the location the
   repositories were selected from. Its output is discarded, so it is asked not
   to color.``
-  [repository command &opt shell at]
+  [repository command &opt shell at arguments]
   (if (vcs/detect (repository :path))
     (let [result (process/capture
                    ["sh" "-c" `cd "$1" && shift && exec "$@"`
-                    "herd" (repository :path) ;(process/shell-argv command [] shell)]
+                    "herd" (repository :path) ;(process/shell-argv command (or arguments []) shell)]
                    :p
                    (run/command-environment repository false at))]
       (when (index-of (result :status) [126 127])
@@ -79,8 +80,8 @@
   [repository step shell at]
   (if (step :exclude?)
     (and (vcs/detect (repository :path))
-         (not (command-matches? repository (step :command) shell at)))
-    (command-matches? repository (step :command) shell at)))
+         (not (command-matches? repository (step :command) shell at (step :arguments))))
+    (command-matches? repository (step :command) shell at (step :arguments))))
 
 (defn filter-by-commands
   ``Keep the `repositories` that pass every one of the checkout filter

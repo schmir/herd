@@ -20,21 +20,42 @@
   [value]
   (and (bare-word? value) (not (process/find-executable value))))
 
+(defn- command-filter-call
+  ``Split `name`, as given with -f or -x, into the name of a checkout filter
+  in `registry` and its arguments. After a single colon the arguments are
+  separated by spaces, so NAME:A B gives A and B. After a longer run of colons
+  that run separates them, so NAME:::A:::B gives A and B, and an argument can
+  hold a space or a single colon. An empty argument is dropped. Return [command arguments], or nil when `name` is not written
+  that way.``
+  [registry name]
+  (when-let [colon (string/find ":" name)]
+    (when-let [command (named-filters/checkout-filter-command
+                         registry (string/slice name 0 colon))]
+      (var after colon)
+      (while (= (get name after) (chr ":")) (++ after))
+      (def run (string/slice name colon after))
+      (def separator (if (= run ":") " " run))
+      [command (filter (fn [word] (not (empty? word)))
+                       (string/split separator (string/slice name after)))])))
+
 (defn resolve-filters
   ``Give each of the filter steps `steps`, from -f and -x, its `:kind`, and
   return them in the order given. The name of a list filter in `settings`
   makes a :list step, which narrows the lists. The name of a checkout filter
-  makes a :checkout step with the `:command` of the filter. Any other name is
-  a shell command itself, and makes a :checkout step with the name as its
-  `:command`. A name that is neither a filter nor a command makes a :mistyped
-  step.``
+  makes a :checkout step with the `:command` of the filter. A checkout filter
+  written as NAME:ARG:ARG also gets the ARGs in `:arguments`, the positional
+  parameters of its command. Any other name is a shell command
+  itself, and makes a :checkout step with the name as its `:command`. A name
+  that is neither a filter nor a command makes a :mistyped step.``
   [steps settings]
   (def registry (get settings :filters {}))
   (seq [step :in steps]
     (def name (step :name))
     (def command (named-filters/checkout-filter-command registry name))
+    (def call (when (nil? command) (command-filter-call registry name)))
     (cond
       (named-filters/list-filter? registry name) (struct ;(kvs step) :kind :list)
+      call (struct ;(kvs step) :kind :checkout :command (call 0) :arguments (call 1))
       (and (nil? command) (mistyped? name)) (struct ;(kvs step) :kind :mistyped)
       (struct ;(kvs step) :kind :checkout :command (or command name)))))
 
