@@ -352,6 +352,15 @@ shell command. A plain string is short for `:jp`.
   "has-makefile" {:sh "test -f Makefile"}}}
 ```
 
+A dictionary can also hold `:doc`, one line that says what the filter is
+for. Shell completion shows it next to the filter name, in place of the
+expression or command:
+
+```janet
+{:filters
+ {"has-makefile" {:sh "test -f Makefile" :doc "Has a Makefile."}}}
+```
+
 `-f` takes either kind by name, so it does not matter which a filter is. A
 value that no filter is called is run as a shell command of its own, which
 is how to try one before naming it:

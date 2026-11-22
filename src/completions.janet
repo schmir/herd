@@ -270,7 +270,7 @@ complete -F _herd herd
     "zsh" (zsh-script)))
 
 (defn filter-lines
-  "One `name TAB expression` line per filter, which the scripts offer as choices."
+  "One `name TAB description` line per filter, which the scripts offer as choices."
   [filters]
   (string/join
     (seq [name :in (sort (keys filters))]

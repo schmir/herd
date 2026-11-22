@@ -27,7 +27,9 @@ configuration defines are offered too.
   > {:commands {"greet" {:command "echo hi" :description "Say hi."}}
   >  :filters {"tier1"  {:jp "[?tier == `1`]"}
   >            "active" "[?active]"
-  >            "has-readme" {:sh "test -f README.md"}}}
+  >            "has-readme" {:sh "test -f README.md"}
+  >            "tier2"  {:jp "[?tier == `2`]" :doc "Repositories of the second tier."}
+  >            "has-tests" {:sh "test -d test" :doc "Has a test directory."}}}
   > JDN
   $ herd completions commands
   clone\tCheck out the configured repositories beneath a path. (esc)
@@ -40,9 +42,12 @@ configuration defines are offered too.
   self-update\tReplace this herd with the latest release. (esc)
   tree\tPrint the repositories as a tree of the filesystem. (esc)
 
-So are the configured filters, for the option that names one.
+So are the configured filters, for the option that names one. A filter
+shows its :doc, or its expression or command when it has none.
 
   $ herd completions filters
   active\t[?active] (esc)
   has-readme\ttest -f README.md (esc)
+  has-tests\tHas a test directory. (esc)
   tier1\t[?tier == `1`] (esc)
+  tier2\tRepositories of the second tier. (esc)

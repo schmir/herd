@@ -123,6 +123,17 @@
               (named-filters/validate-registry {"a:b" "[?a]"}))
 (assert-error "a JMESPath filter must be a string"
               (named-filters/validate-registry {"a" {:jp 1}}))
+(assert-no-error "a filter of either kind can have a :doc"
+                 (named-filters/validate-registry {"a" {:jp "[?a]" :doc "Has a."}
+                                                   "b" {:sh "true" :doc "Always."}}))
+(assert-error "a :doc alone is not a filter"
+              (named-filters/validate-registry {"a" {:doc "Has a."}}))
+(assert-error "a :doc must be a string"
+              (named-filters/validate-registry {"a" {:sh "true" :doc 1}}))
+(assert-error "a :doc must not be empty"
+              (named-filters/validate-registry {"a" {:sh "true" :doc ""}}))
+(assert-error "a :doc must be one line"
+              (named-filters/validate-registry {"a" {:sh "true" :doc "one\ntwo"}}))
 
 
 # --- the kinds a registry tells apart ---------------------------------------
@@ -149,6 +160,13 @@
 (assert (deep= {"a" "[?a]" "b" "[?b]" "c" "true"}
                (named-filters/descriptions kinds-registry))
         "each name is described by its expression or command")
+(assert (deep= {"a" "Has a." "b" "Always." "c" "true"}
+               (named-filters/descriptions
+                 {"a" {:jp "[?a]" :doc "Has a."} "b" {:sh "true" :doc "Always."} "c" {:sh "true"}}))
+        "a :doc describes the filter in place of the expression or command")
+(assert (= "[?a]" (named-filters/checkout-filter-command
+                    {"a" {:sh "[?a]" :doc "Has a."}} "a"))
+        "a :doc does not change what the filter stands for")
 (assert (empty? (named-filters/filter-names {})) "an empty registry has no names")
 
 # --- check-names ----------------------------------------------------------

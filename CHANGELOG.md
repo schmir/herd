@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A filter written as a dictionary in `:filters` can now have a `:doc`, as
+  in `{:sh "test -f Makefile" :doc "Has a Makefile."}`. Shell completion
+  shows this text for the filter in place of its expression or command.
 - A shell filter named with `-f` or `-x` can now take arguments, which its
   command reads as `$1`, `$2` and so on. Write `-f me-active:1w` or
   `-f 'me-active:1w 5w'`. After a single colon, spaces separate the

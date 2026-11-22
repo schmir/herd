@@ -173,7 +173,7 @@ not operations that run across repositories:
 
 ```text
 herd completions commands   # print command names and descriptions
-herd completions filters    # print filter names and expressions or commands
+herd completions filters    # print filter names and what describes each
 ```
 
 ### `herd diff` and `herd fetch`
@@ -350,12 +350,15 @@ named by a checkout row are configuration errors.
 ```
 
 A string entry is a JMESPath list filter. `{:jp EXPR}` is the explicit form;
-`{:sh COMMAND}` defines a checkout filter. List filters run through the `jp`
-executable and must return a JSON array. Without `jp` on `PATH` a placement
-using a list filter is broken: `herd tree` marks it, and any other command
-fails when its working location is inside the placement's anchor (with `-a`,
-also when it contains the anchor). Checkout filters run in the checkout and
-keep repositories for which the command succeeds.
+`{:sh COMMAND}` defines a checkout filter. Either dictionary form can also
+hold `:doc`, a non-empty string of one line. `herd completions filters`
+prints it in place of the expression or command, so shell completion shows
+it. List filters run through the `jp` executable and must return a JSON
+array. Without `jp` on `PATH` a placement using a list filter is broken:
+`herd tree` marks it, and any other command fails when its working location
+is inside the placement's anchor (with `-a`, also when it contains the
+anchor). Checkout filters run in the checkout and keep repositories for
+which the command succeeds.
 
 `:use-filters` on a checkout row accepts list filters only. A name written
 as `"!name"` keeps what that filter leaves out, as `-x` does. A filter name

@@ -29,7 +29,9 @@
 (defn- validate-filter-entry
   ``Validate one `:filters` entry. A string is a JMESPath expression. A
   dictionary says what it is: `{:jp expression}` or `{:sh command}`, exactly
-  one of them.``
+  one of them. It can also hold `:doc`, the text that completions show for
+  the filter. The text is one line, because completions give each filter one
+  line.``
   [name entry]
   (def where (filter-where name))
   (cond
@@ -40,14 +42,19 @@
     (dictionary? entry)
     (do
       (eachk key entry
-        (unless (index-of key filter-kinds)
+        (unless (index-of key [;filter-kinds :doc])
           (error (string where " has an unknown key " (describe key)))))
       (def kinds (seq [kind :in filter-kinds :when (has-key? entry kind)] kind))
       (unless (= 1 (length kinds))
         (error (string where " needs exactly one of :jp and :sh")))
       (def text (entry (first kinds)))
       (unless (and (string? text) (not (empty? text)))
-        (error (string where " needs a non-empty string in " (describe (first kinds))))))
+        (error (string where " needs a non-empty string in " (describe (first kinds)))))
+      (when (has-key? entry :doc)
+        (def doc-text (entry :doc))
+        (unless (and (string? doc-text) (not (empty? doc-text))
+                     (not (string/find "\n" doc-text)))
+          (error (string where " needs a non-empty string of one line in :doc")))))
 
     (error (string where " needs an expression, or a dictionary with :jp or :sh"))))
 
@@ -99,11 +106,14 @@
   (sorted (keys registry)))
 
 (defn descriptions
-  "Each name in `registry` with the expression or command it stands for."
+  ``Each name in `registry` with its `:doc`, or with the expression or command
+  it stands for when it has no `:doc`.``
   [registry]
   (table/to-struct
     (tabseq [[name entry] :pairs registry]
-      name (or (text-of-kind entry :jp) (text-of-kind entry :sh)))))
+      name (or (when (dictionary? entry) (entry :doc))
+               (text-of-kind entry :jp)
+               (text-of-kind entry :sh)))))
 
 (defn step
   ``Make a filter step, `{:name :exclude?}`. `name` is the filter name or the
