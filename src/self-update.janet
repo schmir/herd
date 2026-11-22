@@ -46,6 +46,13 @@
   [tag]
   (string "herd-" tag "-SHA256SUMS"))
 
+(defn executable-member
+  ``The member of the release archive `archive` that is the herd executable.
+  An archive holds its files in a directory with the name of the archive
+  without `.tar.gz`.``
+  [archive]
+  (string (string/slice archive 0 (- (length archive) (length ".tar.gz"))) "/herd"))
+
 (defn release-assets
   ``The tag and the download URLs by asset name that `text`, a GitHub release
   description in JSON, holds, as {:tag :assets}. Taking the URLs from the
@@ -277,9 +284,16 @@
           (error (string sums " has no checksum for " archive)))
         (unless (= expected (sha256 archive-path))
           (error (string archive " does not match its checksum in " sums)))
+        (def member (executable-member archive))
+        # Checked in the list of members, so that the error does not depend
+        # on what the tar of this system says about a missing member.
+        (unless (index-of member
+                          (string/split "\n" (run (string "reading " archive)
+                                                  [(program "tar") "-tzf" archive-path])))
+          (error (string archive " holds no " member)))
         (run (string "unpacking " archive)
-             [(program "tar") "-xzf" archive-path "-C" staging "herd"])
-        (def unpacked (path/join staging "herd"))
+             [(program "tar") "-xzf" archive-path "-C" staging member])
+        (def unpacked (path/join staging member))
         (unless (= :file (os/lstat unpacked :mode))
           (error (string archive " holds no herd executable")))
         (os/chmod unpacked 8r755)

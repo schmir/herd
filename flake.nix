@@ -142,6 +142,9 @@
               with pkgs;
               [
                 gitMinimal
+                # tools/make-archives.sh needs the options of GNU tar, and
+                # the tar of macOS is not GNU tar.
+                gnutar
                 jp
                 jujutsu
                 just

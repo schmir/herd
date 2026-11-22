@@ -104,6 +104,13 @@ A version on PyPI cannot be replaced, so everything that can fail comes
 before the upload. If a later step fails, the release stays a draft. Run the
 failed jobs again; the draft job replaces a draft that an earlier run left.
 
+`tools/make-archives.sh` packs the release archives and their checksum file.
+The `draft` job runs it. `just archives` builds the binaries with
+`just dist` and runs it too, so that the archives can be checked before a
+release. It writes them to `dist/archives/`, named for the version in
+`build/version`. `just archives macos-arm64` packs one platform. The script
+needs GNU tar, which the devshell provides.
+
 `tools/build-wheels.py` builds the wheels, one for each platform.
 `HERD_VERSION=v0.4.6 just wheels` builds the binaries with `just dist` and
 then the wheels. A wheel holds the binary and the license files. The `pypi`

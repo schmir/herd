@@ -47,30 +47,11 @@ jobs:
           name: binaries
           path: artifacts
 
-      # All binaries have the name `herd`. Use the directory name to identify
-      # the platform. The archive name includes the release tag and the
-      # platform. The file in the archive keeps the name `herd`, and
-      # THIRD-PARTY-NOTICES goes with it.
+      # One archive for each platform, and their checksums. `just archives`
+      # makes the same files.
       - name: Collect assets
         run: |
-          mkdir dist stage
-          install -m 644 THIRD-PARTY-NOTICES stage/THIRD-PARTY-NOTICES
-          # The same binary gives the same archive: the files get the time of
-          # the commit, and gzip -n leaves out the name and time it would
-          # otherwise record.
-          mtime=$(git log -1 --format=%ct)
-          for dir in artifacts/*/; do
-            platform="$(basename "$dir")"
-            install -m 755 "$dir/herd" stage/herd
-            # Set the owner and group IDs to 0. This prevents the archive from
-            # containing runner account information.
-            tar -cf - --mtime="@$mtime" --owner=0 --group=0 --numeric-owner \
-              -C stage herd THIRD-PARTY-NOTICES | gzip -n >"dist/herd-${GITHUB_REF_NAME}-${platform}.tar.gz"
-          done
-          rm -rf stage
-          # Include the tag in the checksum file name. This gives each release
-          # a different checksum file name.
-          (cd dist && sha256sum -- *.tar.gz > "herd-${GITHUB_REF_NAME}-SHA256SUMS")
+          tools/make-archives.sh "$GITHUB_REF_NAME" artifacts dist
           ls -l dist
 
       # A run that failed after it made the draft leaves the draft behind,

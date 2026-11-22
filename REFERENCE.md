@@ -129,14 +129,15 @@ also lifts a pin left by an earlier `self-update VERSION`. `uv` must be on
 herd asks GitHub for the release. If its tag is the version `herd --version`
 reports, nothing changes. Otherwise herd downloads the archive for this
 platform and the release's `SHA256SUMS` file, and checks the archive against
-its checksum. It then unpacks the archive and runs the new binary with
-`--version`. If that binary fails, for example because the system cannot run
-it, or reports a different release, herd keeps the old binary. Otherwise
-herd renames the new binary over the old one. When `herd` was started
-through a symbolic link, the file the link points to is replaced and the
-link stays. The download is staged in a hidden directory next to that file,
-so herd must be able to write to that directory. A binary in a read-only
-location, such as the Nix store, cannot update itself.
+its checksum. It then unpacks `herd` from the directory in the archive,
+which has the name of the archive without `.tar.gz`, and runs the new binary
+with `--version`. If that binary fails, for example because the system
+cannot run it, or reports a different release, herd keeps the old binary.
+Otherwise herd renames the new binary over the old one. When `herd` was
+started through a symbolic link, the file the link points to is replaced and
+the link stays. The download is staged in a hidden directory next to that
+file, so herd must be able to write to that directory. A binary in a
+read-only location, such as the Nix store, cannot update itself.
 
 `HERD_RELEASES_URL` replaces
 `https://api.github.com/repos/schmir/herd/releases` as the URL the releases

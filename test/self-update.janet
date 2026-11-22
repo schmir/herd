@@ -13,6 +13,12 @@
              (self-update/archive-name "v1.2.0" "macos-arm64")))
   (assert (= "herd-v1.2.0-SHA256SUMS" (self-update/checksums-name "v1.2.0"))))
 
+(defn test-executable-member
+  "The executable is in the directory named as the archive is."
+  []
+  (assert (= "herd-v1.2.0-macos-arm64/herd"
+             (self-update/executable-member "herd-v1.2.0-macos-arm64.tar.gz"))))
+
 (defn test-release-tag
   "A version names its tag, with or without the v, and nothing else is a tag."
   []
@@ -242,6 +248,7 @@
           "a mirror's refusal says nothing about GitHub"))
 
 (test-asset-names)
+(test-executable-member)
 (test-release-tag)
 (test-release-url)
 (test-release-assets)

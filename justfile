@@ -204,6 +204,13 @@ dist *platforms:
     uv run --no-project python tools/gen-ninja.py
     ninja {{ platforms }}
 
+# The archives are named for the version that the binaries report, which is
+# in build/version. HERD_VERSION sets it, as for dist.
+[doc('Pack the release archives in dist/archives/, for the platforms named or all of them.')]
+archives *platforms: (dist platforms)
+    tools/make-archives.sh "$(cat build/version)" dist dist/archives {{ platforms }}
+    @ls -l dist/archives
+
 # Build the PyPI wheels in dist/wheels/.
 wheels:
     #!/usr/bin/env bash

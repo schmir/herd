@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A release archive now holds its files in a directory with the name of the
+  archive, such as `herd-v0.6.0-linux-x86_64/herd`. Before, `herd` was at
+  the top of the archive. The directory also holds `README.md`,
+  `REFERENCE.md` and `LICENSE`. `herd self-update` reads only the new
+  layout, so it cannot install version 0.5.0 or an older one. A herd of
+  version 0.5.0 or older cannot update itself to this release or a later
+  one: unpack the archive by hand once.
 - The help of a command that takes `-f` and `-x`, such as
   `herd list --help`, now lists the configured filters, each with its
   `:doc`. A filter without a `:doc` shows its name only. `herd clone --help`

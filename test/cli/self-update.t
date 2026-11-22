@@ -12,7 +12,8 @@ binary under test, and the link setup.sh makes leads to it.
 
 Releases laid out on disk as the GitHub API describes them, each described
 in $ROOT/api/tags/TAG, and the one released last in $ROOT/api/latest too.
-Each has an archive for this platform that holds a herd saying what it is.
+Each has an archive for this platform that holds a herd saying what it is,
+in a directory named as the archive is, as the release workflow packs it.
 
   $ case "$(uname -s)-$(uname -m)" in
   >     Linux-x86_64) platform=linux-x86_64 ;;
@@ -24,17 +25,21 @@ Each has an archive for this platform that holds a herd saying what it is.
   >     FreeBSD-amd64) platform=freebsd-amd64 ;;
   >     FreeBSD-arm64 | FreeBSD-aarch64) platform=freebsd-arm64 ;;
   > esac
+  $ pack() {
+  >     tar -czf "$1/$archive" -C "$1" "$3"
+  >     (cd "$1" && { sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive" 2>/dev/null \
+  >         || sha256 -r "$archive"; } >"herd-$2-SHA256SUMS")
+  > }
   $ release() {
   >     tag=$1
   >     body=${2:-"case \$1 in --version) echo \"herd $tag\" ;; *) echo \"new herd $tag\" ;; esac"}
   >     dir="$ROOT/release/$tag"
-  >     mkdir -p "$dir/stage"
-  >     printf '#!/bin/sh\n%s\n' "$body" >"$dir/stage/herd"
-  >     chmod 755 "$dir/stage/herd"
-  >     archive="herd-$tag-$platform.tar.gz"
-  >     tar -czf "$dir/$archive" -C "$dir/stage" herd
-  >     (cd "$dir" && { sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive" 2>/dev/null \
-  >         || sha256 -r "$archive"; } >"herd-$tag-SHA256SUMS")
+  >     top="herd-$tag-$platform"
+  >     mkdir -p "$dir/$top"
+  >     printf '#!/bin/sh\n%s\n' "$body" >"$dir/$top/herd"
+  >     chmod 755 "$dir/$top/herd"
+  >     archive="$top.tar.gz"
+  >     pack "$dir" "$tag" "$top"
   >     mkdir -p "$ROOT/api/tags"
   >     cat >"$ROOT/api/tags/$tag" <<EOF
   > {"tag_name": "$tag",
@@ -135,6 +140,20 @@ be, is caught before it replaces the one that runs.
   $ test "$(herd --version)" = "herd $version" && echo unchanged
   unchanged
 
+An archive without a herd fails as well.
+
+  $ release v99.0.0
+  $ mv "$dir/$top/herd" "$dir/$top/other"
+  $ pack "$dir" v99.0.0 "$top"
+  $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.0.0/herd-v99.0.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.0.0/herd-v99.0.0-.*\.tar\.gz (re)
+  self-update failed: herd-v99.0.0-.*\.tar\.gz holds no herd-v99.0.0-.*/herd (re)
+  [1]
+  $ test "$(herd --version)" = "herd $version" && echo unchanged
+  unchanged
+
 A version names a release by its tag, with or without the v. One that is
 not released, or that is not a tag at all, fails.
 
@@ -182,5 +201,23 @@ nothing behind beside it.
   new herd v99.0.0
   $ test -L "$ROOT/bin/herd" && echo link
   link
+  $ ls -a "$ROOT" | grep herd-update || echo none
+  none
+
+The archives up to v0.5.0 hold the herd at the top. The update does not
+install one of those.
+
+  $ cp "$HERD" "$ROOT/herd"
+  $ release v99.2.0
+  $ mv "$dir/$top/herd" "$dir/herd"
+  $ pack "$dir" v99.2.0 herd
+  $ herd self-update
+  Downloading file://$ROOT/api/latest
+  Downloading file://$ROOT/release/v99.2.0/herd-v99.2.0-SHA256SUMS
+  Downloading file://\$ROOT/release/v99.2.0/herd-v99.2.0-.*\.tar\.gz (re)
+  self-update failed: herd-v99.2.0-.*\.tar\.gz holds no herd-v99.2.0-.*/herd (re)
+  [1]
+  $ test "$(herd --version)" = "herd $version" && echo unchanged
+  unchanged
   $ ls -a "$ROOT" | grep herd-update || echo none
   none
