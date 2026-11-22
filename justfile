@@ -11,8 +11,10 @@ _SET_HERD_VERSION := '''
 HERD_VERSION="${HERD_VERSION:-v$(uvx --quiet uv-dynamic-versioning@0.14.1)}"
 export HERD_VERSION
 '''
+@_default: help
+
 # Show the available project commands.
-default:
+help:
     @just --list
 
 # The pinned Janet, which runs the sources with lib/ as its module path; see
@@ -22,17 +24,21 @@ default:
 janet := "JANET_PATH=lib build/janet -x normal"
 
 # Run the program.
+[group('dev')]
 run *args: (dist "natives")
     {{ janet }} -- src/main.janet {{ args }}
 
 # Start a REPL inside a source file, private bindings included.
+[group('dev')]
 repl file="src/main.janet": (dist "natives")
     {{ janet }} -e '(repl nil nil (dofile "{{ file }}"))'
 
 [doc('Build the standalone executable in build/.')]
+[group('dev')]
 build: (dist "host")
 
 # Run the test suite in test/. Some tests run build/herd.
+[group('test')]
 test: build
     #!/usr/bin/env bash
     set -uo pipefail
@@ -49,6 +55,7 @@ test: build
 
 # Name a release binary to test what ships.
 [doc('Run the command-line tests in test/cli/ against build/herd or the binary named.')]
+[group('test')]
 test-cli herd="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -67,6 +74,7 @@ test-cli herd="":
 # which stands in for OpenBSD's ksh. The devshell provides them. The first
 # run uses the system's own /bin/sh: bash 3.2 on macOS, usually dash on Linux.
 [doc('Run the command-line tests with each of several shells as sh.')]
+[group('test')]
 test-cli-shells herd="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -103,6 +111,7 @@ test-cli-shells herd="":
 # the JANET_PATH it relies on.
 [doc('Check that janet-lsp finds a definition in config.janet.')]
 [extension('.py')]
+[group('test')]
 check-lsp: (dist "natives")
     #!/usr/bin/env -S uv run --script
     # /// script
@@ -181,6 +190,7 @@ check-lsp: (dist "natives")
         sys.exit(pytest.main([__file__, "-q", "-rs"]))
 
 # Format the tree and run both test suites.
+[group('test')]
 ci: && test test-cli
     treefmt
 
@@ -197,6 +207,7 @@ ci: && test test-cli
 # Janet and spork commits in pins.env. ninja compiles the platforms in
 # parallel and only what changed.
 [doc('Cross-compile release binaries with zig cc, for the platforms named or all of them.')]
+[group('release')]
 dist *platforms:
     #!/usr/bin/env bash
     set -eu
@@ -207,11 +218,13 @@ dist *platforms:
 # The archives are named for the version that the binaries report, which is
 # in build/version. HERD_VERSION sets it, as for dist.
 [doc('Pack the release archives in dist/archives/, for the platforms named or all of them.')]
+[group('release')]
 archives *platforms: (dist platforms)
     tools/make-archives.sh "$(cat build/version)" dist dist/archives {{ platforms }}
     @ls -l dist/archives
 
 # Build the PyPI wheels in dist/wheels/.
+[group('release')]
 wheels:
     #!/usr/bin/env bash
     set -eu
@@ -220,12 +233,14 @@ wheels:
     uv run python tools/build-wheels.py
 
 # Install the release binary for this machine, as just dist builds it.
+[group('dev')]
 install: build
     mkdir -p "$HOME/.local/bin"
     install -m 755 build/herd "$HOME/.local/bin/herd"
     @echo "Installed build/herd as $HOME/.local/bin/herd"
 
 # Update the flake inputs and show the resulting dev shell package changes.
+[group('maintenance')]
 flake-update-diff:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -240,6 +255,7 @@ flake-update-diff:
     nix shell nixpkgs#nvd --command nvd diff "$before" "$after"
 
 # Remove build artifacts.
+[group('maintenance')]
 clean:
     rm -rf build deps dist lib/*.so build.ninja .ninja_log .ninja_deps src/*.egg-info .venv .ruff_cache
     find . -name .git -prune -o -name .jj -prune -o -name __pycache__ -type d -prune -exec rm -rf {} +
