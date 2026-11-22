@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The help of a command that takes `-f` and `-x`, such as
+  `herd list --help`, now lists the configured filters, each with its
+  `:doc`. A filter without a `:doc` shows its name only. `herd clone --help`
+  lists only the JMESPath filters, because clone cannot use a shell filter.
 - A filter written as a dictionary in `:filters` can now have a `:doc`, as
   in `{:sh "test -f Makefile" :doc "Has a Makefile."}`. Shell completion
   shows this text for the filter in place of its expression or command.

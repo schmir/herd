@@ -354,7 +354,8 @@ shell command. A plain string is short for `:jp`.
 
 A dictionary can also hold `:doc`, one line that says what the filter is
 for. Shell completion shows it next to the filter name, in place of the
-expression or command:
+expression or command. The help of a command that takes `-f`, such as
+`herd list --help`, lists the filters with it:
 
 ```janet
 {:filters

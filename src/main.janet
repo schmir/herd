@@ -88,10 +88,11 @@
       (eprint prefix err)
       (os/exit 1))))
 
-(defn- parse-args
-  ``Parse `args` against an argparse specification, exiting on a mistake.
-  Asking for help is not a mistake, so it leaves through the successful door.``
-  [args & spec]
+(defn- parse-args-with-footer
+  ``Parse `args` against the argparse specification `spec`, exiting on a
+  mistake. Asking for help is not a mistake, so it leaves through the
+  successful door. The help ends with `footer`, unless that is nil.``
+  [args footer spec]
   (def with-help [;spec "help" help-option])
   (def parsed (or (argparse/argparse ;with-help :args args)
                   (os/exit 1)))
@@ -101,8 +102,15 @@
   (when (parsed "help")
     # Only argparse's own help option prints the text, so ask it for that.
     (argparse/argparse ;spec :args [(get args 0) "--help"])
+    (when footer (print footer "\n"))
     (os/exit 0))
   parsed)
+
+(defn- parse-args
+  ``Parse `args` against an argparse specification, exiting on a mistake.
+  Asking for help is not a mistake, so it leaves through the successful door.``
+  [args & spec]
+  (parse-args-with-footer args nil spec))
 
 (defn- rest-arguments
   "The positional arguments `parsed` collected, starting at the command."
@@ -266,11 +274,21 @@
 (defn- parse-command
   ``Parse `args` with the options `command` declares, and `rest`, a
   specification for what follows them, if any. `defaults` adds to --at, which
-  defaults to the working directory.``
-  [args command description defaults & rest]
-  (parse-args args description
-              ;(command-spec command (merge {"at" (os/cwd)} defaults))
-              ;rest))
+  defaults to the working directory. The help lists the filters in
+  `repository-settings` that the command can name with -f and -x. Clone can
+  name only the list filters.``
+  [args command description defaults repository-settings & rest]
+  (def registry (get repository-settings :filters {}))
+  (def names
+    (filter (fn [name] (or (not= command "clone")
+                           (named-filters/list-filter? registry name)))
+            (named-filters/filter-names registry)))
+  (parse-args-with-footer
+    args
+    (named-filters/help-section registry names)
+    [description
+     ;(command-spec command (merge {"at" (os/cwd)} defaults))
+     ;rest]))
 
 (defn- jobs-from
   "Return the validated --jobs count, or report the mistake and exit."
@@ -341,7 +359,8 @@
     (parse-command args "clone"
                    "Check out the configured repositories beneath a path."
                    {"jobs" (string (or jobs parallel/default-jobs))
-                    "show-output" run/default-show-output}))
+                    "show-output" run/default-show-output}
+                   repository-settings))
   (def show-output (show-output-from parsed))
   (def jobs (jobs-from parsed))
   (def steps (resolve-filters parsed repository-settings))
@@ -414,7 +433,8 @@
   (default pager config/default-pager)
   (def parsed
     (parse-command args "list"
-                   "Print the configured repositories beneath a path." {}))
+                   "Print the configured repositories beneath a path." {}
+                   repository-settings))
   (when (and (parsed "no-pager") (not (parsed "tree")))
     (eprint "usage error: --no-pager applies only with --tree")
     (os/exit 1))
@@ -535,7 +555,8 @@
                      (string description "\n\n Usage: herd " (args 0)
                              " [option] ... [-- ARG...]")
                      {"show-output" show-output
-                      "jobs" (string (or jobs parallel/default-jobs))}))
+                      "jobs" (string (or jobs parallel/default-jobs))}
+                     repository-settings))
     (def arguments (if separator (slice args (inc separator)) []))
     (run-selected (run/with-arguments command arguments
                                       (get repository-settings :shell))
@@ -551,6 +572,7 @@
                            " Usage: herd run [option] ... CMD [CMD-ARGS]...")
                    {"show-output" run/default-show-output
                     "jobs" (string (or jobs parallel/default-jobs))}
+                   repository-settings
                    :default {:kind :accumulate
                              :short-circuit true
                              :help "Command and arguments to run."}))

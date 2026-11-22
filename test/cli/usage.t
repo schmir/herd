@@ -223,6 +223,58 @@ documented default, whatever the command line asks for.
   $ herd run --jobs 5 --help | grep -o 'jobs N=[0-9]*'
   jobs N=2
 
+The help of a command that takes -f lists the configured filters, each
+with its :doc. A filter without one shows its name only. Clone lists only
+the filters it can use, and a command that takes no filter lists none.
+
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:commands {"mark" {:command "touch marker"
+  >                     :description "Create a marker in each repository."}}
+  >  :filters {"tier1" {:jp "[?tier == `1`]" :doc "Repositories of the first tier."}
+  >            "active" "[?active]"
+  >            "has-readme" {:sh "test -f README.md" :doc "Has a README.md."}}}
+  > EOF
+  $ for command in list run mark; do herd $command --help | sed -n '/Filters:/,$p'; done
+   Filters:
+    active
+    has-readme  Has a README.md.
+    tier1       Repositories of the first tier.
+  
+   Filters:
+    active
+    has-readme  Has a README.md.
+    tier1       Repositories of the first tier.
+  
+   Filters:
+    active
+    has-readme  Has a README.md.
+    tier1       Repositories of the first tier.
+  
+  $ herd clone --help | sed -n '/Filters:/,$p'
+   Filters:
+    active
+    tier1   Repositories of the first tier.
+  
+  $ herd tree --help | grep -c Filters:
+  0
+  [1]
+  $ herd --help | grep -c Filters:
+  0
+  [1]
+
+Without filters, the help has no such section.
+
+  $ echo '{}' >"$CONFIG/config.jdn"
+  $ herd list --help | grep -c Filters:
+  0
+  [1]
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:jobs 2
+  >  :commands {"mark" {:command "touch marker"
+  >                     :description "Create a marker in each repository."
+  >                     :show-output "always"}}}
+  > EOF
+
 A custom command with no list to work on says so, as the others do.
 
   $ herd mark

@@ -105,15 +105,37 @@
   [registry]
   (sorted (keys registry)))
 
+(defn doc-of
+  "The `:doc` of the filter `name` in `registry`, or nil when it has none."
+  [registry name]
+  (def entry (get registry name))
+  (when (dictionary? entry) (entry :doc)))
+
 (defn descriptions
   ``Each name in `registry` with its `:doc`, or with the expression or command
   it stands for when it has no `:doc`.``
   [registry]
   (table/to-struct
     (tabseq [[name entry] :pairs registry]
-      name (or (when (dictionary? entry) (entry :doc))
+      name (or (doc-of registry name)
                (text-of-kind entry :jp)
                (text-of-kind entry :sh)))))
+
+(defn help-section
+  ``The section of a help text that lists the filters `names` of `registry`,
+  or nil when there are none. A filter shows its `:doc`. A filter without a
+  `:doc` shows its name only, because an expression or a command is too long
+  for a help text.``
+  [registry names]
+  (unless (empty? names)
+    (def width (max ;(map length names)))
+    (string/join
+      [" Filters:"
+       ;(seq [name :in (sorted names)]
+          (if-let [doc-text (doc-of registry name)]
+            (string "  " name (string/repeat " " (- (+ 2 width) (length name))) doc-text)
+            (string "  " name)))]
+      "\n")))
 
 (defn step
   ``Make a filter step, `{:name :exclude?}`. `name` is the filter name or the

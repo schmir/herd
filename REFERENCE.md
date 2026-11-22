@@ -353,7 +353,9 @@ A string entry is a JMESPath list filter. `{:jp EXPR}` is the explicit form;
 `{:sh COMMAND}` defines a checkout filter. Either dictionary form can also
 hold `:doc`, a non-empty string of one line. `herd completions filters`
 prints it in place of the expression or command, so shell completion shows
-it. List filters run through the `jp` executable and must return a JSON
+it. The help of each command that takes `-f` ends with the filters that the
+command can name, each with its `:doc`; a filter without one shows its name
+only. List filters run through the `jp` executable and must return a JSON
 array. Without `jp` on `PATH` a placement using a list filter is broken:
 `herd tree` marks it, and any other command fails when its working location
 is inside the placement's anchor (with `-a`, also when it contains the

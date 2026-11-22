@@ -169,6 +169,24 @@
         "a :doc does not change what the filter stands for")
 (assert (empty? (named-filters/filter-names {})) "an empty registry has no names")
 
+(def documented-registry
+  (named-filters/validate-registry
+    {"long-name" {:jp "[?a]" :doc "Has a."} "b" {:sh "true" :doc "Always."} "c" "[?c]"}))
+(assert (= "Has a." (named-filters/doc-of documented-registry "long-name"))
+        "a filter has the :doc it was given")
+(assert (nil? (named-filters/doc-of documented-registry "c"))
+        "a string entry has no :doc")
+(assert (nil? (named-filters/doc-of documented-registry "absent"))
+        "nor does a name the registry lacks")
+(assert (= " Filters:\n  b          Always.\n  c\n  long-name  Has a."
+           (named-filters/help-section documented-registry ["long-name" "c" "b"]))
+        "the help lists the names sorted, each with its :doc if it has one")
+(assert (= " Filters:\n  c"
+           (named-filters/help-section documented-registry ["c"]))
+        "the help lists only the names it is given")
+(assert (nil? (named-filters/help-section documented-registry []))
+        "no names, no section")
+
 # --- check-names ----------------------------------------------------------
 
 (assert-no-error "list filters may be named by a row"
