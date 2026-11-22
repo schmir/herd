@@ -163,6 +163,7 @@
               nixfmt
               prettier
               ruff
+              shfmt
               treefmt
               uv
             ];

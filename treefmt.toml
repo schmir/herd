@@ -30,3 +30,8 @@ priority = 2
 [formatter.nixfmt]
 command = "nixfmt"
 includes = ["*.nix"]
+
+[formatter.shfmt]
+command = "shfmt"
+options = ["-w", "-i", "4"]
+includes = ["*.sh", "*.bash"]
