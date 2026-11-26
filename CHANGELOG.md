@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- An inline list now accepts only `:clone-url` for the URL of an entry. It
+  refuses `:ssh-url` and `:clone_url` as it refused `:ssh_url`. Before, it
+  read them as the URL.
 - herd now refuses an empty `"path"` or an empty `"clone_url"` in a
   repository list, and an empty `:command`, `:command-git` or `:command-jj`
   in a custom command. Before, an empty `"path"` made the anchor a

@@ -402,15 +402,19 @@
 (defn- inline-list-entries
   ``Return the inline repository list `entries` as the decoded JSON of a file,
   so that filters and validation see it as they see a file. A key written
-  `:clone-url` becomes `clone_url`, the way the files spell it.``
+  `:clone-url` becomes `clone_url`, the way the files spell it. That is the
+  only spelling of the URL that an inline entry accepts.``
   [entries]
   (unless (indexed? entries)
     (error "expected an array of repositories"))
   (seq [[index entry] :pairs entries]
     (unless (dictionary? entry)
       (error (string "entry " index " is not a dictionary")))
-    (when (has-key? entry :ssh_url)
-      (error (string "entry " index " needs :clone-url, not :ssh_url")))
+    (each key (keys entry)
+      (when (and (not= key :clone-url)
+                 (index-of (string/replace-all "-" "_" (string key))
+                           ["ssh_url" "clone_url"]))
+        (error (string "entry " index " needs :clone-url, not " (describe key)))))
     (tabseq [[key value] :pairs entry]
       (if (keyword? key) (string/replace-all "-" "_" key) (string key))
       (json-from-jdn value))))

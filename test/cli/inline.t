@@ -57,6 +57,14 @@ Entries are checked like those of a file, and the error names the row.
   $ herd list
   Configuration error: config.jdn: :checkouts row 0: entry 0 needs :clone-url, not :ssh_url
   [1]
+  $ echo '{:checkouts [{:list [{:path "x" :ssh-url "u"}]}]}' >"$CONFIG/config.jdn"
+  $ herd list
+  Configuration error: config.jdn: :checkouts row 0: entry 0 needs :clone-url, not :ssh-url
+  [1]
+  $ echo '{:checkouts [{:list [{:path "x" :clone_url "u"}]}]}' >"$CONFIG/config.jdn"
+  $ herd list
+  Configuration error: config.jdn: :checkouts row 0: entry 0 needs :clone-url, not :clone_url
+  [1]
   $ echo '{:checkouts [{:list ["x"]}]}' >"$CONFIG/config.jdn"
   $ herd list
   Configuration error: config.jdn: :checkouts row 0: entry 0 is not a dictionary

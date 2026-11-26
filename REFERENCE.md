@@ -326,8 +326,8 @@ leading path components from each list entry before placing it. A path
 ending in `/` instead strips that prefix and ignores entries not starting
 with it. A list can be placed by multiple rows.
 
-Inline lists use `:clone-url`, not `:ssh_url`. An inline entry with
-`:ssh_url` is rejected.
+Inline lists accept only `:clone-url` for the URL. An inline entry with
+`:ssh_url`, `:ssh-url` or `:clone_url` is rejected.
 
 herd holds each number in a list as a double, as `jp` does. An integer
 larger than 2^53 is rounded, so filters and `HERD_REPO_JSON` can see a value
