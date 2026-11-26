@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Quitting the pager before the end of its text, as with `q` in `less`, no
+  longer ends herd with SIGPIPE and status 141. Before, herd lost its exit
+  status and the summary line.
 - herd now prints the text itself when the `:pager` command does not exist
   or cannot run. Before, the only output was the shell's error message.
 - `herd list` now reports a directory that it cannot read, at the path of a

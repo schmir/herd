@@ -11,7 +11,10 @@
 
   An interrupt the reader types in the pager is the pager's, so from then on
   herd ignores SIGINT rather than ending under it. Nothing can put the
-  default back, so page is the last thing herd does with the terminal.``
+  default back, so page is the last thing herd does with the terminal. The
+  same holds for SIGPIPE: the reader may quit before the end, which closes the
+  pipe, and a write to it must fail with an error that page handles instead
+  of ending herd with the signal.``
   [text color? pager &opt shell]
   (def pager
     (when (and pager color? (not (empty? text)))
@@ -19,6 +22,9 @@
   (if pager
     (do
       (os/sigaction :int (fn []))
+      # Set after the spawn, so that the pager and its children keep the
+      # default action.
+      (os/sigaction :pipe (fn []))
       # The reader may quit before the end, which closes the pipe.
       (try (:write (pager :in) text) ([_] nil))
       (try (:close (pager :in)) ([_] nil))

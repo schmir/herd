@@ -49,7 +49,16 @@
   (assert (= "" (printed (fn [] (pager/page "text\n" true "cat >/dev/null; exit 1"))))
           "a pager that fails after it read the text is not an error to repair"))
 
+(defn test-a-pager-that-quits-early-does-not-end-herd
+  "A pager that exits before it reads all the text leaves herd running."
+  []
+  # More than a pipe holds, so the write still goes on after the pager exits.
+  (def text (string/repeat "x" 1000000))
+  (assert (= "" (printed (fn [] (pager/page text true "exit 0"))))
+          "page returns, and prints nothing, when the pager quits early"))
+
 (test-text-without-a-pager-is-printed)
+(test-a-pager-that-quits-early-does-not-end-herd)
 (test-a-missing-pager-leaves-the-text-printed)
 (test-colored-text-goes-through-the-pager)
 (test-nothing-to-show-starts-no-pager)
