@@ -719,6 +719,12 @@
                :short-circuit true
                :help "Command to run."}])
   (def parsed (parse-args args ;spec))
+  # Only the first argument asks for these, before the configuration is read.
+  # Anywhere else argparse accepts them, so refuse them here.
+  (each name ["version" "licenses"]
+    (when (parsed name)
+      (eprint "usage error: --" name " applies only as the first argument")
+      (os/exit 1)))
   # :rest starts at the command name, which the subcommand parser then reads as
   # its own program name, so `herd clone --help` describes clone.
   (def rest (rest-arguments parsed))

@@ -295,6 +295,21 @@ The bare invocation prints exactly what --help prints.
   $ herd -V
   herd \S+ (re)
 
+Only as the first argument does it answer. Anywhere else before the command,
+herd refuses it, and it would not answer before the configuration is read.
+
+  $ herd -c "$CONFIG" -V
+  Configuration error: $ROOT/home/.config/herd/config.jdn: unexpected end of source, { opened at line 1, column 1
+  [1]
+  $ echo '{}' >"$CONFIG/config.jdn"
+  $ herd -c "$CONFIG" -V
+  usage error: --version applies only as the first argument
+  [1]
+  $ herd -c "$CONFIG" --licenses
+  usage error: --licenses applies only as the first argument
+  [1]
+  $ echo '{:checkouts' >"$CONFIG/config.jdn"
+
 Only as the first argument does it answer before the configuration is read.
 
   $ herd list --version

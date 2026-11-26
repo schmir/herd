@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `herd -c PATH -V` and `herd -c PATH --licenses` now fail with a usage
+  error. Before, herd printed the help and exited with status 1. `-V`,
+  `--version` and `--licenses` work only as the first argument.
 - `herd list` now runs the filter commands, and the checks of `--dirty` and
   `--clean`, `:jobs` at a time. Before, it ignored `:jobs` and ran 6 at a
   time.
