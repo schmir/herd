@@ -118,6 +118,8 @@ complete -F _herd herd
               (= long "at") " -x -a '(__fish_complete_directories)'"
               (= long "show-output")
               (string " -x -a '" (string/join run/show-output-conditions " ") "'")
+              # The script turns file completion off for herd, so ask for it here.
+              (= long "config") " -r -F"
               (option :value-name) " -r"
               "")
             " -d " (fish-quote (description option)) "\n")))
@@ -233,7 +235,8 @@ complete -F _herd herd
     "        esac\n"
     "    done\n"
     "    if [[ -z $command ]]; then\n"
-    "        if [[ $words[CURRENT] == -* ]]; then\n"
+    # After an option that takes a value, the word is that value, not a command.
+    "        if [[ $words[CURRENT] == -* || $words[CURRENT-1] == (" (string/join value-flags "|") ") ]]; then\n"
     "            _arguments \\\n"
     "                " (string/join (map zsh-spec options/top-level) " \\\n                ") "\n"
     "        else\n"

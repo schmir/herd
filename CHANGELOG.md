@@ -5,6 +5,10 @@
 - `herd list` now runs the filter commands, and the checks of `--dirty` and
   `--clean`, `:jobs` at a time. Before, it ignored `:jobs` and ran 6 at a
   time.
+- The fish completion of `-c` and `--config` now offers files and
+  directories. Before, it offered nothing. The zsh completion of every
+  option that takes a value, such as `-c`, now completes the value. Before,
+  it offered subcommands when the value was empty.
 
 ## 0.6.0 - 2026-11-22
 
