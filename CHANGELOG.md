@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `herd list` now runs the filter commands, and the checks of `--dirty` and
+  `--clean`, `:jobs` at a time. Before, it ignored `:jobs` and ran 6 at a
+  time.
+
 ## 0.6.0 - 2026-11-22
 
 - A release archive now holds its files in a directory with the name of the

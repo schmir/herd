@@ -427,10 +427,12 @@
   status, path and URL per line, in the order the commands act on them.
   --ok, --not-ok and --extra pick what to print by comparing them with what
   is on disk, and print the extra ones after the configured ones. Without
-  them, list prints every configured repository.``
-  [args &opt repository-settings pager]
+  them, list prints every configured repository. The filters that run a
+  command run `jobs` at a time.``
+  [args &opt repository-settings pager jobs]
   (default repository-settings config/default-repository-settings)
   (default pager config/default-pager)
+  (default jobs parallel/default-jobs)
   (def parsed
     (parse-command args "list"
                    "Print the configured repositories beneath a path." {}
@@ -456,7 +458,7 @@
     (select-or-exit
       (merge (selection-options parsed)
              {:requested-state requested-state
-              :jobs parallel/default-jobs
+              :jobs jobs
               :catalog-only? (not show-configured?)})
       repository-settings
       :unconfigured-ok? discover?
@@ -654,7 +656,7 @@
                                          (custom-commands config)))
                            (fn [] (named-filters/descriptions (get repository-settings :filters {})))))
                   :help "Print a shell completion script for herd."}
-   "list" {:run (fn [args] (list-command args repository-settings pager))
+   "list" {:run (fn [args] (list-command args repository-settings pager jobs))
            :help "Print the configured repositories beneath a path."}
    "tree" {:run (fn [args] (tree-command args config))
            :help "Print the repositories as a tree of the filesystem."}

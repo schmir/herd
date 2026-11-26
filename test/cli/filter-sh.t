@@ -55,6 +55,16 @@ arguments on as -f does. Only the second checkout has a file named "a b".
   $ rm src/api/a src/api/b src/web/a
 
 
+list runs the filter commands :jobs at a time. With one, each holds a lock
+the other would fail to take if they overlapped. --dirty runs the same way.
+
+  $ cp "$CONFIG/config.jdn" "$CONFIG/config.jdn.saved"
+  $ echo '{:jobs 1}' >"$CONFIG/config.jdn"
+  $ herd list -f 'mkdir "$HOME/lock" && sleep 0.2 && rmdir "$HOME/lock"'
+  ok\t$ROOT/home/src/api\t$ROOT/origins/api (esc)
+  ok\t$ROOT/home/src/web\t$ROOT/origins/web (esc)
+  $ mv "$CONFIG/config.jdn.saved" "$CONFIG/config.jdn"
+
 -x keeps the repositories a filter leaves out, of either kind, and of a
 command given in place of a name.
 
