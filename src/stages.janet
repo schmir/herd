@@ -54,11 +54,11 @@
   no working copy never matches, and the command is not run there. Status
   126 and 127 mean the shell could not run the command, which is a mistake
   rather than a repository that does not match, so they raise. The command
-  Words in `arguments` are the positional parameters of the command.
   runs in `shell`, as process/shell-argv takes it, and in the environment
   run/command-environment gives a command, with `at` the location the
-  repositories were selected from. Its output is discarded, so it is asked not
-  to color.``
+  repositories were selected from. Words in `arguments` are the positional
+  parameters of the command. Its output is discarded, so it is asked not to
+  color.``
   [repository command &opt shell at arguments]
   (if (vcs/detect (repository :path))
     (let [result (process/capture

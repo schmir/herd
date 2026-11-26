@@ -84,9 +84,10 @@ written [inline](#inline-lists) in `config.jdn` instead of in a file.
 
 Every repository list is checked out under one or more **anchors**: the
 directories its relative paths resolve against. By default there is a single
-anchor, `$HOME`; herd exits with an error if `HOME` is not set. Absolute
-paths remain unchanged, whatever the anchors. The anchors also decide which
-repositories a command considers; see [Selection](#selection).
+anchor, `$HOME`; herd exits with an error if `HOME` is not set. A path in a
+list is relative to its anchor, and herd refuses an absolute one. The
+anchors also decide which repositories a command considers; see
+[Selection](#selection).
 
 You can split repositories across any number of JSON files; files are loaded
 in name order. Duplicate paths are accepted only when their URLs and their
@@ -430,23 +431,24 @@ are, as its positional parameters, and a command that wants them says where,
 with `"$@"` or `$1`. A command finds the repository it runs in described in
 its environment: `HERD_REPO_ANCHOR` is the [anchor](#anchors) it lies
 beneath, `HERD_REPO_PATH` its path there as the repository list gives it
-after `:strip-components`, absolute only when the list's is, `HERD_REPO_URL`
-the URL it is cloned from and `HERD_REPO_VCS` `git` or `jj`. `HERD_AT_PATH`
-is where the repositories were selected from, `-C` or the working directory,
-and `HERD_REPO_RELPATH` the repository's path relative to it: `.` for the
-repository at that location and `..` or further up for one containing it.
-Both have their symlinks resolved, as selection compares them. `HERD_COLOR`
-is `always` when herd prints in color and `never` when it does not, so a
-command can color what herd captures the way herd colors its own output. The
-built-in `diff` is `git diff --color="$HERD_COLOR" HEAD "$@"` and
+after `:strip-components`, `HERD_REPO_URL` the URL it is cloned from and
+`HERD_REPO_VCS` `git` or `jj`. `HERD_AT_PATH` is where the repositories were
+selected from, `-C` or the working directory, and `HERD_REPO_RELPATH` the
+repository's path relative to it: `.` for the repository at that location
+and `..` or further up for one containing it. Both have their symlinks
+resolved, as selection compares them. `HERD_COLOR` is `always` when herd
+prints in color and `never` when it does not, so a command can color what
+herd captures the way herd colors its own output. The built-in `diff` is
+`git diff --color="$HERD_COLOR" HEAD "$@"` and
 `jj diff --color="$HERD_COLOR" "$@"`, so `herd diff -- --stat` shows the
 stat, and the built-in `fetch` colors what `jj git fetch` prints the same
 way. `:show-output` sets that command's default output condition, and
 `:pager true` shows its results through the [pager](#settings) once the run
 is over, as the built-in `diff` does; see [Use](#use). Custom names cannot
-shadow the built-in commands `clone`, `completions`, `list`, `run` and
-`tree`. `diff` and `fetch` are themselves custom commands herd defines by
-default, so an entry of the same name in `:commands` replaces them.
+shadow the built-in commands `clone`, `completions`, `list`, `run`,
+`self-update` and `tree`. `diff` and `fetch` are themselves custom commands
+herd defines by default, so an entry of the same name in `:commands`
+replaces them.
 
 ## Shell completions
 

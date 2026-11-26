@@ -25,7 +25,7 @@ are reported as `already checked out`; a non-empty path that is not a Git or
 jj repository is `blocked`.
 
 ```text
-herd clone [-C PATH] [-a] [-f NAME] [--show-output WHEN] [-j N]
+herd clone [-C PATH] [-a] [-f NAME] [-x NAME] [--show-output WHEN] [-j N]
 ```
 
 `--show-output` is `never`, `on-failure` (the default), `on-success`, or
@@ -37,7 +37,7 @@ Print selected repositories as tab-separated `status`, `path` and clone URL.
 The status is `ok`, `missing`, `blocked`, or `extra`.
 
 ```text
-herd list [-C PATH] [-a] [-f NAME] [--sample PERCENT]
+herd list [-C PATH] [-a] [-f NAME] [-x NAME] [--sample PERCENT]
            [--dirty | --clean] [--ok] [--not-ok] [--extra]
            [-t, --tree] [-P, --no-pager]
            [--max-depth N] [--hidden] [--follow-links]
@@ -70,7 +70,7 @@ example, `herd run 'pwd && pwd'` tries to find a program with that name and
 fails; use `herd run sh -c 'pwd && pwd'` when shell syntax is needed.
 
 ```text
-herd run [-C PATH] [-a] [-f NAME] [--dirty | --clean]
+herd run [-C PATH] [-a] [-f NAME] [-x NAME] [--dirty | --clean]
          [--sample PERCENT] [--show-output WHEN]
          [-j N] [-n N] [-p, --pager | -P, --no-pager]
          CMD [CMD-ARGS...]
@@ -338,8 +338,10 @@ fails, and so does a command that runs in a repository whose entry holds
 one, as `HERD_REPO_JSON` cannot be written.
 
 Duplicate resolved paths must agree on their clone URL and repository
-options; nested repositories are rejected. Missing repository list files
-named by a checkout row are configuration errors.
+options; nested repositories are rejected. A repository list file that a
+checkout row names and that is missing breaks that placement. A command
+fails on it only when its working location is inside the placement's anchor,
+as for a placement that needs `jp` (see Filters).
 
 ### Filters
 
@@ -404,11 +406,11 @@ Use `:command` for one shell command, or `:command-git` and `:command-jj`
 for VCS-specific commands. If omitted, `:show-output` defaults to
 `on-failure`, and `:pager` defaults to `false`. `:show-output` accepts
 `never`, `on-failure`, `on-success`, or `always`; `:pager` is a boolean. The
-protected built-in commands are `clone`, `list`, `run`, `tree`, and
-`completions`; they cannot be replaced. `diff` and `fetch` are default
-custom commands that herd supplies. When a repository has both `.git` and
-`.jj`, herd uses jj. A VCS-specific command is skipped when that repository
-has no command for its detected VCS.
+protected built-in commands are `clone`, `completions`, `list`, `run`,
+`self-update`, and `tree`; they cannot be replaced. `diff` and `fetch` are
+default custom commands that herd supplies. When a repository has both
+`.git` and `.jj`, herd uses jj. A VCS-specific command is skipped when that
+repository has no command for its detected VCS.
 
 Arguments for a custom command come after `--`:
 
@@ -457,9 +459,11 @@ directory and receive:
 | `HERD_FIELD_*`      | The scalar fields of that entry, described below        |
 
 `HERD_REPO_JSON` is the entry as a list file holds it, with the path as the
-list gives it. It is `{}` for a repository that no list names, such as one
-that `list --extra` finds. A command can read any field from it, for example
-with `jq`.
+list gives it. The one change is the URL: it is always `clone_url`, so an
+entry written with `ssh_url` arrives with `clone_url`, and an entry with
+both keeps `clone_url` and loses `ssh_url`. It is `{}` for a repository that
+no list names, such as one that `list --extra` finds. A command can read any
+field from it, for example with `jq`.
 
 Each string, number or boolean field of the entry is also a variable named
 `HERD_FIELD_` and the upper-cased field name, with each run of characters

@@ -211,8 +211,8 @@
   and HERD_REPO_ANCHOR, HERD_REPO_PATH, HERD_REPO_URL and HERD_REPO_VCS
   describing the repository it runs in. HERD_REPO_PATH is its path beneath
   HERD_REPO_ANCHOR, the first of its anchors, as the repository list gives
-  it once stripped, so it is absolute only when the list's is. A repository
-  without an anchor has an empty one and its absolute path. HERD_AT_PATH is
+  it once stripped. A repository without an anchor has an empty one and its
+  absolute path. HERD_AT_PATH is
   `at`, the location the repositories were selected from, the working
   directory unless given, and HERD_REPO_RELPATH the repository's path
   relative to it.

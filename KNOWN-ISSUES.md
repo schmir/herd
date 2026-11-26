@@ -46,16 +46,17 @@ with or which anchor it came from, and a script that wants either has to go
 and look for itself.
 
 The information is already in hand. A resolved repository is a dictionary,
-and the entry it came from is merged into it whole, so a list whose entries
-carry extra fields produces records carrying those fields:
+and the entry it came from is kept whole under `:entry`, so a list whose
+entries carry extra fields produces records carrying those fields:
 
 ```janet
-@{:anchors @["/tmp/x"] :group "platform" :path "/tmp/x/a"
-  :ssh_url "u" :tier 3 :vcs "jj"}
+@{:anchors @["/tmp/x"] :anchored-path "a" :clone-url "u"
+  :entry @{"clone_url" "u" "group" "platform" "path" "a" "tier" 3}
+  :path "/tmp/x/a" :vcs :jj}
 ```
 
-`:group` and `:tier` came from the JSON file and survived every stage. Only
-filters and commands read them, as `HERD_FIELD_*` and `HERD_REPO_JSON`.
+`"group"` and `"tier"` came from the JSON file and survived every stage.
+Only filters and commands read them, as `HERD_FIELD_*` and `HERD_REPO_JSON`.
 `list` throws the rest away at the last step, which is the odd part, since
 these lists carry more than `herd` needs.
 
@@ -101,20 +102,19 @@ same flag from a failed outcome rather than from a signal.
 ### The progress display cannot be turned off or on
 
 Whether the live block is drawn is decided solely by
-`(default live (os/isatty stderr))`. There is no `--quiet`, no
+`(default live? (os/isatty stderr))`. There is no `--quiet`, no
 `--no-progress`, and no way to force it when stderr is not a terminal.
 `TERM=dumb` gets the escape sequences like anything else, and `NO_COLOR`
 means nothing here.
 
 ### Cloning cannot be tuned
 
-`clone-process-command` builds one fixed argument vector per VCS. There is
-no `--depth` for a shallow clone, no way to name a remote or a default
-branch, and no retry when a clone fails for a reason that will not recur.
-Across a few hundred repositories on an uncertain network, the last of those
-is the one that bites: a single transient failure means running the whole
-command again, even though `clone` will correctly skip everything it already
-did.
+`vcs/clone-command` builds one fixed argument vector per VCS. There is no
+`--depth` for a shallow clone, no way to name a remote or a default branch,
+and no retry when a clone fails for a reason that will not recur. Across a
+few hundred repositories on an uncertain network, the last of those is the
+one that bites: a single transient failure means running the whole command
+again, even though `clone` will correctly skip everything it already did.
 
 ### The BSD binaries have never run
 
