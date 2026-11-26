@@ -359,6 +359,9 @@
     (def listed-path (entry "path"))
     (unless (string? listed-path)
       (error (string "entry " index " needs a string \"path\"")))
+    # An empty path would make the anchor itself a repository.
+    (when (empty? listed-path)
+      (error (string "entry " index " needs a non-empty \"path\"")))
     # Every repository lies beneath the anchor of its placement, which is how
     # a placement that cannot be read is known to affect only that subtree.
     (when (path/abspath? listed-path)
@@ -370,6 +373,8 @@
     (def url (entry url-key))
     (unless (string? url)
       (error (string "entry " index " needs a string \"" url-key "\"")))
+    (when (empty? url)
+      (error (string "entry " index " needs a non-empty \"" url-key "\"")))
     (def spelled @{})
     (eachp [key value] entry
       (unless (index-of key checkout/url-keys)
@@ -738,18 +743,20 @@
   (def command-or-vcs-specific
     (if (not (nil? command))
       (do
-        (unless (string? command)
-          (fail "needs a string :command"))
+        (unless (and (string? command) (not (empty? command)))
+          (fail "needs a non-empty string :command"))
         (when (or (not (nil? command-git)) (not (nil? command-jj)))
           (fail "cannot combine :command with VCS-specific commands"))
         command)
       (do
         (when (and (nil? command-git) (nil? command-jj))
           (fail "needs :command, :command-git, or :command-jj"))
-        (unless (or (nil? command-git) (string? command-git))
-          (fail "needs a string :command-git"))
-        (unless (or (nil? command-jj) (string? command-jj))
-          (fail "needs a string :command-jj"))
+        (unless (or (nil? command-git)
+                    (and (string? command-git) (not (empty? command-git))))
+          (fail "needs a non-empty string :command-git"))
+        (unless (or (nil? command-jj)
+                    (and (string? command-jj) (not (empty? command-jj))))
+          (fail "needs a non-empty string :command-jj"))
         {:command-git command-git :command-jj command-jj})))
   (def description (get definition :description))
   (unless (string? description)

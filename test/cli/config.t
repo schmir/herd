@@ -85,6 +85,12 @@ Each entry in a list is checked.
   $ entries '[{"path": "a", "clone_url": 1, "ssh_url": "c"}]'
   Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 needs a string "clone_url"
   [1]
+  $ entries '[{"path": "", "clone_url": "b"}]'
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 needs a non-empty "path"
+  [1]
+  $ entries '[{"path": "a", "clone_url": ""}]'
+  Configuration error: $ROOT/home/.config/herd/repos.json: entry 0 needs a non-empty "clone_url"
+  [1]
   $ entries '[]'
   $ cp repos.json.saved "$CONFIG/repos.json"
 

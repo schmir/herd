@@ -79,6 +79,15 @@
                  (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" "git"}]))
 (assert-no-error "a repository can select jj"
                  (config/validate-repository-list [{"path" "a" "ssh_url" "b" "vcs" "jj"}]))
+(assert-error "an empty path is refused"
+              (config/validate-repository-list [{"path" "" "clone_url" "u"}]))
+(assert-error "an empty clone_url without ssh_url is refused"
+              (config/validate-repository-list [{"path" "a" "clone_url" ""}]))
+(assert-error "an empty ssh_url without clone_url is refused"
+              (config/validate-repository-list [{"path" "a" "ssh_url" ""}]))
+(assert-error "an empty clone_url and an empty ssh_url are refused"
+              (config/validate-repository-list
+                [{"path" "a" "clone_url" "" "ssh_url" ""}]))
 (assert-no-error "an empty configuration is valid" (config/validate-repository-list []))
 (let [url (fn [entry] ((first (config/validate-repository-list [entry])) :clone-url))]
   (assert (= "c" (url {"path" "a" "ssh_url" "s" "clone_url" "c"}))
@@ -87,8 +96,6 @@
           "an empty clone_url gives way to ssh_url")
   (assert (= "s" (url {"path" "a" "ssh_url" "s" "clone_url" :null}))
           "a null clone_url gives way to ssh_url")
-  (assert (= "" (url {"path" "a" "clone_url" ""}))
-          "an empty clone_url without ssh_url is still the URL")
   (assert (deep= @{"path" "a" "clone_url" "c"}
                  ((first (config/validate-repository-list
                            [{"path" "a" "ssh_url" "s" "clone_url" "c"}])) :entry))
@@ -263,6 +270,12 @@
                                 {:command-jj "jj status" :description "Check."})
                     :command))
         "a VCS-specific command can support only jj")
+(assert-error "a command cannot be empty"
+              (command-of "check" {:command "" :description "Check."}))
+(assert-error "a git command cannot be empty"
+              (command-of "check" {:command-git "" :description "Check."}))
+(assert-error "a jj command cannot be empty"
+              (command-of "check" {:command-jj "" :description "Check."}))
 (assert-error "a definition needs a description"
               (command-of "check" {:command "true"}))
 (assert-error "a definition show-output condition must be known"

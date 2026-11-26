@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- herd now refuses an empty `"path"` or an empty `"clone_url"` in a
+  repository list, and an empty `:command`, `:command-git` or `:command-jj`
+  in a custom command. Before, an empty `"path"` made the anchor a
+  repository, an empty URL failed only at clone time, and an empty command
+  was accepted.
 - `herd -c PATH -V` and `herd -c PATH --licenses` now fail with a usage
   error. Before, herd printed the help and exited with status 1. `-V`,
   `--version` and `--licenses` work only as the first argument.
