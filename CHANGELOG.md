@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `herd tree` now prints `No repository lists in DIR` when nothing is
+  configured, as the other commands do. Before, it printed nothing.
 - Quitting the pager before the end of its text, as with `q` in `less`, no
   longer ends herd with SIGPIPE and status 141. Before, herd lost its exit
   status and the summary line.

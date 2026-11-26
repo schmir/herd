@@ -103,6 +103,8 @@ Nothing configured yet is not a failure.
   No repository lists in $ROOT/home/.config/herd
   $ herd fetch
   No repository lists in $ROOT/home/.config/herd
+  $ herd tree
+  No repository lists in $ROOT/home/.config/herd
 
 Discovering extra repositories needs no list, with a filter named or not.
 
@@ -125,6 +127,8 @@ Nor is a configuration directory that does not exist yet.
   $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd run true)
   No repository lists in $ROOT/absent/herd
   $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd fetch)
+  No repository lists in $ROOT/absent/herd
+  $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd tree)
   No repository lists in $ROOT/absent/herd
 
 Without HERD_CONFIG, XDG_CONFIG_HOME or HOME there is nowhere to look.

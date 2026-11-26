@@ -539,6 +539,10 @@
   (def nodes
     (exit-on-error "Configuration error: "
                    (fn [] (tree/build directory config (parsed "repositories")))))
+  # Nothing to draw means no list or placement, which the other commands
+  # report as well.
+  (when (empty? nodes)
+    (exit-unconfigured {:directory directory}))
   (let [color? (color-output?)]
     (print-tree (tree/render nodes color?) color?
                 (unless (parsed "no-pager") (config :pager))
