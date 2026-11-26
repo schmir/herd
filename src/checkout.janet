@@ -49,7 +49,8 @@
     # link itself is in the way.
     (nil? (os/lstat path :mode)) true
     # stat, so a link to an empty directory is one clone can fill.
-    (= :directory (os/stat path :mode)) (empty? (os/dir path))
+    # A directory that cannot be read may hold anything, so clone must not fill it.
+    (= :directory (os/stat path :mode)) (empty? (try (os/dir path) ([_] [nil])))
     false))
 
 (defn checkout-status

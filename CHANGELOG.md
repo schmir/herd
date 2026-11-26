@@ -4,6 +4,9 @@
 
 - herd now prints the text itself when the `:pager` command does not exist
   or cannot run. Before, the only output was the shell's error message.
+- `herd list` now reports a directory that it cannot read, at the path of a
+  repository, as `blocked`. Before, it printed a traceback and exited with
+  status 1.
 - `herd list --extra -f NAME` now lists the extra repositories when no
   repository list exists. Before, it printed `No repository lists in ...`
   and nothing else.

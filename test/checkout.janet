@@ -42,5 +42,14 @@
         "a link to an empty directory is followed, since clone fills it")
 (assert (= :ok (status "link-to-git")) "a link to a repository is followed")
 
+# Permissions do not stop a superuser, so the case needs a directory that
+# really cannot be read.
+(sh/create-dirs (path/join dir "unreadable"))
+(os/chmod (path/join dir "unreadable") 0)
+(when (nil? (try (os/dir (path/join dir "unreadable")) ([_] nil)))
+  (assert (= :blocked (status "unreadable"))
+          "a directory that cannot be read is blocked, not an error"))
+(os/chmod (path/join dir "unreadable") 8r755)
+
 (sh/rm dir)
 (end-suite)
