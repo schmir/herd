@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 - 2026-11-26
 
 - `herd tree` now prints `No repository lists in DIR` when nothing is
   configured, as the other commands do. Before, it printed nothing.
