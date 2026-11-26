@@ -7,7 +7,7 @@
   colored for a terminal, unless the pager is false. The default, less,
   shows the color, quits at once when the text fits on the screen, and
   leaves it there when it quits. Without a pager, or when it cannot be
-  started, the text is printed.
+  started or found, the text is printed.
 
   An interrupt the reader types in the pager is the pager's, so from then on
   herd ignores SIGINT rather than ending under it. Nothing can put the
@@ -22,5 +22,8 @@
       # The reader may quit before the end, which closes the pipe.
       (try (:write (pager :in) text) ([_] nil))
       (try (:close (pager :in)) ([_] nil))
-      (os/proc-wait pager))
+      # The shell exits 127 for a pager it cannot find and 126 for one it cannot
+      # run. The pager did not show the text then.
+      (when (index-of (os/proc-wait pager) [126 127])
+        (prin text)))
     (prin text)))

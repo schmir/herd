@@ -41,7 +41,16 @@
   (assert (nil? (os/stat started)) "the pager does not run")
   (sh/rm dir))
 
+(defn test-a-missing-pager-leaves-the-text-printed
+  "A pager that the shell cannot find does not swallow the text."
+  []
+  (assert (= "text\n" (printed (fn [] (pager/page "text\n" true "herd-no-such-pager-xyz 2>/dev/null"))))
+          "the text is printed")
+  (assert (= "" (printed (fn [] (pager/page "text\n" true "cat >/dev/null; exit 1"))))
+          "a pager that fails after it read the text is not an error to repair"))
+
 (test-text-without-a-pager-is-printed)
+(test-a-missing-pager-leaves-the-text-printed)
 (test-colored-text-goes-through-the-pager)
 (test-nothing-to-show-starts-no-pager)
 
