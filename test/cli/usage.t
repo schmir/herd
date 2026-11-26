@@ -104,6 +104,18 @@ Nothing configured yet is not a failure.
   $ herd fetch
   No repository lists in $ROOT/home/.config/herd
 
+Discovering extra repositories needs no list, with a filter named or not.
+
+  $ git init -q scratch
+  $ cat >"$CONFIG/config.jdn" <<'EOF'
+  > {:filters {"a" "[?group=='a']"}}
+  > EOF
+  $ herd list --extra
+  extra\t$ROOT/scratch\t (esc)
+  $ herd list --extra -f a
+  extra\t$ROOT/scratch\t (esc)
+  $ rm -rf scratch "$CONFIG/config.jdn"
+
 Nor is a configuration directory that does not exist yet.
 
   $ (export XDG_CONFIG_HOME="$ROOT/absent"; herd list)

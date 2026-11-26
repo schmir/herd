@@ -403,7 +403,8 @@
   (def everything
     (if (empty? names)
       configured
-      (((select-or-exit {:catalog-only? true} repository-settings) :catalog)
+      (((select-or-exit {:catalog-only? true} repository-settings
+                        :unconfigured-ok? true) :catalog)
         :repositories)))
   (def root (survey/discover-root (parsed "at")))
   # Selection accepts a path that is not a directory, such as a repository

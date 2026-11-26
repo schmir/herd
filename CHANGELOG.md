@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `herd list --extra -f NAME` now lists the extra repositories when no
+  repository list exists. Before, it printed `No repository lists in ...`
+  and nothing else.
 - An inline list now accepts only `:clone-url` for the URL of an entry. It
   refuses `:ssh-url` and `:clone_url` as it refused `:ssh_url`. Before, it
   read them as the URL.
